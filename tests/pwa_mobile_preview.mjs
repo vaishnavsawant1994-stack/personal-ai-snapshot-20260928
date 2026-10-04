@@ -1353,10 +1353,12 @@ try {
     "composer must remain inside the zoom-equivalent viewport: " + JSON.stringify(zoomEquivalent));
   assert.ok(zoomEquivalent.composer.height > 0, "composer must remain visible at the 200%-zoom-equivalent viewport: " + JSON.stringify(zoomEquivalent));
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator("#historyButton").focus();
   await page.keyboard.press("Tab");
   const keyboardFocus = await page.evaluate(() => {
     const node = document.activeElement;
-    return node !== document.body && !!node && node.getClientRects().length > 0 && node.tabIndex >= 0;
+    return node !== document.body && !!node && node.id !== "historyButton" &&
+      node.getClientRects().length > 0 && node.tabIndex >= 0;
   });
   assert.ok(keyboardFocus, "Tab must move focus to a visible keyboard-operable control");
 
