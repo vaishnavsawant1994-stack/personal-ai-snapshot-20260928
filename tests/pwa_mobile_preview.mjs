@@ -144,7 +144,9 @@ try {
       newConversation={thread:{id:"new",title:"New conversation",created_at:createdAt,updated_at:createdAt},events:[]};
       body = { conversation: { ...newConversation.thread }, events: [] };
     } else if (path === "/voice/turn" && method === "POST") {
+      assert.match(request.headers()["content-type"] || "", /^application\/json(?:;|$)/i, "voice turns must preserve the JSON content type when adding transport headers");
       const input = JSON.parse(request.postData() || "{}");
+      assert.match(input.request_id || "", /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i, "voice turns must carry a canonical logical request ID");
       const text = input.transcript;
       turnConversationIds.push(input.conversation_id);
       const userAt=new Date(turnClock+=60000).toISOString(),assistantAt=new Date(turnClock+=60000).toISOString();
