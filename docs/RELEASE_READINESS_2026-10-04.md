@@ -24,7 +24,7 @@ This deployment is not evidence of a multi-tenant service. Do not add public sig
 
 An active GitHub repository ruleset, **Protect main — pull request and core checks**, now applies to the default branch. It requires pull requests, up-to-date branches, and the GitHub Actions checks `CI / test` and `Reliability and Security / security`; it blocks deletion and force-pushes and has no bypass actors. Required reviews are zero because this is currently a single-owner repository; adding reviewers is appropriate if ownership expands.
 
-The two checks provide a small global merge gate. Path-filtered browser/PWA checks, P3 visual checks, Android/iOS, physical hardware, provider-backed tests, soak runs, and signing workflows remain specialized gates. Do not require a path-filtered workflow globally unless an always-running summary check guarantees a status for every PR. The static PWA Playwright workflow intercepts `/iphone/api/...` and returns fixtures; it verifies frontend behavior, not production authentication, API integration, or durable records.
+The two checks provide a small global merge gate. Android emulator instrumentation and iOS simulator builds now run on companion-code changes or by manual dispatch; physical Android/iPhone runs, provider-backed tests, long soak runs, TestFlight, and signed releases remain manual/scheduled specialized gates. PWA and P3 visual checks remain path-filtered. Do not require a path-filtered workflow globally unless an always-running summary check guarantees a status for every PR. The static PWA Playwright workflow intercepts `/iphone/api/...` and returns fixtures; it verifies frontend behavior, not production authentication, API integration, or durable records.
 
 ## Data durability and recovery
 
