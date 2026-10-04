@@ -8,11 +8,15 @@ on:
     paths:
       - 'pwa/**'
       - 'tests/pwa_mobile_preview.mjs'
+      - 'tests/standalone_pwa_responsive.mjs'
+      - 'personal-ai/pwa/**'
       - '.github/workflows/pwa-mobile-preview.yml'
   pull_request:
     paths:
       - 'pwa/**'
       - 'tests/pwa_mobile_preview.mjs'
+      - 'tests/standalone_pwa_responsive.mjs'
+      - 'personal-ai/pwa/**'
       - '.github/workflows/pwa-mobile-preview.yml'
 
 permissions:
@@ -35,13 +39,17 @@ jobs:
         run: |
           mkdir -p /tmp/pwa-preview
           cp -R pwa /tmp/pwa-preview/iphone
+          mkdir -p /tmp/pwa-preview/standalone
+          cp personal-ai/pwa/index.html /tmp/pwa-preview/standalone/index.html
           python3 -m http.server 4173 --bind 0.0.0.0 --directory /tmp/pwa-preview >/tmp/pwa-preview-server.log 2>&1 &
           for i in $(seq 1 30); do
             if curl --fail --silent http://127.0.0.1:4173/iphone/ >/dev/null; then break; fi
             sleep 1
           done
           curl --fail --silent http://127.0.0.1:4173/iphone/ >/dev/null
+          curl --fail --silent http://127.0.0.1:4173/standalone/ >/dev/null
           node tests/pwa_mobile_preview.mjs
+          node tests/standalone_pwa_responsive.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

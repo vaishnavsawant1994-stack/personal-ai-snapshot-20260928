@@ -1,12 +1,13 @@
 from __future__ import annotations
 import json
 from pathlib import Path
-from PyQt6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QLabel,QLineEdit,QCheckBox,QComboBox,QPushButton,QMessageBox,QFileDialog,QPlainTextEdit
+from PyQt6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QLabel,QLineEdit,QCheckBox,QComboBox,QPushButton,QMessageBox,QFileDialog,QPlainTextEdit,QScrollArea,QWidget,QFrame
 from security.policy_targets import application_identity,normalize_origin
+from ui.design_tokens import fit_window_to_screen, stylesheet as design_system_stylesheet
 
 class SettingsPanel(QDialog):
     def __init__(self,runtime,parent=None):
-        super().__init__(parent);self.runtime=runtime;self.prefs=runtime['preferences'];self.setWindowTitle('Personal AI Settings');self.resize(760,900);self.setStyleSheet("""
+        super().__init__(parent);self.runtime=runtime;self.prefs=runtime['preferences'];self.setWindowTitle('Personal AI Settings');fit_window_to_screen(self,preferred=(760,900));self.setStyleSheet("""
             QDialog { background:#030405; color:#edf3f6; }
             QLabel { color:#cbd8de; }
             QLineEdit, QComboBox, QPlainTextEdit {
@@ -27,8 +28,9 @@ class SettingsPanel(QDialog):
             QScrollBar:vertical { background:transparent; width:10px; margin:3px; }
             QScrollBar::handle:vertical { background:#23343d; border-radius:5px; min-height:28px; }
             QScrollBar::handle:vertical:hover { background:#355260; }
-        """)
-        lay=QVBoxLayout(self);lay.setContentsMargins(22,20,22,20);lay.setSpacing(10);lay.addWidget(QLabel('<h2>Personal AI Settings</h2>'))
+        """);self.setStyleSheet(self.styleSheet()+design_system_stylesheet())
+        outer=QVBoxLayout(self);outer.setContentsMargins(0,0,0,0);scroll=QScrollArea(self);scroll.setWidgetResizable(True);scroll.setFrameShape(QFrame.Shape.NoFrame);content=QWidget();outer.addWidget(scroll);scroll.setWidget(content)
+        lay=QVBoxLayout(content);lay.setContentsMargins(22,20,22,20);lay.setSpacing(10);lay.addWidget(QLabel('<h2>Personal AI Settings</h2>'))
         self.name=QLineEdit(str(self.prefs.get('preferred_name','')));self.name.setPlaceholderText('What should Personal AI call you?');lay.addWidget(QLabel('Preferred name'));lay.addWidget(self.name)
         self.wake=QLineEdit(str(self.prefs.get('wake_phrase','Hey Personal')));lay.addWidget(QLabel('Wake phrase'));lay.addWidget(self.wake)
         self.mode=QComboBox();self.mode.addItems(['observe','suggest','ask','act']);self.mode.setCurrentText(str(self.prefs.get('autonomy_mode','ask')));lay.addWidget(QLabel('Autonomy'));lay.addWidget(self.mode)

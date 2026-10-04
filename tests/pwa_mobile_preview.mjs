@@ -171,6 +171,16 @@ try {
   });
   await page.waitForFunction(() => document.querySelectorAll("#todayTimeline .today-item").length === 2, { timeout: 10000 }).catch(async error => { const state = await page.evaluate(() => ({ date: document.querySelector("#todayDate")?.textContent, timeline: document.querySelector("#todayTimeline")?.innerHTML, startupError: document.querySelector("#voiceAlert")?.dataset.startupError, alert: document.querySelector("#voiceAlert")?.textContent, refreshing: typeof refreshToday })); throw new Error(error.message + "\\nToday state: " + JSON.stringify(state) + "\\nAPI requests: " + appRequests.join(", ") + "\\nPage errors: " + pageErrors.join("\\n")); });
   await page.waitForTimeout(500);
+  const semanticTokens=await page.evaluate(()=>{
+    const css=getComputedStyle(document.documentElement);
+    return {body:css.getPropertyValue('--pa-type-body').trim(),page:css.getPropertyValue('--pa-type-page').trim(),
+      spacing:css.getPropertyValue('--pa-space-4').trim(),touch:css.getPropertyValue('--pa-touch-target').trim(),
+      cardRadius:css.getPropertyValue('--ui-card-radius').trim()};
+  });
+  assert.equal(semanticTokens.body,'1rem','PWA body role must use the semantic type scale');
+  assert.equal(semanticTokens.spacing,'1rem','PWA spacing must expose the shared 4-unit token');
+  assert.equal(semanticTokens.touch,'2.75rem','PWA touch target must be 44px');
+  assert.ok(semanticTokens.page&&semanticTokens.cardRadius,'PWA page heading and Home card surface tokens must resolve');
 
   // The explicit demo mode shows realistic sample records without calling mutation APIs.
   await page.evaluate(async()=>{todayScreenDemo=true;await openTodayScreen()});
@@ -384,6 +394,13 @@ try {
   await page.click("#todayAdd");
   assert.ok(await page.locator("#todayDialog").isVisible(), "Add control must open the accessible creation dialog");
   assert.ok(await page.locator("#todayForm").isVisible(), "creation form must remain visible inside its dialog");
+  await page.waitForFunction(() => {
+    const dialog=document.querySelector("#todayDialog"),date=document.querySelector("#todayScheduledDate"),time=document.querySelector("#todayTime");
+    if(!dialog?.open||!date||!time)return false;
+    const container=dialog.getBoundingClientRect(),dateBox=date.getBoundingClientRect(),timeBox=time.getBoundingClientRect();
+    return container.width>0&&dateBox.width>0&&timeBox.width>0&&dateBox.x>=container.x&&timeBox.x>=container.x&&
+      dateBox.right<=container.right&&timeBox.right<=container.right&&timeBox.top>=dateBox.bottom-1;
+  });
   const initialDialogBox=await page.locator("#todayDialog").boundingBox();
   const dateBox=await page.locator("#todayScheduledDate").boundingBox(),timeBox=await page.locator("#todayTime").boundingBox();
   assert.ok(dateBox.x>=initialDialogBox.x&&timeBox.x>=initialDialogBox.x&&dateBox.x+dateBox.width<=initialDialogBox.x+initialDialogBox.width&&timeBox.x+timeBox.width<=initialDialogBox.x+initialDialogBox.width,"date and time fields must fit inside the dialog on a phone viewport");
@@ -1095,6 +1112,7 @@ try {
     assert.ok(wide.quick.every(card=>card.width<wide.home.width*.52),"2x2 shortcut grid must stay proportionate at "+width+"x"+height);
     if(width===768)await page.screenshot({path:"artifacts/personal-ai-home-tablet-768x1024.png",fullPage:true});
     if(width===1440)await page.screenshot({path:"artifacts/personal-ai-home-desktop-1440x1000.png",fullPage:true});
+    if(width===2560)await page.screenshot({path:"artifacts/personal-ai-home-wide-2560x1440.png",fullPage:true});
     await page.click("#ownerButton");
     await page.waitForFunction(()=>document.querySelector("#conversationDrawer").dataset.mode==="timeline"&&!document.querySelector("#conversationDrawer").classList.contains("hidden"));
     await page.waitForFunction(()=>{const r=document.querySelector("#conversationDrawer").getBoundingClientRect();return r.left>=0&&r.right<=innerWidth+1});
@@ -1466,9 +1484,10 @@ try {
   const keyboardFocus = await page.evaluate(() => {
     const node = document.activeElement;
     return node !== document.body && !!node && node.id !== "historyButton" &&
-      node.getClientRects().length > 0 && node.tabIndex >= 0;
+      node.getClientRects().length > 0 && node.tabIndex >= 0 && node.matches(":focus-visible") &&
+      getComputedStyle(node).outlineStyle === "solid";
   });
-  assert.ok(keyboardFocus, "Tab must move focus to a visible keyboard-operable control");
+  assert.ok(keyboardFocus, "Tab must move focus to a visible keyboard-operable control with a focus ring");
 
   assert.deepEqual(pageErrors, [], "page must render without uncaught JavaScript errors");
   console.log("Responsive PWA qualification passed Home, chat, mobile keyboard, timeline, conversations, content pages, reduced motion and keyboard focus; "+(responsiveModules.length*responsiveModuleWidths.length)+" module/viewport combinations and "+sweepWidths.size+" intermediate Home widths from 320px through 2560px.");

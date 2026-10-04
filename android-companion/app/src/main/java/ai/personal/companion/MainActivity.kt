@@ -56,19 +56,19 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(28), dp(20), dp(32))
-            setBackgroundColor(Color.rgb(3, 6, 13))
+            setPadding(dp(PersonalAITheme.Space.x5), dp(28), dp(PersonalAITheme.Space.x5), dp(PersonalAITheme.Space.x8))
+            setBackgroundColor(PersonalAITheme.ColorToken.background)
         }
         val brand = TextView(this).apply {
             text = "P E R S O N A L   A I"
-            textSize = 19f
-            setTextColor(Color.WHITE)
+            textSize = PersonalAITheme.Type.sectionTitle
+            setTextColor(PersonalAITheme.ColorToken.text)
             setPadding(0, 0, 0, dp(10))
         }
         val description = TextView(this).apply {
             text = "Your owner-controlled intelligence"
-            textSize = 16f
-            setTextColor(Color.rgb(148, 163, 184))
+            textSize = PersonalAITheme.Type.body
+            setTextColor(PersonalAITheme.ColorToken.secondaryText)
             setPadding(0, 0, 0, dp(26))
         }
         val openCloud = Button(this).apply {
@@ -77,8 +77,8 @@ class MainActivity : AppCompatActivity() {
         }
         val continuity = TextView(this).apply {
             text = "Voice, Google sign-in, memory and conversations continue securely in your trusted browser."
-            textSize = 14f
-            setTextColor(Color.rgb(148, 163, 184))
+            textSize = PersonalAITheme.Type.supporting
+            setTextColor(PersonalAITheme.ColorToken.secondaryText)
             setPadding(dp(4), dp(14), dp(4), dp(26))
         }
         val advanced = Button(this).apply { text = "Advanced device pairing" }
@@ -104,7 +104,7 @@ class MainActivity : AppCompatActivity() {
         status = TextView(this).apply {
             text = "Device companion is not paired"
             setTextColor(Color.rgb(148, 163, 184))
-            setPadding(0, 14, 0, 0)
+        setPadding(0, dp(PersonalAITheme.Space.x3), 0, 0)
         }
         val pair = Button(this).apply { text = "Pair" }
         val connect = Button(this).apply { text = "Start background connection" }
@@ -136,31 +136,31 @@ class MainActivity : AppCompatActivity() {
     private fun rounded(fill: Int, stroke: Int): GradientDrawable =
         GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
-            cornerRadius = dp(14).toFloat()
+        cornerRadius = dp(PersonalAITheme.cornerRadiusDp).toFloat()
             setColor(fill)
             setStroke(dp(1), stroke)
         }
 
     private fun styleField(field: EditText) {
-        field.setTextColor(Color.rgb(237, 244, 247))
+        field.setTextColor(PersonalAITheme.ColorToken.text)
         field.setHintTextColor(Color.rgb(135, 151, 162))
-        field.background = rounded(Color.rgb(7, 13, 18), Color.rgb(35, 52, 63))
-        field.setPadding(dp(14), dp(12), dp(14), dp(12))
-        field.minHeight = dp(52)
-        field.textSize = 15f
+        field.background = rounded(PersonalAITheme.ColorToken.field, PersonalAITheme.ColorToken.border)
+        field.setPadding(dp(PersonalAITheme.Space.x3), dp(PersonalAITheme.Space.x3), dp(PersonalAITheme.Space.x3), dp(PersonalAITheme.Space.x3))
+        field.minHeight = dp(PersonalAITheme.controlHeightDp)
+        field.textSize = PersonalAITheme.Type.body
     }
 
     private fun styleButton(button: Button, primary: Boolean) {
-        val fill = if (primary) Color.rgb(214, 237, 248) else Color.rgb(10, 18, 24)
-        val ink = if (primary) Color.rgb(5, 15, 22) else Color.rgb(211, 224, 231)
-        val stroke = if (primary) Color.rgb(214, 237, 248) else Color.rgb(42, 62, 74)
+        val fill = if (primary) PersonalAITheme.ColorToken.primaryAction else PersonalAITheme.ColorToken.surface
+        val ink = if (primary) PersonalAITheme.ColorToken.background else PersonalAITheme.ColorToken.text
+        val stroke = if (primary) PersonalAITheme.ColorToken.primaryAction else PersonalAITheme.ColorToken.border
         button.background = rounded(fill, stroke)
         button.backgroundTintList = null
         button.setTextColor(ink)
-        button.textSize = 14f
+        button.textSize = PersonalAITheme.Type.control
         button.isAllCaps = false
-        button.minHeight = dp(48)
-        button.setPadding(dp(16), dp(10), dp(16), dp(10))
+        button.minHeight = dp(PersonalAITheme.touchTargetDp)
+        button.setPadding(dp(PersonalAITheme.Space.x4), dp(PersonalAITheme.Space.x2), dp(PersonalAITheme.Space.x4), dp(PersonalAITheme.Space.x2))
         button.stateListAnimator = null
     }
 
