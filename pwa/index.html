@@ -835,6 +835,11 @@
       background:transparent;
       box-shadow:none;
     }
+    body:not(.home-landing) .message-entry.assistant .message-avatar,
+    body:not(.home-landing) .message-entry.assistant .message::before{
+      display:none!important;
+      content:none!important;
+    }
     .round-button{
       transition:transform 150ms cubic-bezier(.23,1,.32,1),border-color 150ms ease-out,
         background-color 150ms ease-out,color 150ms ease-out,box-shadow 150ms ease-out;
