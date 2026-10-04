@@ -217,6 +217,8 @@ try {
   const demoEverydayBeforePlan=everydayItems.length;
   const demoConversationBeforeOpen=await page.evaluate(()=>currentConversationId);
   await page.click("#timelineAddPlan");
+  assert.equal(await page.locator("#todayDialog").isVisible(),true,"Timeline Add to plan must open the shared creation dialog");
+  await page.click("#todayCancel");
   assert.equal(everydayItems.length,demoEverydayBeforePlan,"Timeline demo Add to plan must not create real data");
   const demoConversationTitle=page.locator('#conversationList .timeline-entry[data-category="conversation"] .timeline-title').first();
   await demoConversationTitle.evaluate(button=>button.click());
