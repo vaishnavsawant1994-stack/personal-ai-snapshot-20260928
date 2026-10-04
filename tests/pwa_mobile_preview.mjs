@@ -905,8 +905,9 @@ try {
   await page.screenshot({ path: "artifacts/personal-ai-chat-after-refresh-390x844.png", fullPage: true });
 
   const viewports = [
-    [320, 568], [360, 780], [375, 812], [390, 844], [393, 852], [402, 874], [414, 896], [430, 932],
-    [768, 1024], [1024, 768], [1366, 768], [1920, 1080],
+    [320, 568], [360, 780], [375, 812], [390, 844],
+    [393, 852], [402, 874], [414, 896], [430, 932], [600, 900],
+    [768, 1024], [820, 1180], [1024, 768],
   ];
   const responsiveScreenshots = new Map([
     [320, "personal-ai-phone-small-320x568.png"],
@@ -1054,7 +1055,7 @@ try {
   }
 
   // Tablet and desktop must keep the approved Home composition centered rather than stretching edge-to-edge.
-  const wideViewports=[[768,1024],[820,1180],[1024,768],[1024,900],[1280,900],[1366,768],[1440,1000],[1920,1080]];
+  const wideViewports=[[768,1024],[820,1180],[1024,768],[1024,900],[1280,900],[1366,768],[1440,1000],[1920,1080],[2560,1440]];
   for(const [width,height] of wideViewports){
     await page.setViewportSize({width,height});
     await page.evaluate(()=>enterHomeLanding());
@@ -1094,6 +1095,63 @@ try {
     if(width===820)await page.screenshot({path:"artifacts/personal-ai-timeline-approved-tablet-820x1180.png",fullPage:true});
     if(width===1440)await page.screenshot({path:"artifacts/personal-ai-timeline-approved-desktop-1440x1000.png",fullPage:true});
     await page.click("#timelineCloseDrawer");
+  }
+
+  // Sweep intermediate widths as well as the named device checkpoints. This
+  // catches breakpoint gaps without tying the layout to specific device sizes.
+  const sweepWidths=new Set([320,360,375,390,430,600,768,820,900,1024,1280,1440,1920,2560]);
+  for(let width=320;width<=2560;width+=32)sweepWidths.add(width);
+  for(const width of [...sweepWidths].sort((a,b)=>a-b)){
+    await page.setViewportSize({width,height:844});
+    await page.evaluate(()=>enterHomeLanding());
+    const sweep=await page.evaluate(()=>{
+      const box=selector=>{const r=document.querySelector(selector).getBoundingClientRect();return {left:r.left,right:r.right,width:r.width,height:r.height,bottom:r.bottom}};
+      return {viewport:innerWidth,document:document.documentElement.scrollWidth,composer:box('#composer'),home:box('.home-intro'),header:box('.topbar'),quick:box('.quick-actions')};
+    });
+    assert.ok(sweep.document<=width,"intermediate width introduced page overflow at "+width+"px: "+JSON.stringify(sweep));
+    for(const name of ["composer","home","header","quick"]){
+      assert.ok(sweep[name].width>0&&sweep[name].left>=-1&&sweep[name].right<=width+1,
+        name+" moved off-screen at intermediate width "+width+"px: "+JSON.stringify(sweep[name]));
+    }
+    assert.ok(sweep.composer.bottom<=844+1,"composer moved below the screen at intermediate width "+width+"px");
+  }
+  for(const [width,height] of [[320,480],[390,480],[390,1100],[844,390]]){
+    await page.setViewportSize({width,height});
+    await page.evaluate(()=>enterHomeLanding());
+    const shortOrTall=await page.evaluate(()=>({
+      viewport:{width:innerWidth,height:innerHeight},
+      documentWidth:document.documentElement.scrollWidth,
+      composer:document.querySelector('#composer').getBoundingClientRect(),
+      quick:document.querySelector('.quick-actions').getBoundingClientRect(),
+    }));
+    assert.ok(shortOrTall.documentWidth<=width,"short, tall or landscape viewport must not create horizontal page overflow: "+JSON.stringify(shortOrTall));
+    assert.ok(shortOrTall.composer.left>=-1&&shortOrTall.composer.right<=width+1&&shortOrTall.composer.bottom<=height+1,
+      "composer must remain in view in short, tall and landscape layouts: "+JSON.stringify(shortOrTall));
+    assert.ok(shortOrTall.quick.bottom<=shortOrTall.composer.top+1,
+      "Home actions must not be covered by the composer in short, tall and landscape layouts: "+JSON.stringify(shortOrTall));
+  }
+  const responsiveModuleWidths=[320,360,375,390,430,600,768,820,1024,1280,1440,1920,2560];
+  const responsiveModules=["memory","knowledge","activities","tools","workflows","devices","dashboard","settings","owner","system"];
+  for(const width of responsiveModuleWidths){
+    await page.setViewportSize({width,height:844});
+    for(const moduleName of responsiveModules){
+      await page.evaluate(name=>openModule(name),moduleName);
+      const moduleLayout=await page.evaluate(()=>{
+        const panel=document.querySelector('#modulePanel').getBoundingClientRect();
+        const content=document.querySelector('#moduleBody').getBoundingClientRect();
+        return {viewport:innerWidth,document:document.documentElement.scrollWidth,
+          panel:{left:panel.left,right:panel.right,width:panel.width,height:panel.height},
+          content:{left:content.left,right:content.right,width:content.width,height:content.height},
+          focused:document.body.classList.contains('focused-module')};
+      });
+      assert.ok(moduleLayout.document<=width,
+        moduleName+" page introduced document overflow at "+width+"px: "+JSON.stringify(moduleLayout));
+      assert.ok(moduleLayout.panel.width>0&&moduleLayout.panel.left>=-1&&moduleLayout.panel.right<=width+1,
+        moduleName+" panel moved beyond the viewport at "+width+"px: "+JSON.stringify(moduleLayout));
+      assert.ok(moduleLayout.content.left>=-1&&moduleLayout.content.right<=width+1,
+        moduleName+" content moved beyond the viewport at "+width+"px: "+JSON.stringify(moduleLayout));
+      assert.equal(moduleLayout.focused,true,moduleName+" should use the focused product page layout");
+    }
   }
   await page.setViewportSize({width:390,height:844});
   await page.evaluate(()=>enterHomeLanding());
@@ -1352,6 +1410,18 @@ try {
   assert.ok(zoomEquivalent.composer.left >= -1 && zoomEquivalent.composer.right <= zoomEquivalent.viewport + 1,
     "composer must remain inside the zoom-equivalent viewport: " + JSON.stringify(zoomEquivalent));
   assert.ok(zoomEquivalent.composer.height > 0, "composer must remain visible at the 200%-zoom-equivalent viewport: " + JSON.stringify(zoomEquivalent));
+  // A 320 CSS-pixel viewport is the standard 400%-reflow equivalent for a
+  // 1280px desktop viewport; browser chrome zoom itself is not controllable here.
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.evaluate(() => enterHomeLanding());
+  const fourHundredPercentReflow=await page.evaluate(()=>({
+    viewport:innerWidth,document:document.documentElement.scrollWidth,
+    composer:document.querySelector('#composer').getBoundingClientRect(),
+    quick:document.querySelector('.quick-actions').getBoundingClientRect(),
+  }));
+  assert.ok(fourHundredPercentReflow.document<=320,"400%-equivalent reflow must not create page overflow: "+JSON.stringify(fourHundredPercentReflow));
+  assert.ok(fourHundredPercentReflow.composer.left>=-1&&fourHundredPercentReflow.composer.right<=321,"composer must remain visible in 400%-equivalent reflow");
+  assert.ok(fourHundredPercentReflow.quick.left>=-1&&fourHundredPercentReflow.quick.right<=321,"Home actions must remain visible in 400%-equivalent reflow");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator("#historyButton").focus();
   await page.keyboard.press("Tab");
@@ -1363,7 +1433,7 @@ try {
   assert.ok(keyboardFocus, "Tab must move focus to a visible keyboard-operable control");
 
   assert.deepEqual(pageErrors, [], "page must render without uncaught JavaScript errors");
-  console.log("Right unified timeline passed chats, meetings, work, reminders, workflow, done and authorized audit filters, chronological ordering, search, completion, Back, New chat, Plan and eight viewports.");
+  console.log("Responsive PWA qualification passed Home, chat, mobile keyboard, timeline, conversations, content pages, reduced motion and keyboard focus; "+(responsiveModules.length*responsiveModuleWidths.length)+" module/viewport combinations and "+sweepWidths.size+" intermediate Home widths from 320px through 2560px.");
 
   // Signing out clears previously loaded private rows, and the drawer must not
   // leave an unauthorized request stuck in its loading state.
@@ -1407,4 +1477,3 @@ try {
 } finally {
   await browser.close();
 }
-

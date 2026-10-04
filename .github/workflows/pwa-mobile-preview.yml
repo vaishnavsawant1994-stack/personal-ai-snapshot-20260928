@@ -3,7 +3,8 @@ name: PWA mobile visual preview
 on:
   push:
     branches:
-      - 'ui/approved-pages-implementation-20261003'
+      - main
+      - 'ui/**'
     paths:
       - 'pwa/**'
       - 'tests/pwa_mobile_preview.mjs'
