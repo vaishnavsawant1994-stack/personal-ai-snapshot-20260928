@@ -1154,7 +1154,7 @@ try {
     }
   }
   await page.setViewportSize({width:390,height:844});
-  await page.evaluate(()=>enterHomeLanding());
+  await page.evaluate(()=>openModule('home'));
 
   // Keyboard and creation controls use the existing application bindings.
   await page.setViewportSize({ width: 390, height: 844 });
