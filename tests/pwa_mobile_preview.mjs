@@ -1360,6 +1360,18 @@ try {
   assert.equal(reducedMotion.requested, true, "reduced-motion preference must reach the application");
   assert.equal(reducedMotion.scrollBehavior, "auto", "reduced-motion mode must disable smooth page scrolling");
   await page.emulateMedia({ reducedMotion: "no-preference" });
+  const openDrawers = await page.evaluate(() => ({
+    app: !document.querySelector("#appDrawer").classList.contains("hidden"),
+    conversation: !document.querySelector("#conversationDrawer").classList.contains("hidden"),
+    mode: document.querySelector("#conversationDrawer").dataset.mode,
+  }));
+  if (openDrawers.app) await page.click("#closeAppDrawer");
+  if (openDrawers.conversation) {
+    await page.click(openDrawers.mode === "timeline" ? "#timelineCloseDrawer" : "#closeDrawer");
+  }
+  await page.waitForFunction(() =>
+    document.querySelector("#appDrawer").classList.contains("hidden") &&
+    document.querySelector("#conversationDrawer").classList.contains("hidden"));
   await page.setViewportSize({ width: 195, height: 422 });
   await page.evaluate(() => enterHomeLanding());
   const zoomEquivalent = await page.evaluate(() => {
