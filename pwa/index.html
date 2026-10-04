@@ -2124,6 +2124,54 @@ body:not(.home-landing):not(.focused-module) .message-entry.is-collapsed .messag
 .sidebar-account{grid-template-columns:36px minmax(0,1fr) 18px!important;gap:4px!important}
 .sidebar-avatar{width:36px!important;height:36px!important}
 .sidebar-account-copy strong{font-size:12.5px!important;letter-spacing:-.015em}
+
+    /* Design engineering finish: quieter assistant text, clear press feedback, and short UI motion. */
+    body:not(.home-landing) .message-entry.assistant{
+      padding-left:0;
+      margin-bottom:16px;
+      min-width:0;
+    }
+    body:not(.home-landing) .message-entry.assistant .message{
+      width:100%;
+      padding:0;
+      border:0;
+      border-radius:0;
+      background:transparent;
+      box-shadow:none;
+    }
+    body:not(.home-landing) .message-entry.assistant .message-avatar,
+    body:not(.home-landing) .message-entry.assistant .message::before{
+      display:none!important;
+      content:none!important;
+    }
+    .round-button{
+      transition:transform 150ms cubic-bezier(.23,1,.32,1),border-color 150ms ease-out,
+        background-color 150ms ease-out,color 150ms ease-out,box-shadow 150ms ease-out;
+      -webkit-tap-highlight-color:transparent;
+    }
+    .round-button:active,.history-button:active,.attach-button:active,.nav button:active,
+    .message-actions button:active,.conversation-item:active,.owner-menu button:active,
+    .more-sheet button:active,.settings-nav button:active,.settings-mobile-nav button:active,
+    .quick-action:active,.feature:active{
+      transform:scale(.97);
+      transition:transform 140ms cubic-bezier(.23,1,.32,1);
+      -webkit-tap-highlight-color:transparent;
+    }
+    .toast{
+      transition:opacity 160ms ease-out,transform 160ms cubic-bezier(.23,1,.32,1);
+      transform:translate(-50%,12px) scale(.97);
+    }
+    .toast.show{transform:translate(-50%,0) scale(1)}
+    @media(prefers-reduced-motion:reduce){
+      .round-button,.toast,.toast.show,
+      .round-button:active,.history-button:active,.attach-button:active,.nav button:active,
+      .message-actions button:active,.conversation-item:active,.owner-menu button:active,
+      .more-sheet button:active,.settings-nav button:active,.settings-mobile-nav button:active,
+      .quick-action:active,.feature:active{
+        transition-duration:.01ms!important;
+      }
+    }
+
 </style>
 </head>
 <body>
@@ -3701,7 +3749,7 @@ function attachIdentitySphere(){
  stage.classList.add('identity-core-stage');
  requestAnimationFrame(resizeCanvas);
 }
-async function openModule(name){restoreIdentitySphere();document.body.classList.toggle('focused-module',['memory','knowledge','activities','settings','owner'].includes(name));closeFloatingMenus();closeAllDrawers();activeModule=name;$('modulePanel').dataset.surface=name;syncChatMenuAvailability();document.querySelectorAll('[data-app-module]').forEach(button=>button.classList.toggle('active',button.dataset.appModule===name));document.querySelectorAll('[data-module]').forEach(button=>{button.classList.toggle('active',button.dataset.module===name);if(button.closest('.nav')){if(button.dataset.module===name)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current')}});if(name==='home'){$('modulePanel').classList.remove('open');$('voicePanel').classList.remove('hidden');$('features').classList.remove('hidden');enterHomeLanding();refreshToday().catch(todayLoadError);return}const module=modules[name]||[name[0].toUpperCase()+name.slice(1),'Owner-controlled Personal AI management.',''];$('voicePanel').classList.add('hidden');$('features').classList.add('hidden');$('moduleTitle').textContent=module[0];$('moduleText').textContent=module[1];$('moduleMetric').textContent=typeof module[2]==='function'?module[2]():module[2];$('modulePanel').classList.add('open');$('moduleBody').innerHTML='<div class="empty-module">Loading…</div>';try{if(name==='memory')await loadMemory();else if(name==='knowledge')await loadKnowledge();else if(name==='activities')await loadActivitiesDashboard();else if(name==='devices')await loadDevices();else if(name==='workflows')await loadWorkflows();else if(name==='tools')await loadTools();else if(name==='dashboard')await loadDashboard();else if(name==='settings')await renderSettings();else if(name==='owner')await loadOwnerPage();else if(name==='system')await loadSystem()}catch(error){$('moduleBody').innerHTML=`<div class="section-page">${sectionHeader(module[0],module[1])}<section class="section-empty" role="alert"><strong>${escapeHtml(error?.message||'Unable to load this page.')}</strong><button class="section-inline-action" type="button" onclick="openModule('${escapeHtml(name)}')">Retry</button></section></div>`;bindSectionHeader()}}
+async function openModule(name){restoreIdentitySphere();document.body.classList.toggle('focused-module',['memory','knowledge','activities','tools','workflows','devices','dashboard','settings','owner','system'].includes(name));closeFloatingMenus();closeAllDrawers();activeModule=name;$('modulePanel').dataset.surface=name;syncChatMenuAvailability();document.querySelectorAll('[data-app-module]').forEach(button=>button.classList.toggle('active',button.dataset.appModule===name));document.querySelectorAll('[data-module]').forEach(button=>{button.classList.toggle('active',button.dataset.module===name);if(button.closest('.nav')){if(button.dataset.module===name)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current')}});if(name==='home'){$('modulePanel').classList.remove('open');$('voicePanel').classList.remove('hidden');$('features').classList.remove('hidden');enterHomeLanding();refreshToday().catch(todayLoadError);return}const module=modules[name]||[name[0].toUpperCase()+name.slice(1),'Owner-controlled Personal AI management.',''];$('voicePanel').classList.add('hidden');$('features').classList.add('hidden');$('moduleTitle').textContent=module[0];$('moduleText').textContent=module[1];$('moduleMetric').textContent=typeof module[2]==='function'?module[2]():module[2];$('modulePanel').classList.add('open');$('moduleBody').innerHTML='<div class="empty-module">Loading…</div>';try{if(name==='memory')await loadMemory();else if(name==='knowledge')await loadKnowledge();else if(name==='activities')await loadActivitiesDashboard();else if(name==='devices')await loadDevices();else if(name==='workflows')await loadWorkflows();else if(name==='tools')await loadTools();else if(name==='dashboard')await loadDashboard();else if(name==='settings')await renderSettings();else if(name==='owner')await loadOwnerPage();else if(name==='system')await loadSystem()}catch(error){$('moduleBody').innerHTML=`<div class="section-page">${sectionHeader(module[0],module[1])}<section class="section-empty" role="alert"><strong>${escapeHtml(error?.message||'Unable to load this page.')}</strong><button class="section-inline-action" type="button" onclick="openModule('${escapeHtml(name)}')">Retry</button></section></div>`;bindSectionHeader()}}
 // Focused owner pages share a compact, safe-data presentation layer. Demo fixtures
 // are available only by explicit ?uiDemo=1 preview and never call mutation APIs.
 function renderModuleLoading(body,label){body.innerHTML=`<div class="section-empty" role="status">${escapeHtml(label)}</div>`}
