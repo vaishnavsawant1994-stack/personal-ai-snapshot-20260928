@@ -6,6 +6,7 @@ on:
     paths:
       - 'web-companion/**'
       - 'tests/web_companion_responsive.mjs'
+      - 'tests/web_companion_baseline_screenshots.mjs'
       - 'pwa/**'
       - 'ios-companion/**'
       - 'android-companion/**'
@@ -16,6 +17,7 @@ on:
     paths:
       - 'web-companion/**'
       - 'tests/web_companion_responsive.mjs'
+      - 'tests/web_companion_baseline_screenshots.mjs'
       - 'pwa/**'
       - 'ios-companion/**'
       - 'android-companion/**'
@@ -41,12 +43,20 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Serve and qualify companion layouts
         run: |
+          git fetch origin main
+          mkdir -p /tmp/web-companion-baseline
+          for file in index.html styles.css app.js; do
+            git show "origin/main:web-companion/$file" > "/tmp/web-companion-baseline/$file"
+          done
+          python3 -m http.server 4175 --bind 0.0.0.0 --directory /tmp/web-companion-baseline >/tmp/web-companion-baseline-server.log 2>&1 &
           python3 -m http.server 4174 --bind 0.0.0.0 --directory web-companion >/tmp/web-companion-server.log 2>&1 &
           for i in $(seq 1 30); do
             if curl --fail --silent http://127.0.0.1:4174/ >/dev/null; then break; fi
             sleep 1
           done
           curl --fail --silent http://127.0.0.1:4174/ >/dev/null
+          curl --fail --silent http://127.0.0.1:4175/ >/dev/null
+          node tests/web_companion_baseline_screenshots.mjs
           node tests/web_companion_responsive.mjs
       - uses: actions/upload-artifact@v4
         if: always()
