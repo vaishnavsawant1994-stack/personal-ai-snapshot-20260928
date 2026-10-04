@@ -24,6 +24,7 @@ const auditedEvents=[{id:"audit-1",category:"workflow",kind:"workflow",label:"Wo
 const workflowRuns=[{id:'run-1',workflow_title:'Morning operations',status:'completed',created_at:atToday(7),updated_at:atToday(9,30),current_step:3}];
 let allowActivity=true;
 let revokeSession=false;
+let failNextTaskComplete=false;
 const deletedConversationIds=[];
 const createdMemories=[];
 const exportedConversationIds=[];
@@ -99,6 +100,7 @@ try {
       everydayItems.push(item);
       return route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ item }) });
     } else if (path.startsWith("/everyday/") && path.endsWith("/complete") && method === "POST") {
+      if(failNextTaskComplete){failNextTaskComplete=false;return route.fulfill({status:422,contentType:"application/json",body:JSON.stringify({detail:[{loc:["body","task_id"],msg:"Task could not be completed"}]})})}
       const id = decodeURIComponent(path.split("/")[2]);
       const item = everydayItems.find(item => item.id === id);
       if(item){item.status="completed";item.completed_at=new Date().toISOString();item.updated_at=item.completed_at}
@@ -403,6 +405,14 @@ try {
   assert.equal(createdMemories.length,1,"saving a note must call the memory creation API once");
   assert.equal(createdMemories[0].subject,"Popup note smoke test");
   assert.equal(createdMemories[0].content,"Saved through the Personal AI creation dialog.");
+  failNextTaskComplete=true;
+  await page.locator("#todayTimeline .today-check").first().click();
+  await page.waitForFunction(() => document.querySelector("#toast")?.textContent === "body.task_id: Task could not be completed");
+  assert.equal(await page.locator("#toast").textContent(),"body.task_id: Task could not be completed","structured API validation errors must be shown as readable text");
+  assert.ok(!(await page.locator("#toast").textContent()).includes("[object Object]"),"toast must never expose JavaScript object coercion");
+  assert.equal(await page.locator("#todayTimeline .today-item").count(),3,"a failed completion must leave the item pending");
+  await page.evaluate(()=>showToast({message:{unexpected:true}}));
+  assert.equal(await page.locator("#toast").textContent(),"Something went wrong. Please try again.","unrenderable toast objects must use a readable fallback");
   await page.locator("#todayTimeline .today-check").first().click();
   await page.waitForFunction(() => document.querySelectorAll("#todayTimeline .today-item").length === 2);
   assert.ok(!((await page.locator("#todayTimeline").innerText()).includes("Finish daily review")), "completing a task must remove it from today's pending list");
