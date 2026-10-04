@@ -32,7 +32,7 @@ class SettingsPanel(QDialog):
         outer=QVBoxLayout(self);outer.setContentsMargins(0,0,0,0);scroll=QScrollArea(self);scroll.setWidgetResizable(True);scroll.setFrameShape(QFrame.Shape.NoFrame);content=QWidget();outer.addWidget(scroll);scroll.setWidget(content)
         lay=QVBoxLayout(content);lay.setContentsMargins(22,20,22,20);lay.setSpacing(10);lay.addWidget(QLabel('<h2>Vishnu Settings</h2>'))
         self.name=QLineEdit(str(self.prefs.get('preferred_name','')));self.name.setPlaceholderText('What should Vishnu call you?');lay.addWidget(QLabel('Preferred name'));lay.addWidget(self.name)
-        self.wake=QLineEdit(str(self.prefs.get('wake_phrase','Hey Personal')));lay.addWidget(QLabel('Wake phrase'));lay.addWidget(self.wake)
+        self.wake=QLineEdit(str(self.prefs.get('wake_phrase','Hey Vishnu')));lay.addWidget(QLabel('Wake phrase'));lay.addWidget(self.wake)
         self.mode=QComboBox();self.mode.addItems(['observe','suggest','ask','act']);self.mode.setCurrentText(str(self.prefs.get('autonomy_mode','ask')));lay.addWidget(QLabel('Autonomy'));lay.addWidget(self.mode)
         self.privacy=QComboBox();self.privacy.addItems(['local_only','local_preferred','external_allowed']);self.privacy.setCurrentText(str(self.prefs.get('model_privacy_mode','local_preferred')));lay.addWidget(QLabel('Model privacy'));lay.addWidget(self.privacy)
         self.voice=QCheckBox('Start voice when Vishnu opens');self.voice.setChecked(bool(self.prefs.get('launch_voice_on_start')));lay.addWidget(self.voice)
@@ -53,7 +53,7 @@ class SettingsPanel(QDialog):
         self.model_view=QPlainTextEdit();self.model_view.setReadOnly(True);self.model_view.setMaximumHeight(230);lay.addWidget(self.model_view);mrow=QHBoxLayout();mrefresh=QPushButton('Refresh model status');mrefresh.clicked.connect(self.refresh_model_view);mprobe=QPushButton('Run bounded health check');mprobe.clicked.connect(lambda:self.refresh_model_view(True));mrow.addWidget(mrefresh);mrow.addWidget(mprobe);lay.addLayout(mrow)
         lay.addWidget(QLabel('Local diagnostics'));self.diagnostics=QPlainTextEdit();self.diagnostics.setReadOnly(True);self.refresh();lay.addWidget(self.diagnostics,1);refresh=QPushButton('Refresh diagnostics');refresh.clicked.connect(self.refresh);lay.addWidget(refresh);self.refresh_policy_view();self.refresh_model_view()
     def save(self):
-        phrase=self.wake.text().strip() or 'Hey Personal';mode=self.mode.currentText();privacy=self.privacy.currentText();self.prefs.update(onboarding_complete=True,preferred_name=self.name.text().strip(),wake_phrase=phrase,launch_voice_on_start=self.voice.isChecked(),show_memory_hints=self.hints.isChecked(),reduce_motion=self.motion.isChecked(),high_contrast=self.contrast.isChecked(),autonomy_mode=mode,model_privacy_mode=privacy)
+        phrase=self.wake.text().strip() or 'Hey Vishnu';mode=self.mode.currentText();privacy=self.privacy.currentText();self.prefs.update(onboarding_complete=True,preferred_name=self.name.text().strip(),wake_phrase=phrase,launch_voice_on_start=self.voice.isChecked(),show_memory_hints=self.hints.isChecked(),reduce_motion=self.motion.isChecked(),high_contrast=self.contrast.isChecked(),autonomy_mode=mode,model_privacy_mode=privacy)
         gate=self.runtime.get('wake_phrase');tools=self.runtime.get('tools');models=self.runtime.get('models')
         if gate:gate.phrases=(phrase,);gate.reset()
         if tools and hasattr(tools,'set_autonomy_mode'):tools.set_autonomy_mode(mode)

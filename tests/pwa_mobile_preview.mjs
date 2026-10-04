@@ -319,7 +319,7 @@ try {
   assert.equal(await page.locator("#micButton").isVisible(), true, "idle Home composer microphone must remain available");
   assert.equal(await page.locator("#attachmentButton svg path").getAttribute("d"), "M12 5v14M5 12h14", "attachment icon must remain the existing compact plus");
   assert.equal(await page.locator("#attachmentButton").getAttribute("aria-label"), "Add a document", "attachment control must preserve its accessible behavior");
-  assert.equal(homeState.headerSphere, true, "the ORIGINAL animated Personal AI sphere must remain in the Home header");
+  assert.equal(homeState.headerSphere, true, "the ORIGINAL animated Vishnu sphere must remain in the Home header");
   assert.equal(homeState.headerActivePresent, false, "Home must not render ACTIVE or any status label beneath the sphere");
   assert.equal(homeState.headerGreenDot, false, "old header status dot must stay removed");
   assert.equal(homeState.headerVisual.backgroundColor, "rgba(0, 0, 0, 0)", "Home top row must sit directly on the page background");
@@ -332,7 +332,7 @@ try {
   assert.ok(homeState.menuButton.width >= 44 && homeState.menuButton.height >= 44, "Home header controls must preserve accessible touch targets");
   assert.ok(homeState.core.width >= 46 && homeState.core.width <= 58, "Home sphere must use the approved compact scale");
   assert.equal(homeState.toolsSubtitle.text, "Apps & workflows", "Tools subtitle must render fully");
-  assert.equal(new Set(homeState.quickIconColors).size,1,"all four Home quick-action icons must use one Personal AI blue treatment");
+  assert.equal(new Set(homeState.quickIconColors).size,1,"all four Home quick-action icons must use one Vishnu blue treatment");
   assert.equal(new Set(homeState.quickIconBackgrounds).size,1,"all four Home quick-action icon tiles must use one consistent blue glass surface");
   assert.ok(homeState.toolsSubtitle.scrollWidth <= homeState.toolsSubtitle.clientWidth+2, "Tools subtitle must not be clipped with an ellipsis");
   assert.deepEqual(homeState.recentTitles, conversations.map(item=>item.title), "Home Recent must use REAL canonical conversation data");
@@ -422,10 +422,10 @@ try {
   await page.click("#todayAdd");await page.click('[data-today-kind="note"]');
   assert.equal(await page.locator("#todayContentWrap").isVisible(),true,"Note selection must reveal the note content field");
   assert.equal(await page.locator("#todayScheduledDate").isVisible(),false,"Notes do not require a task date");
-  await page.fill("#todayTitle","Popup note smoke test");await page.fill("#todayContent","Saved through the Personal AI creation dialog.");await page.click("#todaySave");
+  await page.fill("#todayTitle","Popup note smoke test");await page.fill("#todayContent","Saved through the Vishnu creation dialog.");await page.click("#todaySave");
   assert.equal(createdMemories.length,1,"saving a note must call the memory creation API once");
   assert.equal(createdMemories[0].subject,"Popup note smoke test");
-  assert.equal(createdMemories[0].content,"Saved through the Personal AI creation dialog.");
+  assert.equal(createdMemories[0].content,"Saved through the Vishnu creation dialog.");
   failNextTaskComplete=true;
   await page.locator("#todayTimeline .today-check").first().click();
   await page.waitForFunction(() => document.querySelector("#toast")?.textContent === "body.task_id: Task could not be completed");
@@ -490,7 +490,7 @@ try {
   }
   await page.screenshot({ path: "artifacts/personal-ai-sidebar-account-390x844.png", fullPage: true });
   await page.click("#appOwnerControls");
-  await page.waitForFunction(() => document.querySelector("#modulePanel")?.classList.contains("open") && document.querySelector("#moduleTitle")?.textContent === "Personal AI Owner" && document.querySelector("#moduleBody")?.innerText.includes("Personal AI Owner"));
+  await page.waitForFunction(() => document.querySelector("#modulePanel")?.classList.contains("open") && document.querySelector("#moduleTitle")?.textContent === "Vishnu Owner" && document.querySelector("#moduleBody")?.innerText.includes("Vishnu Owner"));
   const ownerPageText = (await page.locator("#moduleBody").innerText()).toLowerCase();
   for (const item of ["account & plan", "profile & preferences", "security & access", "data & privacy", "sign out"]) {
     assert.ok(ownerPageText.includes(item), "Owner page missing " + item);
@@ -722,7 +722,7 @@ try {
   assert.ok(timelineState.statuses.includes("Completed")&&timelineState.statuses.includes("Updated"),"Timeline must render human-readable semantic status chips");
   assert.ok((await page.locator('.timeline-entry[data-status="done"]').count())>=2);
   assert.ok(await page.locator("#timelineAddPlan").isVisible(),"right Timeline must keep existing planning functionality");
-  assert.deepEqual(await page.evaluate(()=>auditTimelinePresentation({label:"Model",kind:"model",action:"selected"})),{title:"Model selected",preview:"Personal AI model selection updated"},"generic Model selected audit events must be humanized without fabricating hidden data");
+  assert.deepEqual(await page.evaluate(()=>auditTimelinePresentation({label:"Model",kind:"model",action:"selected"})),{title:"Model selected",preview:"Vishnu model selection updated"},"generic Model selected audit events must be humanized without fabricating hidden data");
   await page.screenshot({path:"artifacts/personal-ai-timeline-approved-all-390x844.png",fullPage:true});
   const yesterdayHeading=page.locator(".timeline-day",{hasText:"Yesterday"}).first();
   assert.ok(await yesterdayHeading.count(),"Timeline fixture must expose a Yesterday section for date-group qualification");
@@ -787,7 +787,7 @@ try {
 
   await page.evaluate(()=>{
     window.__timelineVisualBackup={title:conversationCache[0].title,preview:conversationCache[0].preview};
-    conversationCache[0].title='A very long Personal AI conversation title that must truncate cleanly inside the approved premium Timeline card';
+    conversationCache[0].title='A very long Vishnu conversation title that must truncate cleanly inside the approved premium Timeline card';
     conversationCache[0].preview='This is an intentionally long real-data-style preview used only by the browser acceptance fixture to verify single-line truncation without changing production content.';
     renderUnifiedTimeline();
   });
@@ -914,7 +914,7 @@ try {
   await page.evaluate(()=>{
     conversationEvents.push({
       event_id:"visual-long-response",kind:"assistant_message",created_at:new Date().toISOString(),
-      payload:{text:"## Detailed plan\n\nThis is a deliberately long Personal AI response used to verify that open assistant content stays readable and wide without being forced into a phone-chat bubble.\n\n- Preserve the original neural sphere\n- Keep the composer visible above the safe area\n- Keep actions close to the response\n\n```text\nLong content remains inside the same response block.\nNo token-sized bubbles are created.\n```\n\n| Check | Result |\n| --- | --- |\n| Wrapping | Correct |\n| Overflow | None |"}
+      payload:{text:"## Detailed plan\n\nThis is a deliberately long Vishnu response used to verify that open assistant content stays readable and wide without being forced into a phone-chat bubble.\n\n- Preserve the original neural sphere\n- Keep the composer visible above the safe area\n- Keep actions close to the response\n\n```text\nLong content remains inside the same response block.\nNo token-sized bubbles are created.\n```\n\n| Check | Result |\n| --- | --- |\n| Wrapping | Correct |\n| Overflow | None |"}
     });renderMessages();
   });
   await page.waitForFunction(expected=>document.querySelectorAll(".message-entry.assistant").length===expected,assistantCountBeforeLongResponse+1);
@@ -1504,7 +1504,7 @@ try {
   assert.match(await page.locator("#conversationList").innerText(),/Sign in to view timeline\s+Your chats, plans and activity will appear here after authentication\./);
   assert.doesNotMatch(await page.locator("#conversationList").innerText(),/Project Planning|Team planning meeting|Finish daily review/,
     "signed-out timeline must not retain authenticated conversation or activity rows");
-  assert.doesNotMatch(await page.locator("#conversationList").innerText(),/Loading your timeline|Loading real Personal AI activity/,
+  assert.doesNotMatch(await page.locator("#conversationList").innerText(),/Loading your timeline|Loading real Vishnu activity/,
     "signed-out timeline must not spin indefinitely");
   await page.screenshot({path:"artifacts/personal-ai-signed-out-timeline-390x844.png",fullPage:true});
 
