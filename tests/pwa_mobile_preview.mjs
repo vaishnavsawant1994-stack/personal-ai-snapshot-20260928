@@ -620,6 +620,8 @@ try {
     title:document.querySelector("#conversationsDrawerTitle").getBoundingClientRect(),
     close:document.querySelector("#closeDrawer").getBoundingClientRect(),
     newChat:document.querySelector("#newConversation").getBoundingClientRect(),
+    newChatStyle:{sidebarButton:document.querySelector("#newConversation").classList.contains("sidebar-new-compact"),bottomButton:document.querySelector("#newConversation").classList.contains("conversations-bottom-new-chat")},
+    conversationList:document.querySelector("#conversationManagerList").getBoundingClientRect(),
     search:document.querySelector("#conversationManagerSearch").closest(".conversations-search-wrap").getBoundingClientRect(),
     groups:[...document.querySelectorAll(".conversations-group-title")].map(node=>node.textContent.trim()),
     titles:[...document.querySelectorAll(".conversations-row-copy strong")].map(node=>node.textContent.trim()),
@@ -632,7 +634,12 @@ try {
   assert.ok(conversationsState.rect.width>=330&&conversationsState.rect.width<=370,"390px Conversations drawer must preserve the approved ~88% mobile width");
   assert.ok(conversationsState.rect.right<=conversationsState.viewport-20,"Conversations drawer must leave a visible strip of the underlying app");
   assert.ok(conversationsState.close.width>=44&&conversationsState.close.height>=44,"close control must preserve touch target");
-  assert.ok(conversationsState.newChat.height>=54&&conversationsState.newChat.height<=60,"New chat CTA must match approved compact geometry");
+  assert.ok(conversationsState.newChat.height>=46&&conversationsState.newChat.height<=50,"bottom New chat action must match the left sidebar control height");
+  assert.equal(conversationsState.newChatStyle.sidebarButton,true,"Conversations New chat must reuse left sidebar button styling");
+  assert.equal(conversationsState.newChatStyle.bottomButton,true,"Conversations must use the bottom-pinned New chat action");
+  assert.ok(conversationsState.conversationList.bottom<=conversationsState.newChat.top,"conversation list must scroll above the bottom New chat button");
+  assert.ok(conversationsState.newChat.bottom<=conversationsState.rect.bottom&&conversationsState.newChat.bottom>=conversationsState.rect.bottom-90,"New chat must stay at the bottom of the iPhone drawer");
+  assert.ok(conversationsState.newChat.left>=conversationsState.rect.left&&conversationsState.newChat.right<=conversationsState.rect.right,"bottom New chat button must fit within the drawer");
   assert.ok(conversationsState.search.height>=48&&conversationsState.search.height<=54,"search field must match approved compact geometry");
   assert.deepEqual(conversationsState.groups,["Today","Yesterday","Previous 7 days"],"real local conversation dates must drive approved group headings");
   assert.deepEqual(conversationsState.titles,conversations.map(item=>item.title),"drawer titles must use real canonical conversations");
