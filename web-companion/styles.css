@@ -60,8 +60,9 @@ button:disabled,input:disabled,select:disabled,textarea:disabled{opacity:.58;cur
   .core{height:clamp(9rem,36vw,10.5rem)}
   .mode{grid-template-columns:repeat(4,minmax(0,1fr));gap:.2rem}
   .mode span{min-width:0;overflow-wrap:anywhere}
-  article{padding:.75rem}
-  article strong{margin:.25rem 0}
+  article{padding:.625rem}
+  article strong{line-height:1.15;margin:.2rem 0}
+  article p{margin:.35rem 0 .25rem}
   footer .footline{justify-content:flex-start;max-height:2.8em;overflow:auto}
 }
 @media(max-height:34rem) and (orientation:landscape){
