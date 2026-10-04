@@ -47,7 +47,7 @@ The preview candidate already contains the merged reference repair, interaction 
 
 The mock-driven browser workflow is useful for rapid visual regressions. It is not an authenticated live-app test. Current automated viewport coverage is not sufficient to claim responsive correctness for every desktop/tablet/phone size or native platform. Expand browser checks to a small phone, standard phone, tablet portrait and landscape, desktop, and wide desktop; test keyboard-only use, 200% zoom, focus return, reduced motion, dialog boundaries, and error/empty/loading states. Capture screenshots at the same exact candidate SHA.
 
-**Still required:** actual preview login and CRUD/reload/persistence checks; real iPhone and iPad review; available Android phone/tablet review; native Windows, macOS, and Linux package install/upgrade checks. PWA/browser operation can span those platforms, but it does not establish that every native package works. Signing/notarization and store distribution are separate release activities.
+**Still required:** actual preview login and CRUD/reload/persistence checks; real iPhone and iPad review; available Android phone/tablet review; native Windows, macOS, and Linux package install/upgrade checks. An attempt to open the preview domain in the cloud browser returned `net::ERR_BLOCKED_BY_CLIENT`, so no live authenticated browser flow was completed. PWA/browser operation can span those platforms, but it does not establish that every native package works. Signing/notarization and store distribution are separate release activities.
 
 ## Performance evidence
 
