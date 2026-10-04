@@ -1,6 +1,9 @@
 name: Android Instrumentation
 on:
   pull_request:
+    paths:
+      - "android-companion/**"
+      - ".github/workflows/android-instrumentation.yml"
   workflow_dispatch:
 jobs:
   emulator:
