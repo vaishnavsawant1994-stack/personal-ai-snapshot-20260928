@@ -48,6 +48,7 @@ tr:last-child>td{border-bottom:0}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 
+button:active:focus-visible{transform:none!important;transition:none!important}
 </style>
 </head>
 <body>
