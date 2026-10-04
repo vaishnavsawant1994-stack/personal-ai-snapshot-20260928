@@ -2222,6 +2222,7 @@ button:active:focus-visible{transform:none!important;transition:none!important}
     border-radius:15px!important;font-size:13px!important;white-space:nowrap
   }
   .today-screen-footer .today-add-action{grid-template-columns:22px minmax(0,1fr) 12px;text-align:left}
+  .today-screen-footer .today-add-action{font-size:12px!important}
   .today-screen-footer .today-add-action .plus{font-size:23px}
   .today-screen-footer .today-add-action .chev{font-size:22px}
   .today-screen-footer svg{width:19px;height:19px;flex:0 0 auto}
@@ -2229,6 +2230,7 @@ button:active:focus-visible{transform:none!important;transition:none!important}
     .today-screen-footer{grid-template-columns:minmax(100px,.72fr) minmax(0,1.28fr);gap:6px;padding-left:10px;padding-right:10px}
     .today-screen-footer .sidebar-new-compact,.today-screen-footer .today-add-action{padding-left:6px!important;padding-right:6px!important;font-size:11.5px!important}
     .today-screen-footer .today-add-action{grid-template-columns:18px minmax(0,1fr) 10px;gap:4px!important}
+    .today-screen-footer .today-add-action{font-size:10.5px!important}
     .today-screen-footer .today-add-action .plus{font-size:20px}
     .today-screen-footer .today-add-action .chev{font-size:20px}
     .today-screen-footer svg{width:17px;height:17px}
@@ -3880,7 +3882,7 @@ $('historyButton').onclick=openAppDrawer;
 $('closeAppDrawer').onclick=closeAppDrawer;
 $('sidebarNewChat').onclick=()=>personalAiDemoMode?showToast('Sample preview only — no conversation is created'):createConversation().catch(error=>showToast(error.message));
 $('timelineNewChat').onclick=$('sidebarNewChat').onclick;
-$('todayScreenNewChat').onclick=$('sidebarNewChat').onclick;
+$('todayScreenNewChat').onclick=()=>todayScreenDemo||personalAiDemoMode?showToast('Sample preview only — no conversation is created'):createConversation().catch(error=>showToast(error.message));
 $('sidebarSearchToggle').onclick=()=>{
  const open=$('sidebarSearchPanel').classList.contains('hidden');
  if(!open){closeSidebarSearch();return}
