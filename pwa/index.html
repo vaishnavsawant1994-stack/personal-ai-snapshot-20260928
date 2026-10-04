@@ -2277,21 +2277,23 @@ button:active:focus-visible{transform:none!important;transition:none!important}
     @starting-style{.managed-dialog[open] .managed-dialog-form{opacity:0;transform:scale(.96)}}
     .managed-dialog::backdrop{background:rgba(0,0,0,.48);backdrop-filter:blur(2px)}
     .managed-dialog-form{display:flex;flex-direction:column;max-height:inherit;min-height:0;margin:0;padding:0}
-    .managed-dialog-header{flex:0 0 auto;display:grid;grid-template-columns:48px minmax(0,1fr) 42px;align-items:center;gap:13px;padding:16px 18px 13px;touch-action:none;cursor:grab;border-bottom:1px solid rgba(127,165,211,.12)}
+    .managed-dialog-header{position:relative;flex:0 0 auto;display:grid;grid-template-columns:48px minmax(0,1fr) 42px;align-items:center;gap:13px;padding:16px 18px 13px;touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab;border-bottom:1px solid rgba(127,165,211,.12)}
+    .managed-dialog-header::before{content:"";position:absolute;top:5px;left:50%;width:32px;height:4px;border-radius:99px;background:rgba(139,170,209,.48);transform:translateX(-50%);pointer-events:none}
+    .managed-dialog-move-hint{display:block;margin-top:4px;color:#75baff;font-size:10px;line-height:1.2;letter-spacing:.04em}
     .managed-dialog-header:active{cursor:grabbing}
     .managed-dialog-icon{width:46px;height:46px;display:grid;place-items:center;border:1px solid rgba(36,126,235,.26);border-radius:15px;background:rgba(13,69,130,.34);color:#55b5ff;font-size:22px}
     .managed-dialog-heading{min-width:0}.managed-dialog-heading h2{margin:0;color:#f4f7ff;font-size:21px;line-height:1.2;font-weight:650}.managed-dialog-heading p{margin:5px 0 0;color:#9eacc8;font-size:13px;line-height:1.4}
     .managed-dialog-close{width:42px;height:42px;border:1px solid rgba(115,152,198,.16);border-radius:50%;background:rgba(255,255,255,.045);color:#e9f1ff;font-size:25px;line-height:1;cursor:pointer}
     .managed-dialog-body{min-height:0;overflow:auto;padding:16px 18px 8px;overscroll-behavior:contain}
     .managed-dialog-body label{display:grid;gap:7px;margin:0 0 13px;color:#b6c4dc;font-size:13px;line-height:1.35}
-    .managed-dialog-body label>span{color:#74baff}
+    .managed-dialog-body label{min-width:0}.managed-dialog-body label>span{color:#b6c4dc}.managed-field-caption{display:block;min-width:0}.managed-field-caption .required-mark,.managed-field-caption small{color:#74baff}.managed-field-caption small{font-size:inherit;font-weight:450}
     .managed-dialog-body input,.managed-dialog-body textarea{width:100%;box-sizing:border-box;border:1px solid rgba(95,142,194,.3);border-radius:13px;background:rgba(18,36,56,.92);color:#f5f7fc;padding:12px 14px;font:inherit;font-size:16px;outline:0}
-    .managed-dialog-body input{height:50px}.managed-dialog-body textarea{min-height:110px;resize:vertical;line-height:1.45}
+    .managed-dialog-body input{height:50px;min-width:0;max-width:100%}.managed-dialog-body textarea{min-height:110px;resize:vertical;line-height:1.45}
     .managed-dialog-body input:focus,.managed-dialog-body textarea:focus{border-color:#238cff;box-shadow:0 0 0 2px rgba(25,120,255,.14)}
     .creation-type-tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px;margin:14px 16px 0;padding:4px;border:1px solid rgba(38,126,229,.34);border-radius:15px;background:rgba(17,35,55,.55)}
     .creation-type-tabs button{min-width:0;min-height:42px;padding:6px 3px;border:0;border-radius:11px;background:transparent;color:#aebbd2;font-size:12px;font-weight:550;cursor:pointer}
     .creation-type-tabs button[aria-pressed="true"]{background:linear-gradient(135deg,#1592ff,#075fe4);color:#fff}
-    .creation-field-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .creation-field-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.creation-field-grid>label{min-width:0}.creation-field-grid input{min-width:0;width:100%;max-width:100%;font-size:16px}.creation-field-grid input[type=date],.creation-field-grid input[type=time]{display:block;min-width:0;max-width:100%}
     .managed-dialog-error{min-height:0;margin:0 0 6px;color:#ff9caf;font-size:13px;line-height:1.4}
     .managed-dialog-actions{flex:0 0 auto;display:flex;justify-content:flex-end;gap:9px;padding:12px 18px max(16px,env(safe-area-inset-bottom));border-top:1px solid rgba(95,142,194,.12);background:rgba(8,18,31,.985)}
     .managed-dialog-actions button{min-width:100px;min-height:46px;padding:10px 15px;border:1px solid rgba(88,133,184,.3);border-radius:13px;background:rgba(17,35,55,.95);color:#e8effb;font-size:14px;font-weight:600;cursor:pointer}
@@ -2302,7 +2304,7 @@ button:active:focus-visible{transform:none!important;transition:none!important}
     .managed-dialog-close,.managed-dialog-actions button,.creation-type-tabs button{transition:transform 140ms var(--dialog-ease-out),background-color 140ms ease,border-color 140ms ease}.managed-dialog[open] .managed-dialog-close:active,.managed-dialog-actions button:active,.creation-type-tabs button:active{transform:scale(.98)}
     .action-dialog{width:min(480px,calc(100vw - 24px))}
     .managed-sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
-    @media(max-width:520px){.managed-dialog{width:calc(100vw - 20px);max-height:calc(100dvh - 20px);border-radius:22px}.managed-dialog-header{grid-template-columns:42px minmax(0,1fr) 40px;gap:10px;padding:13px 14px 11px}.managed-dialog-icon{width:40px;height:40px;border-radius:13px}.managed-dialog-heading h2{font-size:19px}.managed-dialog-close{width:40px;height:40px}.managed-dialog-body{padding:14px 14px 5px}.creation-type-tabs{margin-inline:10px}.creation-type-tabs button{font-size:11px}.managed-dialog-actions{padding-inline:14px}.managed-dialog-actions button{flex:1}}
+    @media(max-width:520px){.managed-dialog{width:calc(100vw - 20px);max-height:calc(100dvh - 20px);border-radius:22px}.managed-dialog-header{grid-template-columns:42px minmax(0,1fr) 40px;gap:10px;padding:13px 14px 11px}.managed-dialog-icon{width:40px;height:40px;border-radius:13px}.managed-dialog-heading h2{font-size:19px}.managed-dialog-close{width:40px;height:40px}.managed-dialog-body{padding:14px 14px 5px}.creation-field-grid{grid-template-columns:minmax(0,1fr)}.creation-type-tabs{margin-inline:10px}.creation-type-tabs button{font-size:11px}.managed-dialog-actions{padding-inline:14px}.managed-dialog-actions button{flex:1}}
     @media(max-height:520px){.managed-dialog{max-height:calc(100dvh - 12px)}.managed-dialog-header{padding-top:9px;padding-bottom:8px}.managed-dialog-body{padding-top:9px}.managed-dialog-body input{height:44px}.managed-dialog-actions{padding-top:8px;padding-bottom:8px}}
     @media(prefers-reduced-motion:reduce){.managed-dialog-form,.managed-dialog-close,.managed-dialog-actions button,.creation-type-tabs button{transition:none!important}.managed-dialog,.managed-dialog *{scroll-behavior:auto!important}}
 
@@ -2526,7 +2528,7 @@ button:active:focus-visible{transform:none!important;transition:none!important}
  <form id="todayForm" class="managed-dialog-form" aria-label="Create a task, plan item, meeting, reminder or note">
   <header class="managed-dialog-header" data-dialog-drag-handle>
    <span class="managed-dialog-icon" aria-hidden="true">▦</span>
-   <div class="managed-dialog-heading"><h2 id="todayDialogTitle">Add to Today</h2><p id="todayDialogDescription">Create a task, meeting, plan item, reminder or note.</p></div>
+   <div class="managed-dialog-heading"><h2 id="todayDialogTitle">Add to Today</h2><p id="todayDialogDescription">Create a task, meeting, plan item, reminder or note.</p><span class="managed-dialog-move-hint">Drag here to move</span></div>
    <button id="todayClose" class="managed-dialog-close" type="button" aria-label="Close creation dialog">×</button>
   </header>
   <div id="todayTypeTabs" class="creation-type-tabs" role="group" aria-label="What would you like to add?">
@@ -2534,11 +2536,11 @@ button:active:focus-visible{transform:none!important;transition:none!important}
   </div>
   <select id="todayCategory" class="managed-sr-only" aria-hidden="true" tabindex="-1"><option value="task">Task</option><option value="meeting">Meeting</option><option value="work">Plan</option><option value="note">Note</option><option value="reminder">Reminder</option></select>
   <div class="managed-dialog-body">
-   <label for="todayTitle">Title <span aria-hidden="true">*</span><input id="todayTitle" type="text" maxlength="240" placeholder="What needs to be done?" autocomplete="off" required></label>
-   <label id="todayContentWrap" for="todayContent" class="hidden">Note content <span aria-hidden="true">*</span><textarea id="todayContent" rows="4" maxlength="20000" placeholder="Write the note Personal AI should remember…"></textarea></label>
+   <label for="todayTitle"><span class="managed-field-caption">Title <span class="required-mark" aria-hidden="true">*</span></span><input id="todayTitle" type="text" maxlength="240" placeholder="What needs to be done?" autocomplete="off" required></label>
+   <label id="todayContentWrap" for="todayContent" class="hidden"><span class="managed-field-caption">Note content <span class="required-mark" aria-hidden="true">*</span></span><textarea id="todayContent" rows="4" maxlength="20000" placeholder="Write the note Personal AI should remember…"></textarea></label>
    <div id="todayScheduleFields" class="creation-field-grid">
-    <label for="todayScheduledDate">Date<input id="todayScheduledDate" type="date" required></label>
-    <label for="todayTime">Time <span>(optional, except for meetings)</span><input id="todayTime" type="time" aria-label="Scheduled time"></label>
+    <label for="todayScheduledDate"><span class="managed-field-caption">Date</span><input id="todayScheduledDate" type="date" required></label>
+    <label for="todayTime"><span class="managed-field-caption">Time <small>(optional, except for meetings)</small></span><input id="todayTime" type="time" aria-label="Scheduled time"></label>
    </div>
    <p id="todayFormError" class="managed-dialog-error" role="alert" aria-live="polite"></p>
   </div>
@@ -2875,13 +2877,13 @@ async function closeTodayForm(force=false){
  dialog.close();creationRecord=null
 }
 function beginDialogDrag(dialog,event){
- const handle=event.target.closest('[data-dialog-drag-handle]');if(!handle||event.target.closest('button')||creationPointer!==null||event.isPrimary===false)return;
+ const target=event.target instanceof Element?event.target:null,handle=target?.closest('[data-dialog-drag-handle]');if(!handle||target.closest('button')||creationPointer!==null||event.isPrimary===false)return;
  if(event.pointerType==='mouse'&&event.button!==0)return;
- const pointerId=event.pointerId,startX=event.clientX,startY=event.clientY,originX=Number(dialog.dataset.x)||0,originY=Number(dialog.dataset.y)||0;creationPointer=pointerId;
- try{handle.setPointerCapture(pointerId)}catch{}document.body.classList.add('dialog-dragging');
+ event.preventDefault();const pointerId=event.pointerId,startX=event.clientX,startY=event.clientY,originX=Number(dialog.dataset.x)||0,originY=Number(dialog.dataset.y)||0;creationPointer=pointerId;
+ try{dialog.setPointerCapture(pointerId)}catch{}document.body.classList.add('dialog-dragging');
  const move=e=>{if(e.pointerId!==pointerId)return;dialog.dataset.x=String(originX+e.clientX-startX);dialog.dataset.y=String(originY+e.clientY-startY);clampManagedDialog(dialog)};
- const finish=e=>{if(e.pointerId!==pointerId)return;handle.removeEventListener('pointermove',move);handle.removeEventListener('pointerup',finish);handle.removeEventListener('pointercancel',finish);creationPointer=null;document.body.classList.remove('dialog-dragging');clampManagedDialog(dialog)};
- handle.addEventListener('pointermove',move);handle.addEventListener('pointerup',finish);handle.addEventListener('pointercancel',finish);event.preventDefault()
+ const finish=e=>{if(e.pointerId!==pointerId)return;window.removeEventListener('pointermove',move,true);window.removeEventListener('pointerup',finish,true);window.removeEventListener('pointercancel',finish,true);try{if(dialog.hasPointerCapture(pointerId))dialog.releasePointerCapture(pointerId)}catch{}creationPointer=null;document.body.classList.remove('dialog-dragging');clampManagedDialog(dialog)};
+ window.addEventListener('pointermove',move,true);window.addEventListener('pointerup',finish,true);window.addEventListener('pointercancel',finish,true)
 }
 $('todayAdd').onclick=()=>openCreationDialog('task');$('todayCancel').onclick=()=>closeTodayForm();$('todayClose').onclick=()=>closeTodayForm();
 $('todayDialog').addEventListener('cancel',event=>{event.preventDefault();closeTodayForm()});$('todayDialog').addEventListener('click',event=>{if(event.target===$('todayDialog'))closeTodayForm()});$('todayDialog').addEventListener('pointerdown',event=>beginDialogDrag($('todayDialog'),event));$('todayDialog').addEventListener('close',()=>{creationTrigger?.setAttribute('aria-expanded','false');creationTrigger?.focus?.({preventScroll:true});creationTrigger=null;creationRecord=null;creationDirty=false;creationBaseline=''});

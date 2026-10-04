@@ -379,10 +379,15 @@ try {
   assert.ok(await page.locator("#todayDialog").isVisible(), "Add control must open the accessible creation dialog");
   assert.ok(await page.locator("#todayForm").isVisible(), "creation form must remain visible inside its dialog");
   const initialDialogBox=await page.locator("#todayDialog").boundingBox();
-  await page.mouse.move(initialDialogBox.x+initialDialogBox.width/2,initialDialogBox.y+30);
-  await page.mouse.down();await page.mouse.move(initialDialogBox.x+initialDialogBox.width/2+36,initialDialogBox.y+54,{steps:4});await page.mouse.up();
+  const dateBox=await page.locator("#todayScheduledDate").boundingBox(),timeBox=await page.locator("#todayTime").boundingBox();
+  assert.ok(dateBox.x>=initialDialogBox.x&&timeBox.x>=initialDialogBox.x&&dateBox.x+dateBox.width<=initialDialogBox.x+initialDialogBox.width&&timeBox.x+timeBox.width<=initialDialogBox.x+initialDialogBox.width,"date and time fields must fit inside the dialog on a phone viewport");
+  assert.ok(timeBox.y>=dateBox.y+dateBox.height-1,"date and time fields must not overlap on a phone viewport");
+  const touch=await page.context().newCDPSession(page),startX=initialDialogBox.x+initialDialogBox.width/2,startY=initialDialogBox.y+12;
+  await touch.send("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[{x:startX,y:startY}]});
+  for(let step=1;step<=4;step++)await touch.send("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:[{x:startX+36*step/4,y:startY+24*step/4}]});
+  await touch.send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});await touch.detach();
   const movedDialogBox=await page.locator("#todayDialog").boundingBox();
-  assert.ok(Math.abs(movedDialogBox.x-initialDialogBox.x)>20||Math.abs(movedDialogBox.y-initialDialogBox.y)>20,"dialog header drag must move the popup");
+  assert.ok(Math.abs(movedDialogBox.x-initialDialogBox.x)>20||Math.abs(movedDialogBox.y-initialDialogBox.y)>20,"touch-dragging the dialog header must move the popup");
   assert.ok(movedDialogBox.x>=0&&movedDialogBox.y>=0&&movedDialogBox.x+movedDialogBox.width<=390&&movedDialogBox.y+movedDialogBox.height<=844,"dragged dialog must stay within the phone viewport");
   await page.click('[data-today-kind="meeting"]');
   await page.fill("#todayTitle", "Afternoon planning review");
