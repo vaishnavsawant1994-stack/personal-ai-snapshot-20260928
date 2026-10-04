@@ -227,6 +227,68 @@ class MainWindow(QMainWindow):
                 border-left: 1px solid #111b21;
                 border-radius: 18px;
             }}
+
+            QPushButton:focus, QLineEdit:focus, QTextBrowser:focus, QPlainTextEdit:focus,
+            QComboBox:focus, QTableWidget:focus, QTreeWidget:focus {{
+                border: 1px solid #397b9b;
+            }}
+            QPushButton:disabled, QLineEdit:disabled, QComboBox:disabled {{
+                color: #65737b;
+                border-color: #10191e;
+                background: #080b0d;
+            }}
+            QComboBox, QSpinBox, QDoubleSpinBox {{
+                background: #080d11;
+                color: #dce8ed;
+                border: 1px solid #17262e;
+                border-radius: 10px;
+                padding: 8px 10px;
+                min-height: 22px;
+            }}
+            QComboBox:hover, QSpinBox:hover, QDoubleSpinBox:hover {{
+                border-color: #294653;
+            }}
+            QComboBox QAbstractItemView {{
+                background: #091116;
+                color: #dce8ed;
+                selection-background-color: #183342;
+                border: 1px solid #294653;
+                outline: 0;
+            }}
+            QTableWidget, QTreeWidget, QListWidget {{
+                background: #06090b;
+                alternate-background-color: #090e11;
+                color: #d8e3e8;
+                border: 1px solid #15232b;
+                border-radius: 12px;
+                gridline-color: #142027;
+                selection-background-color: #163141;
+                selection-color: #f2f8fa;
+            }}
+            QHeaderView::section {{
+                background: #0a1115;
+                color: #94a8b1;
+                border: 0;
+                border-bottom: 1px solid #1a2a32;
+                padding: 9px 10px;
+                font-weight: 600;
+            }}
+            QScrollBar:vertical {{
+                background: transparent;
+                width: 10px;
+                margin: 3px;
+            }}
+            QScrollBar::handle:vertical {{
+                background: #23343d;
+                border-radius: 5px;
+                min-height: 28px;
+            }}
+            QScrollBar::handle:vertical:hover {{ background: #355260; }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
+            QLineEdit:focus, QPlainTextEdit:focus, QTextBrowser:focus {{
+                border-color: #397b9b;
+                background: #070d10;
+            }}
             QLabel#menuCaption {{
                 color: #5f7079;
                 font-size: 10px;
