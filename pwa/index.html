@@ -2446,17 +2446,17 @@ button:active:focus-visible{transform:none!important;transition:none!important}
 
   @media (max-width: 360px) {
     :root { --ui-page-title: 1.38rem; --ui-body: 0.875rem; }
-    :where(.quick-actions, .module-grid, .settings-hub-group, .provider-grid,
+    :where(.module-grid, .settings-hub-group, .provider-grid,
            .activity-stat-grid) {
       grid-template-columns: minmax(0, 1fr);
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    #home-consistent-ui-system *,
-    #home-consistent-ui-system *::before,
-    #home-consistent-ui-system *::after {
+    :where(.quick-action, .section-record, .module-toolbar button) {
       scroll-behavior: auto !important;
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
     }
   }
 </style>
