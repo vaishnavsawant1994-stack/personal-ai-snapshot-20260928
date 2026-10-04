@@ -906,6 +906,15 @@ try {
 
   const viewports = [
     [320, 568], [360, 780], [375, 812], [390, 844], [393, 852], [402, 874], [414, 896], [430, 932],
+    [768, 1024], [1024, 768], [1366, 768], [1920, 1080],
+  const responsiveScreenshots = new Map([
+    [320, "personal-ai-phone-small-320x568.png"],
+    [390, "personal-ai-phone-standard-390x844.png"],
+    [768, "personal-ai-tablet-portrait-768x1024.png"],
+    [1024, "personal-ai-tablet-landscape-1024x768.png"],
+    [1366, "personal-ai-desktop-1366x768.png"],
+    [1920, "personal-ai-wide-desktop-1920x1080.png"],
+  ]);
   ];
   for (const [width, height] of viewports) {
     await page.setViewportSize({ width, height });
@@ -956,6 +965,9 @@ try {
     }));
     assert.ok(Math.abs(edgeControls.left.left-edgeControls.header.left)<=1,"hamburger gained extra left inset at "+width+"x"+height);
     assert.ok(Math.abs(edgeControls.right.right-edgeControls.header.right)<=1,"Timeline control gained extra right inset at "+width+"x"+height);
+    if (responsiveScreenshots.has(width)) {
+      await page.screenshot({ path: "artifacts/" + responsiveScreenshots.get(width), fullPage: true });
+    }
     assert.ok(layout.quick.left >= -1 && layout.quick.right <= layout.viewportWidth + 1, "quick actions clipped at " + width + "x" + height);
     assert.ok(layout.cards.length === 4, "four Home cards required");
     assert.ok(layout.cards.every(card => Math.abs(card.height-layout.cards[0].height)<1 && Math.abs(card.width-layout.cards[0].width)<1), "Home card dimensions mismatch at " + width + "x" + height);
@@ -1358,7 +1370,14 @@ try {
   assert.ok(zoomEquivalent.document <= zoomEquivalent.viewport, "200%-zoom-equivalent layout must not overflow horizontally");
   assert.ok(zoomEquivalent.composer.left >= -1 && zoomEquivalent.composer.right <= zoomEquivalent.viewport + 1,
     "composer must remain inside the zoom-equivalent viewport");
+  assert.ok(zoomEquivalent.composer.height > 0, "composer must remain visible at the 200%-zoom-equivalent viewport");
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.keyboard.press("Tab");
+  const keyboardFocus = await page.evaluate(() => {
+    const node = document.activeElement;
+    return node !== document.body && !!node && node.getClientRects().length > 0 && node.tabIndex >= 0;
+  });
+  assert.ok(keyboardFocus, "Tab must move focus to a visible keyboard-operable control");
 
   assert.deepEqual(pageErrors, [], "page must render without uncaught JavaScript errors");
   console.log("Right unified timeline passed chats, meetings, work, reminders, workflow, done and authorized audit filters, chronological ordering, search, completion, Back, New chat, Plan and eight viewports.");
