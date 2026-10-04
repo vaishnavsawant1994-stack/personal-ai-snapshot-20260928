@@ -2207,12 +2207,12 @@ button:active:focus-visible{transform:none!important;transition:none!important}
     .timeline-sidebar-footer .sidebar-new-compact,.timeline-sidebar-footer .timeline-plan-button{padding-left:6px!important;padding-right:6px!important;font-size:12px!important}
     .timeline-sidebar-footer svg{width:17px;height:17px}
   }
-  .today-screen{height:100dvh;overflow:hidden!important;align-items:stretch}
+  .today-screen{height:100dvh;overflow:hidden!important;align-items:stretch;padding-bottom:var(--shared-composer-bottom)!important}
   .today-shell{height:100%;max-height:100%;min-height:0!important;display:flex;flex-direction:column;overflow:hidden}
   .today-screen-content{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain}
   .today-screen-footer{
     flex:0 0 auto;display:grid;grid-template-columns:minmax(104px,.72fr) minmax(0,1.28fr);gap:8px;
-    padding:10px 14px max(0px,calc(var(--shared-composer-bottom) - max(10px,env(safe-area-inset-bottom))));
+    padding:10px 14px 0;
     border-top:1px solid rgba(148,177,230,.12);
     background:linear-gradient(180deg,rgba(5,12,21,.92),rgba(3,7,13,.98))
   }
