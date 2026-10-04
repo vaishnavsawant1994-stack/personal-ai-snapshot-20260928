@@ -1360,7 +1360,7 @@ try {
   assert.equal(reducedMotion.requested, true, "reduced-motion preference must reach the application");
   assert.equal(reducedMotion.scrollBehavior, "auto", "reduced-motion mode must disable smooth page scrolling");
   await page.emulateMedia({ reducedMotion: "no-preference" });
-  await page.setViewportSize({ width: 640, height: 720 });
+  await page.setViewportSize({ width: 195, height: 422 });
   await page.evaluate(() => enterHomeLanding());
   const zoomEquivalent = await page.evaluate(() => ({
     viewport: innerWidth,
