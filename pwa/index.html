@@ -820,6 +820,54 @@
     .message-actions button:disabled{opacity:.35;cursor:not-allowed}
     .message-entry.user .message-actions{justify-content:flex-end}
     @media(hover:none){.message-actions{opacity:1}}
+  
+    /* Design finishing: quiet assistant text, clear touch feedback, and brief UI motion. */
+    body:not(.home-landing) .message-entry.assistant{
+      padding-left:0;
+      margin-bottom:16px;
+      min-width:0;
+    }
+    body:not(.home-landing) .message-entry.assistant .message{
+      width:100%;
+      padding:0;
+      border:0;
+      border-radius:0;
+      background:transparent;
+      box-shadow:none;
+    }
+    body:not(.home-landing) .message-entry.assistant .message-avatar,
+    body:not(.home-landing) .message-entry.assistant .message::before{
+      display:none!important;
+      content:none!important;
+    }
+    .round-button{
+      transition:transform 150ms cubic-bezier(.23,1,.32,1),border-color 150ms ease-out,
+        background-color 150ms ease-out,color 150ms ease-out,box-shadow 150ms ease-out;
+      -webkit-tap-highlight-color:transparent;
+    }
+    .round-button:active,.history-button:active,.attach-button:active,.nav button:active,
+    .message-actions button:active,.conversation-item:active,.owner-menu button:active,
+    .more-sheet button:active,.settings-nav button:active,.settings-mobile-nav button:active,
+    .quick-action:active,.feature:active{
+      transform:scale(.97);
+      transition:transform 140ms cubic-bezier(.23,1,.32,1);
+      -webkit-tap-highlight-color:transparent;
+    }
+    .toast{
+      transition:opacity 160ms ease-out,transform 160ms cubic-bezier(.23,1,.32,1);
+      transform:translate(-50%,12px) scale(.97);
+    }
+    .toast.show{transform:translate(-50%,0) scale(1)}
+    @media(prefers-reduced-motion:reduce){
+      .round-button,.toast,.toast.show,
+      .round-button:active,.history-button:active,.attach-button:active,.nav button:active,
+      .message-actions button:active,.conversation-item:active,.owner-menu button:active,
+      .more-sheet button:active,.settings-nav button:active,.settings-mobile-nav button:active,
+      .quick-action:active,.feature:active{
+        transition-duration:.01ms!important;
+      }
+    }
+
   </style>
 </head>
 <body>
