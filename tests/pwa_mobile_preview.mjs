@@ -313,7 +313,8 @@ try {
   }));
   assert.equal(focusedEmptyHomeComposer.expanded,false,"empty Home composer must not become a large two-row box merely because it receives focus");
   assert.ok(focusedEmptyHomeComposer.height>=52&&focusedEmptyHomeComposer.height<=56,"focused empty Home composer must stay slim");
-  assert.ok(focusedEmptyHomeComposer.bottom>=focusedEmptyHomeComposer.viewport-1&&focusedEmptyHomeComposer.bottom<=focusedEmptyHomeComposer.viewport+1,"focused empty Home composer must stay fixed to the bottom");
+  const focusedComposerBottomGap=focusedEmptyHomeComposer.viewport-focusedEmptyHomeComposer.bottom;
+  assert.ok(focusedComposerBottomGap>=23&&focusedComposerBottomGap<=25,"focused empty Home composer must keep the shared 24px bottom inset: "+focusedComposerBottomGap);
   await page.locator("#historyButton").focus();
   assert.equal(await page.locator("#sendButton").isVisible(), false, "idle Home composer must show microphone, not inactive send");
   assert.equal(await page.locator("#micButton").isVisible(), true, "idle Home composer microphone must remain available");
