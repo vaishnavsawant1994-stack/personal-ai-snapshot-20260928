@@ -1,6 +1,13 @@
 name: PWA mobile visual preview
 
 on:
+  push:
+    branches:
+      - 'ui/approved-pages-implementation-20261003'
+    paths:
+      - 'pwa/**'
+      - 'tests/pwa_mobile_preview.mjs'
+      - '.github/workflows/pwa-mobile-preview.yml'
   pull_request:
     paths:
       - 'pwa/**'

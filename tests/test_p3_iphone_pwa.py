@@ -680,6 +680,49 @@ def test_conversation_history_can_be_created_listed_and_searched(tmp_path):
     assert renamed.json()['conversation']['title'] == 'Home renovation'
 
 
+
+def test_conversation_options_export_and_confirmed_delete_are_owner_gated(tmp_path):
+    client, _ = make_client(tmp_path)
+    unauthenticated = TestClient(client.app, base_url='https://testserver')
+    assert client.post('/iphone/api/enroll', json={'code': 'this-is-a-long-owner-code'}).status_code == 200
+    created = client.post('/iphone/api/conversations', json={'title': 'Private transcript'}).json()
+    thread_id = created['conversation']['id']
+    assert client.post('/iphone/api/voice/turn', json={
+        'transcript': 'Remember the room measurements',
+        'conversation_id': thread_id,
+    }).status_code == 200
+    path = f'/iphone/api/conversations/{thread_id}'
+
+    assert unauthenticated.get(path + '/export').status_code == 401
+    assert unauthenticated.delete(path + '?confirm=true').status_code == 401
+    exported = client.get(path + '/export')
+    assert exported.status_code == 200
+    assert exported.json()['conversation']['title'] == 'Private transcript'
+    assert exported.json()['events']
+    assert client.delete(path).status_code == 422
+    assert client.get(path).status_code == 200
+
+    deleted = client.delete(path + '?confirm=true')
+    assert deleted.status_code == 200
+    assert deleted.json() == {'deleted': True, 'conversation_id': thread_id}
+    assert client.get(path).status_code == 404
+    assert client.get(path + '/export').status_code == 404
+    assert client.delete(path + '?confirm=true').status_code == 404
+
+
+def test_conversation_options_render_in_pwa_shell(tmp_path):
+    client, _ = make_client(tmp_path)
+    page = client.get('/iphone/').text
+    assert 'id="chatMenuButton"' in page
+    assert 'id="chatActionMenu"' in page
+    assert 'id="chatRename"' in page
+    assert 'id="chatShare"' in page
+    assert 'id="chatCopy"' in page
+    assert 'id="chatExport"' in page
+    assert 'id="chatDelete"' in page
+    assert 'function syncChatMenuAvailability()' in page
+
+
 def test_normal_chat_is_not_blocked_by_other_browser_qualification(tmp_path):
     first, runtime = make_client(tmp_path)
     second = TestClient(first.app, base_url='https://testserver')
@@ -708,7 +751,11 @@ def test_pwa_home_is_conversation_first_and_qualification_lives_in_advanced(tmp_
 
     assert 'id="messageStream"' in page
     assert 'id="attachmentButton"' in page
-    assert 'data-module="more"' in page
+    assert 'id="appDrawer"' in page
+    assert 'id="appConversations"' in page
+    assert 'data-app-module="memory"' in page
+    assert '<nav class="nav"' not in page
+    assert 'id="moreSheet"' not in page
     assert 'data-owner-module="settings"' in page
     assert 'Models &amp; Intelligence' in page
     assert "renderSettings('advanced')" in page
@@ -760,6 +807,24 @@ def test_stage8_stale_server_reauth_blocks_owner_credential_changes(tmp_path):
 
     assert runtime['owner_access'].password_configured() is False
     assert runtime['owner_access'].recovery_codes_remaining() == 0
+
+
+
+def test_stale_owner_reauthentication_fails_closed_for_conversation_delete(tmp_path):
+    client, runtime = make_client(tmp_path, server_sessions=True)
+    enrolled = client.post('/iphone/api/enroll', json={'code': 'this-is-a-long-owner-code'})
+    assert enrolled.status_code == 200
+    created = client.post('/iphone/api/conversations', json={'title': 'Keep this chat'})
+    assert created.status_code == 200
+    thread_id = created.json()['conversation']['id']
+    session_id = next(iter(runtime['pwa_sessions'].active_for_device(enrolled.json()['device_id']))).id
+    assert runtime['pwa_sessions'].mark_reauthenticated(session_id, at=time.time() - 1000)
+    path = f'/iphone/api/conversations/{thread_id}'
+    rejected = client.delete(path + '?confirm=true')
+    assert rejected.status_code == 401
+    assert rejected.json()['detail']['code'] == 'reauthentication_required'
+    assert client.get(path).status_code == 200
+
 
 
 def test_stage8_rotating_forwarded_addresses_cannot_bypass_global_access_limit(tmp_path):

@@ -5,6 +5,7 @@ from fastapi.responses import Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
 WORKFLOW_BUDGET_UI = r'''(() => {
+  const originalWorkflowLoad=window.loadWorkflows;
   const stateLabel = run => {
     const reason = String((run.budget && run.budget.stop_reason) || run.error || '');
     if (reason.includes('Maximum runtime')) return 'Maximum runtime reached';
@@ -34,13 +35,24 @@ WORKFLOW_BUDGET_UI = r'''(() => {
     document.querySelectorAll('[data-run-approve]').forEach(button=>button.onclick=async()=>{try{await api('/workflows/runs/'+button.dataset.runApprove+'/approve',{method:'POST',body:'{}'});loadWorkflows()}catch(error){showToast(error.message)}});
     document.querySelectorAll('[data-run-reject]').forEach(button=>button.onclick=async()=>{await api('/workflows/runs/'+button.dataset.runReject+'/reject',{method:'POST',body:'{}'});loadWorkflows()});
   };
-  loadWorkflows = async function(){
-    const data=await api('/workflows'),workflows=data.workflows||[],runs=data.runs||[];
-    $('moduleBody').innerHTML=`<div class="module-toolbar"><button id="workflowAdd">＋ New workflow</button><button id="workflowRefresh">Refresh</button><span>${runs.length} runs</span></div><h2>Workflows</h2><div class="module-grid">${workflows.map(workflow=>`<article class="data-card"><strong>${escapeHtml(workflow.title)}</strong><p>${(workflow.steps||[]).length} persisted steps · ${workflow.enabled&&!workflow.paused?'Ready':'Paused'}</p><div class="data-meta"><span>${escapeHtml(policyText(workflow.policy))}</span><span>approval ${escapeHtml((workflow.policy||{}).approval_threshold||'consequential')}</span></div><div class="data-actions"><button data-workflow-run="${workflow.id}">Run</button></div></article>`).join('')||'<div class="empty-module">Create a governed workflow for repeatable work.</div>'}</div><h2>Runs, approvals &amp; budgets</h2><div class="module-grid">${runs.map(run=>`<article class="data-card"><strong>${escapeHtml(stateLabel(run))} · step ${escapeHtml(run.current_step_step||run.current_step)}</strong><p>${escapeHtml((run.budget&&run.budget.stop_reason)||run.error||run.id)}</p>${budgetMeta(run)}<div class="data-actions">${runActions(run)}</div></article>`).join('')||'<div class="empty-module">No workflow runs.</div>'}</div>`;
-    $('workflowRefresh').onclick=loadWorkflows;
-    $('workflowAdd').onclick=async()=>{const title=prompt('Workflow name');if(!title)return;const instruction=prompt('What should this workflow do?');if(!instruction)return;await api('/workflows',{method:'POST',body:JSON.stringify({title,trigger:{type:'manual'},steps:[{kind:'prompt',prompt:instruction}]})});loadWorkflows()};
-    bindWorkflowRunActions();
+  window.loadWorkflows=async function(){
+    if(typeof originalWorkflowLoad==='function') await originalWorkflowLoad();
+    try {
+      const data=await api('/workflows'),runs=data.runs||[];
+      for(const run of runs){
+        const button=document.querySelector('[data-run-cancel="'+CSS.escape(String(run.id))+'"],[data-run-approve="'+CSS.escape(String(run.id))+'"],[data-run-resume="'+CSS.escape(String(run.id))+'"]');
+        const record=button&&button.closest('.section-record');
+        const budget=run.budget;
+        if(!record||!budget)continue;
+        const usage=budget.consumption||{},policy=budget.policy||{};
+        const meta=document.createElement('span');
+        meta.className='section-tags workflow-budget-meta';
+        meta.textContent='Budget · '+(usage.completed_steps||0)+'/'+(policy.max_steps||'—')+' steps · '+(usage.tool_calls||0)+'/'+(policy.max_tool_calls||'—')+' tools';
+        record.querySelector('.section-record-copy')?.appendChild(meta);
+      }
+    } catch(error) { console.warn('Workflow budget details unavailable',error); }
   };
+
   loadActivityFeed = async function(){
     const [activityData,workflowData]=await Promise.all([api('/activities?limit=200'),api('/workflows')]);
     const activities=activityData.activities||[],runs=workflowData.runs||[];
