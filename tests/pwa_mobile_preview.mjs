@@ -1362,15 +1362,22 @@ try {
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.setViewportSize({ width: 195, height: 422 });
   await page.evaluate(() => enterHomeLanding());
-  const zoomEquivalent = await page.evaluate(() => ({
-    viewport: innerWidth,
-    document: document.documentElement.scrollWidth,
-    composer: document.querySelector("#composer").getBoundingClientRect(),
-  }));
-  assert.ok(zoomEquivalent.document <= zoomEquivalent.viewport, "200%-zoom-equivalent layout must not overflow horizontally");
+  const zoomEquivalent = await page.evaluate(() => {
+    const composer = document.querySelector("#composer");
+    const rect = composer.getBoundingClientRect();
+    return {
+      viewport: innerWidth,
+      document: document.documentElement.scrollWidth,
+      composer: { left: rect.left, right: rect.right, width: rect.width, height: rect.height,
+        display: getComputedStyle(composer).display, visibility: getComputedStyle(composer).visibility,
+        classes: composer.className, bodyClasses: document.body.className },
+    };
+  });
+  await page.screenshot({ path: "artifacts/personal-ai-home-zoom-equivalent-195x422.png", fullPage: true });
+  assert.ok(zoomEquivalent.document <= zoomEquivalent.viewport, "200%-zoom-equivalent layout must not overflow horizontally: " + JSON.stringify(zoomEquivalent));
   assert.ok(zoomEquivalent.composer.left >= -1 && zoomEquivalent.composer.right <= zoomEquivalent.viewport + 1,
-    "composer must remain inside the zoom-equivalent viewport");
-  assert.ok(zoomEquivalent.composer.height > 0, "composer must remain visible at the 200%-zoom-equivalent viewport");
+    "composer must remain inside the zoom-equivalent viewport: " + JSON.stringify(zoomEquivalent));
+  assert.ok(zoomEquivalent.composer.height > 0, "composer must remain visible at the 200%-zoom-equivalent viewport: " + JSON.stringify(zoomEquivalent));
   await page.setViewportSize({ width: 390, height: 844 });
   await page.keyboard.press("Tab");
   const keyboardFocus = await page.evaluate(() => {
