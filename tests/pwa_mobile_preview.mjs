@@ -75,6 +75,10 @@ try {
     } else if (path === "/memory" && method === "POST") {
       const input=JSON.parse(request.postData()||"{}");createdMemories.push(input);
       return route.fulfill({status:201,contentType:"application/json",body:JSON.stringify({memory:{id:"created-memory-"+createdMemories.length,...input}})});
+    } else if (path === "/memory/graph" && method === "GET") {
+      body={nodes:[{id:"memory-qa",subject:"Project context",type:"note"},{id:"memory-related",subject:"Responsive review details",type:"note"}],edges:[{source_id:"memory-qa",target_id:"memory-related"}]};
+    } else if (path === "/memory/tree" && method === "GET") {
+      body={roots:[{id:"memory-qa",subject:"Project context",content:"Browser qualification fixture with source evidence",children:[{id:"memory-child",subject:"Responsive review details that need to wrap safely on a narrow viewport",content:"Long tree details stay readable without widening the whole screen.",children:[]}]}]};
     } else if (path === "/memory" && method === "GET") {
       const query=(url.searchParams.get("q")||"").toLowerCase();
       const memories=[{id:"memory-qa",subject:"Project context",type:"note",content:"Browser qualification fixture with source evidence",source:"owner",tags_json:'["QA"]',created_at:atToday(8),confidence:1}];
@@ -1152,6 +1156,30 @@ try {
         moduleName+" content moved beyond the viewport at "+width+"px: "+JSON.stringify(moduleLayout));
       assert.equal(moduleLayout.focused,true,moduleName+" should use the focused product page layout");
     }
+  }
+  for(const width of [320,390,768,1440]){
+    await page.setViewportSize({width,height:844});
+    await page.evaluate(()=>openModule('memory'));
+    await page.locator('#memoryList').click();
+    assert.equal(await page.locator('.section-page-heading h1').textContent(),'Ambient Memory',"Ambient Memory must open as its own readable screen");
+    await page.locator('#memoryGraph').click();
+    const graphLayout=await page.locator('.graph-view').evaluate(node=>({
+      rect:node.getBoundingClientRect(),documentWidth:document.documentElement.scrollWidth,
+      clientWidth:node.clientWidth,scrollWidth:node.scrollWidth,overflowX:getComputedStyle(node).overflowX,
+      role:node.getAttribute('role'),label:node.getAttribute('aria-label'),tabIndex:node.tabIndex,
+      svgWidth:node.querySelector('svg').getBoundingClientRect().width,
+    }));
+    assert.ok(graphLayout.documentWidth<=width,"Memory Graph must keep intentional horizontal scrolling inside its own surface at "+width+"px: "+JSON.stringify(graphLayout));
+    assert.ok(graphLayout.rect.left>=-1&&graphLayout.rect.right<=width+1,"Memory Graph scroll surface must stay in the viewport at "+width+"px: "+JSON.stringify(graphLayout));
+    assert.equal(graphLayout.overflowX,'auto',"Memory Graph must expose a horizontal scroll region at "+width+"px");
+    assert.ok(graphLayout.scrollWidth>graphLayout.clientWidth,"Memory Graph labels must retain readable drawing width at "+width+"px");
+    assert.equal(graphLayout.role,'region');assert.ok(graphLayout.label);assert.equal(graphLayout.tabIndex,0);
+    assert.ok(graphLayout.svgWidth>=900,"Memory Graph labels must not be scaled down to fit a phone at "+width+"px");
+    await page.locator('#memoryTree').click();
+    const treeLayout=await page.evaluate(()=>({documentWidth:document.documentElement.scrollWidth,
+      branches:[...document.querySelectorAll('.tree-branch')].map(node=>{const rect=node.getBoundingClientRect();return {left:rect.left,right:rect.right,width:rect.width}})}));
+    assert.ok(treeLayout.documentWidth<=width,"Memory Tree must not widen the page at "+width+"px: "+JSON.stringify(treeLayout));
+    assert.ok(treeLayout.branches.every(node=>node.left>=-1&&node.right<=width+1),"Memory Tree branches must remain on-screen at "+width+"px: "+JSON.stringify(treeLayout));
   }
   await page.setViewportSize({width:390,height:844});
   await page.evaluate(()=>openModule('home'));
