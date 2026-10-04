@@ -56,7 +56,7 @@ button:disabled,input:disabled,select:disabled,textarea:disabled{opacity:.58;cur
 ::selection{background:rgb(75 151 226 / 38%);color:#fff}
 @media(max-width:34rem){
   .shell{padding-left:max(1rem,env(safe-area-inset-left));padding-right:max(1rem,env(safe-area-inset-right))}
-  .core{height:clamp(15rem,68vw,18rem)}
+  .core{height:clamp(10.5rem,42vw,12rem)}
   .mode{grid-template-columns:repeat(2,minmax(0,1fr));gap:.2rem}
   .mode span{min-width:0;overflow-wrap:anywhere}
   footer .footline{justify-content:flex-start;max-height:2.8em;overflow:auto}
