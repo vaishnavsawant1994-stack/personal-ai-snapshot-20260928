@@ -394,6 +394,13 @@ try {
   await page.click("#todayAdd");
   assert.ok(await page.locator("#todayDialog").isVisible(), "Add control must open the accessible creation dialog");
   assert.ok(await page.locator("#todayForm").isVisible(), "creation form must remain visible inside its dialog");
+  await page.waitForFunction(() => {
+    const dialog=document.querySelector("#todayDialog"),date=document.querySelector("#todayScheduledDate"),time=document.querySelector("#todayTime");
+    if(!dialog?.open||!date||!time)return false;
+    const container=dialog.getBoundingClientRect(),dateBox=date.getBoundingClientRect(),timeBox=time.getBoundingClientRect();
+    return container.width>0&&dateBox.width>0&&timeBox.width>0&&dateBox.x>=container.x&&timeBox.x>=container.x&&
+      dateBox.right<=container.right&&timeBox.right<=container.right&&timeBox.top>=dateBox.bottom-1;
+  });
   const initialDialogBox=await page.locator("#todayDialog").boundingBox();
   const dateBox=await page.locator("#todayScheduledDate").boundingBox(),timeBox=await page.locator("#todayTime").boundingBox();
   assert.ok(dateBox.x>=initialDialogBox.x&&timeBox.x>=initialDialogBox.x&&dateBox.x+dateBox.width<=initialDialogBox.x+initialDialogBox.width&&timeBox.x+timeBox.width<=initialDialogBox.x+initialDialogBox.width,"date and time fields must fit inside the dialog on a phone viewport");
