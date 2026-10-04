@@ -46,6 +46,28 @@ try {
     }
   }
 
+  for(const width of [320,390,768,1440,2560]){
+    await page.setViewportSize({width,height:width<700?568:960});
+    await page.getByRole("button",{name:"Memory"}).click();
+    const memory=await page.evaluate(()=>({page:document.documentElement.scrollWidth,viewport:innerWidth,form:document.querySelector("#memory-search").getBoundingClientRect()}));
+    assert.ok(memory.page<=width&&memory.form.left>=0&&memory.form.right<=width,`Memory screen reflow failed at ${width}: ${JSON.stringify(memory)}`);
+    await page.fill("#memory-query","long-form project context");
+    await page.locator("#memory-search button").click();
+    assert.match(await page.locator("#memory-results").innerText(),/Pair a secure runtime first/,"unpaired memory search must explain how access becomes available");
+    if(width===390)await page.screenshot({path:"artifacts/web-companion-memory-phone-390.png",fullPage:true});
+
+    await page.getByRole("button",{name:"Control"}).click();
+    const pairing=await page.evaluate(()=>({page:document.documentElement.scrollWidth,viewport:innerWidth,fields:[...document.querySelectorAll("#pair input,#emergency input")].map(input=>input.getBoundingClientRect())}));
+    assert.ok(pairing.page<=width&&pairing.fields.every(field=>field.width>0&&field.left>=0&&field.right<=width),`Control form reflow failed at ${width}: ${JSON.stringify(pairing)}`);
+    if(width===390)await page.screenshot({path:"artifacts/web-companion-control-phone-390.png",fullPage:true});
+
+    await page.getByRole("button",{name:"Dashboard"}).click();
+    const dashboard=await page.evaluate(()=>({page:document.documentElement.scrollWidth,viewport:innerWidth,cards:[...document.querySelectorAll("#dashboard article")].map(card=>card.getBoundingClientRect())}));
+    assert.equal(dashboard.cards.length,4,"Dashboard retains all status cards");
+    assert.ok(dashboard.page<=width&&dashboard.cards.every(card=>card.width>0&&card.left>=0&&card.right<=width),`Dashboard reflow failed at ${width}: ${JSON.stringify(dashboard)}`);
+    if(width===768)await page.screenshot({path:"artifacts/web-companion-dashboard-tablet-768.png",fullPage:true});
+  }
+
   await page.setViewportSize({ width: 390, height: 360 });
   await page.emulateMedia({ reducedMotion: "reduce" });
   const reduced = await page.evaluate(() => ({
@@ -58,6 +80,11 @@ try {
   assert.equal(await page.evaluate(() => document.activeElement?.textContent), "Memory");
   await page.getByRole("button", { name: "Control" }).click();
   assert.ok(await page.locator("#runtime-origin").isVisible(), "secure-pairing fields remain reachable on short screens");
+  await page.getByRole("button",{name:"Home"}).click();
+  await page.fill("#prompt","Long composer content must produce a useful unpaired response");
+  await page.locator("#ask button").click();
+  await page.waitForFunction(()=>document.querySelector("#reply").hidden===false);
+  assert.match(await page.locator("#reply").innerText(),/Pair a secure runtime first/,"unpaired chat submission must remain a visible recovery state");
   assert.deepEqual(errors, [], "web companion renders without uncaught JavaScript errors");
   console.log(`Web companion responsive qualification passed ${widths.size} widths from 320px through 2560px, 360px short-height layout, keyboard focus and reduced motion.`);
 } finally {
