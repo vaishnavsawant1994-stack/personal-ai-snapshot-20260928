@@ -1312,44 +1312,6 @@ try {
   await page.locator('[data-section-close]').click();
   assert.equal(await page.locator('#modulePanel').isVisible(),false,'section Close returns to Home');
 
-  // Signing out clears previously loaded private rows, and the drawer must not
-  // leave an unauthorized request stuck in its loading state.
-  revokeSession=true;
-  await page.click("#historyButton");
-  await page.click("#sidebarAccountButton");
-  await page.click("#drawerSignOut");await page.click("#actionDialogSubmit");
-  await page.waitForFunction(()=>!document.querySelector("#enrollPanel").classList.contains("hidden"));
-  await page.click("#ownerButton");
-  await page.waitForFunction(()=>document.querySelector("#conversationCount").textContent==="Sign in required");
-  assert.match(await page.locator("#conversationList").innerText(),/Sign in to view timeline\s+Your chats, plans and activity will appear here after authentication\./);
-  assert.doesNotMatch(await page.locator("#conversationList").innerText(),/Project Planning|Team planning meeting|Finish daily review/,
-    "signed-out timeline must not retain authenticated conversation or activity rows");
-  assert.doesNotMatch(await page.locator("#conversationList").innerText(),/Loading your timeline|Loading real Personal AI activity/,
-    "signed-out timeline must not spin indefinitely");
-  await page.screenshot({path:"artifacts/personal-ai-signed-out-timeline-390x844.png",fullPage:true});
-
-  // Authentication presentation only: real password, Google and passkey authority
-  // are exercised separately by the server integration/security suite.
-  const locked = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
-  await locked.route("https://accounts.google.com/**", route => route.abort());
-  await locked.route("**/iphone/api/**", route => {
-    const path = new URL(route.request().url()).pathname;
-    if (path.endsWith("/status")) {
-      return route.fulfill({ status: 401, contentType: "application/json", body: JSON.stringify({ detail: "Owner verification required" }) });
-    }
-    return route.fulfill({
-      status: 200, contentType: "application/json",
-      body: JSON.stringify({ password_available: true, passkey_available: false, google_available: false }),
-    });
-  });
-  await locked.goto("http://127.0.0.1:4173/iphone/", { waitUntil: "domcontentloaded" });
-  await locked.waitForFunction(() => !document.querySelector("#enrollPanel").classList.contains("hidden"));
-  assert.ok(await locked.locator("#passwordChoice").isVisible(), "real owner password option must remain accessible");
-  await locked.click("#passwordChoice");
-  assert.ok(await locked.locator("#ownerPassword").isVisible(), "owner password form must open");
-  await locked.screenshot({ path: "artifacts/personal-ai-login-390x844.png", fullPage: true });
-  await locked.close();
-
   // Verify the global reduced-motion contract and a 200%-zoom-equivalent CSS viewport.
   // Playwright cannot change browser chrome zoom; the reduced CSS viewport exercises its reflow outcome.
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -1400,6 +1362,46 @@ try {
 
   assert.deepEqual(pageErrors, [], "page must render without uncaught JavaScript errors");
   console.log("Right unified timeline passed chats, meetings, work, reminders, workflow, done and authorized audit filters, chronological ordering, search, completion, Back, New chat, Plan and eight viewports.");
+
+  // Signing out clears previously loaded private rows, and the drawer must not
+  // leave an unauthorized request stuck in its loading state.
+  revokeSession=true;
+  await page.click("#historyButton");
+  await page.click("#sidebarAccountButton");
+  await page.click("#drawerSignOut");await page.click("#actionDialogSubmit");
+  await page.waitForFunction(()=>!document.querySelector("#enrollPanel").classList.contains("hidden"));
+  await page.click("#ownerButton");
+  await page.waitForFunction(()=>document.querySelector("#conversationCount").textContent==="Sign in required");
+  assert.match(await page.locator("#conversationList").innerText(),/Sign in to view timeline\s+Your chats, plans and activity will appear here after authentication\./);
+  assert.doesNotMatch(await page.locator("#conversationList").innerText(),/Project Planning|Team planning meeting|Finish daily review/,
+    "signed-out timeline must not retain authenticated conversation or activity rows");
+  assert.doesNotMatch(await page.locator("#conversationList").innerText(),/Loading your timeline|Loading real Personal AI activity/,
+    "signed-out timeline must not spin indefinitely");
+  await page.screenshot({path:"artifacts/personal-ai-signed-out-timeline-390x844.png",fullPage:true});
+
+  // Authentication presentation only: real password, Google and passkey authority
+  // are exercised separately by the server integration/security suite.
+  const locked = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  await locked.route("https://accounts.google.com/**", route => route.abort());
+  await locked.route("**/iphone/api/**", route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/status")) {
+      return route.fulfill({ status: 401, contentType: "application/json", body: JSON.stringify({ detail: "Owner verification required" }) });
+    }
+    return route.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ password_available: true, passkey_available: false, google_available: false }),
+    });
+  });
+  await locked.goto("http://127.0.0.1:4173/iphone/", { waitUntil: "domcontentloaded" });
+  await locked.waitForFunction(() => !document.querySelector("#enrollPanel").classList.contains("hidden"));
+  assert.ok(await locked.locator("#passwordChoice").isVisible(), "real owner password option must remain accessible");
+  await locked.click("#passwordChoice");
+  assert.ok(await locked.locator("#ownerPassword").isVisible(), "owner password form must open");
+  await locked.screenshot({ path: "artifacts/personal-ai-login-390x844.png", fullPage: true });
+  await locked.close();
+
+
 } finally {
   await browser.close();
 }
