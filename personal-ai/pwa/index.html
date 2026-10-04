@@ -1470,16 +1470,9 @@
     }
     .conversations-drawer-close:hover,.conversations-drawer-close:focus-visible{background:rgba(255,255,255,.095);border-color:rgba(113,169,242,.24)}
     .conversations-drawer-close svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.75}
-    .conversations-new-chat{
-      flex:0 0 auto;width:100%;height:58px;min-height:58px;border-radius:20px;border:1px solid rgba(52,163,255,.48);
-      background:linear-gradient(135deg,#0c8bff,#0665f5);color:#fff;
-      display:flex;align-items:center;justify-content:center;gap:14px;
-      font-size:17px;font-weight:600;line-height:1;cursor:pointer;
-      box-shadow:0 6px 24px rgba(17,102,255,.18),inset 0 1px rgba(255,255,255,.16);
+    .conversations-bottom-new-chat{
+      flex:0 0 auto;width:100%;min-width:0;height:48px;min-height:48px;margin-top:10px;
     }
-    .conversations-new-chat:hover,.conversations-new-chat:focus-visible{filter:brightness(1.06)}
-    .conversations-new-chat:active{transform:scale(.992)}
-    .conversations-new-chat svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.7}
     .conversations-search-wrap{
       flex:0 0 auto;height:50px;margin-top:17px;border-radius:19px;
       border:1px solid rgba(100,150,210,.17);background:rgba(14,22,34,.78);
@@ -2416,7 +2409,6 @@ button:active:focus-visible{transform:none!important;transition:none!important}
       <h2 id="conversationsDrawerTitle">Conversations</h2>
       <button id="closeDrawer" class="conversations-drawer-close" type="button" aria-label="Close conversations"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     </header>
-    <button id="newConversation" class="conversations-new-chat" type="button" aria-label="New chat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M4 12h16"/></svg><span>New chat</span></button>
     <label class="conversations-search-wrap" for="conversationManagerSearch">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.2"/><path d="m15.5 15.5 4.3 4.3"/></svg>
       <input id="conversationManagerSearch" type="search" autocomplete="off" placeholder="Search conversations…" aria-label="Search conversations"/>
@@ -2424,6 +2416,7 @@ button:active:focus-visible{transform:none!important;transition:none!important}
     <div id="conversationsDemoNote" class="demo-data-note hidden" role="status">Preview data · sample conversations; no changes are saved</div>
     <p id="conversationManagerStatus" class="conversations-sr-status" aria-live="polite">Loading conversations…</p>
     <div id="conversationManagerList" class="conversations-manager-list" role="list" aria-label="Your conversations"></div>
+    <button id="newConversation" class="sidebar-new-compact conversations-bottom-new-chat" type="button" aria-label="New chat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M4 12h16"/></svg><span>New chat</span></button>
   </section>
 
   <section id="timelineDrawerMode" class="timeline-drawer-mode hidden" aria-labelledby="timelineDrawerTitle">
