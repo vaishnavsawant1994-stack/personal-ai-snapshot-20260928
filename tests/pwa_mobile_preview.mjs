@@ -25,6 +25,7 @@ const workflowRuns=[{id:'run-1',workflow_title:'Morning operations',status:'comp
 let allowActivity=true;
 let revokeSession=false;
 const deletedConversationIds=[];
+const createdMemories=[];
 const exportedConversationIds=[];
 const turnConversationIds=[];
 let conversationCreateCount=0;
@@ -71,6 +72,9 @@ try {
       body = { items: everydayItems.filter(item => !['completed','cancelled','dismissed'].includes(item.status)) };
     } else if (path === "/everyday/timeline" && method === "GET") {
       body = { items: everydayItems };
+    } else if (path === "/memory" && method === "POST") {
+      const input=JSON.parse(request.postData()||"{}");createdMemories.push(input);
+      return route.fulfill({status:201,contentType:"application/json",body:JSON.stringify({memory:{id:"created-memory-"+createdMemories.length,...input}})});
     } else if (path === "/memory" && method === "GET") {
       const query=(url.searchParams.get("q")||"").toLowerCase();
       const memories=[{id:"memory-qa",subject:"Project context",type:"note",content:"Browser qualification fixture with source evidence",source:"owner",tags_json:'["QA"]',created_at:atToday(8),confidence:1}];
@@ -175,7 +179,8 @@ try {
   assert.equal(await page.locator("#todayPlanCount").textContent(),"1");
   const demoItemsBeforeAdd=everydayItems.length;
   await page.click("#todayScreenAdd");
-  assert.equal(await page.locator("#todayAddSheet").isVisible(),false,"Today sample data must not open a real creation flow");
+  assert.equal(await page.locator("#todayDialog").isVisible(),true,"Today Add must open the movable creation dialog, including in preview mode");
+  await page.click("#todayCancel");
   await page.locator("#todayTasksList .today-task-check").first().click({force:true});
   assert.equal(everydayItems.length,demoItemsBeforeAdd,"Today demo actions must not create or complete real records");
   await page.screenshot({path:"artifacts/personal-ai-today-demo-390x844.png",fullPage:true});
@@ -369,14 +374,28 @@ try {
   await page.evaluate(()=>renderHomeRecent(conversationCache));
   // Today timeline is real: add a meeting, mark a task complete, verify empty-state.
   await page.click("#todayAdd");
-  assert.ok(await page.locator("#todayForm").isVisible(), "Add control must reveal accessible item form");
-  await page.selectOption("#todayCategory", "meeting");
+  assert.ok(await page.locator("#todayDialog").isVisible(), "Add control must open the accessible creation dialog");
+  assert.ok(await page.locator("#todayForm").isVisible(), "creation form must remain visible inside its dialog");
+  const initialDialogBox=await page.locator("#todayDialog").boundingBox();
+  await page.mouse.move(initialDialogBox.x+initialDialogBox.width/2,initialDialogBox.y+30);
+  await page.mouse.down();await page.mouse.move(initialDialogBox.x+initialDialogBox.width/2+36,initialDialogBox.y+54,{steps:4});await page.mouse.up();
+  const movedDialogBox=await page.locator("#todayDialog").boundingBox();
+  assert.ok(Math.abs(movedDialogBox.x-initialDialogBox.x)>20||Math.abs(movedDialogBox.y-initialDialogBox.y)>20,"dialog header drag must move the popup");
+  assert.ok(movedDialogBox.x>=0&&movedDialogBox.y>=0&&movedDialogBox.x+movedDialogBox.width<=390&&movedDialogBox.y+movedDialogBox.height<=844,"dragged dialog must stay within the phone viewport");
+  await page.click('[data-today-kind="meeting"]');
   await page.fill("#todayTitle", "Afternoon planning review");
   await page.fill("#todayTime", "15:30");
   await page.click("#todaySave");
   await page.waitForFunction(() => document.querySelectorAll("#todayTimeline .today-item").length === 3);
   assert.deepEqual(await page.locator("#todayTimeline .today-item strong").allTextContents(),
     ["Finish daily review","Team planning meeting","Afternoon planning review"], "Today items must be sorted chronologically");
+  await page.click("#todayAdd");await page.click('[data-today-kind="note"]');
+  assert.equal(await page.locator("#todayContentWrap").isVisible(),true,"Note selection must reveal the note content field");
+  assert.equal(await page.locator("#todayScheduledDate").isVisible(),false,"Notes do not require a task date");
+  await page.fill("#todayTitle","Popup note smoke test");await page.fill("#todayContent","Saved through the Personal AI creation dialog.");await page.click("#todaySave");
+  assert.equal(createdMemories.length,1,"saving a note must call the memory creation API once");
+  assert.equal(createdMemories[0].subject,"Popup note smoke test");
+  assert.equal(createdMemories[0].content,"Saved through the Personal AI creation dialog.");
   await page.locator("#todayTimeline .today-check").first().click();
   await page.waitForFunction(() => document.querySelectorAll("#todayTimeline .today-item").length === 2);
   assert.ok(!((await page.locator("#todayTimeline").innerText()).includes("Finish daily review")), "completing a task must remove it from today's pending list");
@@ -410,7 +429,7 @@ try {
   await page.screenshot({ path: "artifacts/personal-ai-home-today-empty-390x844.png", fullPage: true });
   await page.screenshot({ path: "artifacts/personal-ai-home-approved-390x844.png", fullPage: true });
   await page.click(".today-empty-add");
-  assert.ok(await page.locator("#todayForm").isVisible(), "Add to Today must invoke the existing add form");
+  assert.ok(await page.locator("#todayDialog").isVisible(), "empty Today Add to Today must open the shared creation dialog");
   await page.click("#todayCancel");
   await page.evaluate(() => refreshToday());
   await page.click("#homeCalendarConnect");
@@ -754,9 +773,9 @@ try {
   await page.screenshot({path:"artifacts/personal-ai-unified-timeline-filtered-390x844.png",fullPage:true});
 
   await page.click("#timelineAddPlan");
-  await page.waitForFunction(()=>!document.querySelector("#todayForm").classList.contains("hidden"));
+  await page.waitForFunction(()=>document.querySelector("#todayDialog")?.open===true);
   await page.screenshot({path:"artifacts/personal-ai-timeline-add-to-plan-390x844.png",fullPage:true});
-  await page.evaluate(()=>document.querySelector("#todayForm").classList.add("hidden"));
+  await page.click("#todayCancel");
   await page.click("#ownerButton");
   await page.waitForFunction(()=>document.querySelector("#conversationDrawer").dataset.mode==="timeline"&&!document.querySelector("#conversationDrawer").classList.contains("hidden"));
   await page.waitForFunction(()=>document.querySelectorAll(".timeline-entry").length>=10);
@@ -828,8 +847,8 @@ try {
   await page.keyboard.press("Escape");
   assert.equal(await page.locator("#chatActionMenu").isVisible(),false,"Escape must close the conversation menu");
   await page.click("#chatMenuButton");
-  page.once("dialog",dialog=>dialog.accept("Mushroom Session Notes"));
   await page.click("#chatRename");
+  await page.fill("#actionDialogInput","Mushroom Session Notes");await page.click("#actionDialogSubmit");
   await page.waitForFunction(()=>document.querySelector("#conversationTitle").textContent==="Mushroom Session Notes");
   assert.equal(conversations[0].title,"Mushroom Session Notes","rename must call the real conversation API");
   await page.evaluate(()=>{
@@ -1209,12 +1228,10 @@ try {
   await page.evaluate(()=>openConversation("new"));
   await page.waitForFunction(()=>!document.querySelector("#chatMenuButton").classList.contains("hidden"));
   await page.click("#chatMenuButton");
-  page.once("dialog",dialog=>dialog.dismiss());
-  await page.click("#chatDelete");
+  await page.click("#chatDelete");await page.click("#actionDialogCancel");
   assert.deepEqual(deletedConversationIds,[],"cancel must leave conversation untouched");
   await page.click("#chatMenuButton");
-  page.once("dialog",dialog=>dialog.accept());
-  await page.click("#chatDelete");
+  await page.click("#chatDelete");await page.click("#actionDialogSubmit");
   await page.waitForFunction(()=>document.body.classList.contains("home-landing")&&document.querySelector("#chatMenuButton").classList.contains("hidden"));
   assert.deepEqual(deletedConversationIds,["new"],"confirmed delete must call the secured conversation endpoint exactly once");
 
@@ -1281,8 +1298,7 @@ try {
   revokeSession=true;
   await page.click("#historyButton");
   await page.click("#sidebarAccountButton");
-  page.once("dialog",dialog=>dialog.accept());
-  await page.click("#drawerSignOut");
+  await page.click("#drawerSignOut");await page.click("#actionDialogSubmit");
   await page.waitForFunction(()=>!document.querySelector("#enrollPanel").classList.contains("hidden"));
   await page.click("#ownerButton");
   await page.waitForFunction(()=>document.querySelector("#conversationCount").textContent==="Sign in required");
