@@ -74,8 +74,14 @@ struct PersonalAICompanionApp: App {
                         Text("Device ID and bearer token are stored in the iPhone Keychain with this-device-only protection.").font(.caption)
                         Button("Forget this iPhone",role:.destructive) { store.forgetDevice() }
                     }
-                }.navigationTitle("Personal AI")
+                }
+                .scrollContentBackground(.hidden)
+                .background(Color(red: 0.02, green: 0.035, blue: 0.055))
+                .navigationTitle("Personal AI")
+                .navigationBarTitleDisplayMode(.inline)
+                .tint(Color(red: 0.38, green: 0.70, blue: 0.98))
             }
+            .preferredColorScheme(.dark)
             .onAppear { if store.deviceID != nil { store.connect() } }
             .onChange(of:scenePhase) { _,phase in
                 if phase == .active { store.connect() }

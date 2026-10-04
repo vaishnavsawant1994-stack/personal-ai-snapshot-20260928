@@ -2,6 +2,7 @@ package ai.personal.companion
 
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.text.InputType
@@ -10,6 +11,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.ScrollView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.browser.customtabs.CustomTabColorSchemeParams
 import androidx.browser.customtabs.CustomTabsIntent
@@ -54,20 +56,20 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(40, 52, 40, 40)
+            setPadding(dp(20), dp(28), dp(20), dp(32))
             setBackgroundColor(Color.rgb(3, 6, 13))
         }
         val brand = TextView(this).apply {
             text = "P E R S O N A L   A I"
-            textSize = 25f
+            textSize = 19f
             setTextColor(Color.WHITE)
-            setPadding(0, 0, 0, 16)
+            setPadding(0, 0, 0, dp(10))
         }
         val description = TextView(this).apply {
             text = "Your owner-controlled intelligence"
             textSize = 16f
             setTextColor(Color.rgb(148, 163, 184))
-            setPadding(0, 0, 0, 40)
+            setPadding(0, 0, 0, dp(26))
         }
         val openCloud = Button(this).apply {
             text = "Open Personal AI"
@@ -77,11 +79,13 @@ class MainActivity : AppCompatActivity() {
             text = "Voice, Google sign-in, memory and conversations continue securely in your trusted browser."
             textSize = 14f
             setTextColor(Color.rgb(148, 163, 184))
-            setPadding(4, 18, 4, 36)
+            setPadding(dp(4), dp(14), dp(4), dp(26))
         }
         val advanced = Button(this).apply { text = "Advanced device pairing" }
         val pairingBox = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
+            background = rounded(Color.rgb(9, 17, 24), Color.rgb(35, 54, 66))
+            setPadding(dp(14), dp(10), dp(14), dp(14))
             visibility = View.GONE
         }
         base = EditText(this).apply {
@@ -104,9 +108,18 @@ class MainActivity : AppCompatActivity() {
         }
         val pair = Button(this).apply { text = "Pair" }
         val connect = Button(this).apply { text = "Start background connection" }
+        listOf(base, pairToken, code).forEach(::styleField)
+        listOf(openCloud, pair, connect).forEach { styleButton(it, true) }
+        styleButton(advanced, false)
+        status.textSize = 13f
+        status.setLineSpacing(dp(3).toFloat(), 1f)
         listOf(base, pairToken, code, pair, connect, status).forEach(pairingBox::addView)
         listOf(brand, description, openCloud, continuity, advanced, pairingBox).forEach(box::addView)
-        setContentView(box)
+        setContentView(ScrollView(this).apply {
+            isFillViewport = true
+            clipToPadding = false
+            addView(box)
+        })
         openCloud.setOnClickListener { openPersonalAI() }
         advanced.setOnClickListener {
             val show = pairingBox.visibility != View.VISIBLE
@@ -116,6 +129,39 @@ class MainActivity : AppCompatActivity() {
         pair.setOnClickListener { pairDevice() }
         connect.setOnClickListener { startDeviceService() }
         if (prefs.getString("device", null) != null) startDeviceService()
+    }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    private fun rounded(fill: Int, stroke: Int): GradientDrawable =
+        GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dp(14).toFloat()
+            setColor(fill)
+            setStroke(dp(1), stroke)
+        }
+
+    private fun styleField(field: EditText) {
+        field.setTextColor(Color.rgb(237, 244, 247))
+        field.setHintTextColor(Color.rgb(135, 151, 162))
+        field.background = rounded(Color.rgb(7, 13, 18), Color.rgb(35, 52, 63))
+        field.setPadding(dp(14), dp(12), dp(14), dp(12))
+        field.minHeight = dp(52)
+        field.textSize = 15f
+    }
+
+    private fun styleButton(button: Button, primary: Boolean) {
+        val fill = if (primary) Color.rgb(214, 237, 248) else Color.rgb(10, 18, 24)
+        val ink = if (primary) Color.rgb(5, 15, 22) else Color.rgb(211, 224, 231)
+        val stroke = if (primary) Color.rgb(214, 237, 248) else Color.rgb(42, 62, 74)
+        button.background = rounded(fill, stroke)
+        button.backgroundTintList = null
+        button.setTextColor(ink)
+        button.textSize = 14f
+        button.isAllCaps = false
+        button.minHeight = dp(48)
+        button.setPadding(dp(16), dp(10), dp(16), dp(10))
+        button.stateListAnimator = null
     }
 
     private fun openPersonalAI() {
