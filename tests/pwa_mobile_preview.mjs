@@ -182,9 +182,11 @@ try {
   assert.equal(await page.locator("#todayDialog").isVisible(),true,"Today Add must open the movable creation dialog, including in preview mode");
   assert.equal(everydayItems.length,demoItemsBeforeAdd,"opening the preview add dialog must not create real records");
   assert.equal(await page.locator("#todayTasksList .today-task-check:disabled").count(),4,"preview sample task controls must remain disabled");
+  await page.click("#todayCancel");
+  assert.equal(await page.locator("#todayDialog").isVisible(),false,"cancel must close an untouched creation dialog without an unnecessary discard prompt");
   await page.screenshot({path:"artifacts/personal-ai-today-demo-390x844.png",fullPage:true});
-  await page.goto("http://127.0.0.1:4173/iphone/",{waitUntil:"domcontentloaded"});
-  await page.waitForFunction(()=>document.body.classList.contains("home-landing"));
+  await page.click("#todayScreenClose");
+  await page.evaluate(()=>{todayScreenDemo=false});
 
   // All three approved surfaces share one explicitly enabled, non-persistent preview dataset.
   await page.evaluate(async()=>{personalAiDemoMode=true;await openConversationsDrawer()});
