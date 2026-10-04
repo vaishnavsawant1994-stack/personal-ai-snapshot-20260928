@@ -2666,6 +2666,34 @@ button:active:focus-visible{transform:none!important;transition:none!important}
     .timeline-sidebar-footer .sidebar-new-compact,.timeline-sidebar-footer .timeline-plan-button{padding-left:6px!important;padding-right:6px!important;font-size:12px!important}
     .timeline-sidebar-footer svg{width:17px;height:17px}
   }
+  .today-screen{height:100dvh;overflow:hidden!important;align-items:stretch;padding-bottom:var(--shared-composer-bottom)!important}
+  .today-shell{height:100%;max-height:100%;min-height:0!important;display:flex;flex-direction:column;overflow:hidden;padding-bottom:0!important}
+  .today-screen-content{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+  .today-screen-footer{
+    flex:0 0 auto;display:grid;grid-template-columns:minmax(104px,.72fr) minmax(0,1.28fr);gap:8px;
+    padding:10px 14px 5px;
+    border-top:1px solid rgba(148,177,230,.12);
+    background:linear-gradient(180deg,rgba(5,12,21,.92),rgba(3,7,13,.98))
+  }
+  .today-screen-footer .sidebar-new-compact,.today-screen-footer .today-add-action{
+    box-sizing:border-box;width:100%;min-width:0!important;height:48px;min-height:48px!important;
+    margin:0!important;padding:0 8px!important;gap:5px!important;justify-content:center;
+    border-radius:15px!important;font-size:13px!important;white-space:nowrap
+  }
+  .today-screen-footer .today-add-action{grid-template-columns:22px minmax(0,1fr) 12px;text-align:left}
+  .today-screen-footer .today-add-action{font-size:12px!important}
+  .today-screen-footer .today-add-action .plus{font-size:23px}
+  .today-screen-footer .today-add-action .chev{font-size:22px}
+  .today-screen-footer svg{width:19px;height:19px;flex:0 0 auto}
+  @media(max-width:350px){
+    .today-screen-footer{grid-template-columns:minmax(100px,.72fr) minmax(0,1.28fr);gap:6px;padding-left:10px;padding-right:10px}
+    .today-screen-footer .sidebar-new-compact,.today-screen-footer .today-add-action{padding-left:6px!important;padding-right:6px!important;font-size:11.5px!important}
+    .today-screen-footer .today-add-action{grid-template-columns:18px minmax(0,1fr) 10px;gap:4px!important}
+    .today-screen-footer .today-add-action{font-size:10.5px!important}
+    .today-screen-footer .today-add-action .plus{font-size:20px}
+    .today-screen-footer .today-add-action .chev{font-size:20px}
+    .today-screen-footer svg{width:17px;height:17px}
+  }
 </style>
 </head>
 <body>
@@ -2867,6 +2895,7 @@ button:active:focus-visible{transform:none!important;transition:none!important}
    <div class="today-screen-title"><h1 id="todayScreenTitle">Today</h1><p>Your day at a glance</p></div>
    <button id="todayScreenClose" type="button" aria-label="Close Today"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
   </header>
+  <div class="today-screen-content">
   <div class="today-tabs" role="tablist" aria-label="Today filters">
    <button class="today-tab active" type="button" role="tab" aria-selected="true" data-today-filter="all">All</button>
    <button class="today-tab" type="button" role="tab" aria-selected="false" data-today-filter="tasks">Tasks</button>
@@ -2882,7 +2911,11 @@ button:active:focus-visible{transform:none!important;transition:none!important}
   <section id="todayTasksSection" class="today-section"><div class="today-section-head"><h2>Tasks</h2><button class="today-see-all" type="button" data-today-see="tasks">See all ›</button></div><div id="todayTasksList" class="today-list" aria-live="polite"></div></section>
   <section id="todayMeetingsSection" class="today-section"><div class="today-section-head"><h2>Meetings</h2><button class="today-see-all" type="button" data-today-see="meetings">See all ›</button></div><div id="todayMeetingsList" class="today-list" aria-live="polite"></div></section>
   <section id="todayPlansSection" class="today-section"><div class="today-section-head"><h2>Plans</h2><button class="today-see-all" type="button" data-today-see="plans">See all ›</button></div><div id="todayPlansList" class="today-list" aria-live="polite"></div></section>
-  <button id="todayScreenAdd" class="today-add-action" type="button"><span class="plus">＋</span><span>Add task, meeting or plan</span><span class="chev">›</span></button>
+  </div>
+  <div class="today-screen-footer" role="group" aria-label="Today actions">
+   <button id="todayScreenNewChat" class="sidebar-new-compact" type="button" aria-label="Start a new chat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M4 12h16"/></svg><span>New chat</span></button>
+   <button id="todayScreenAdd" class="today-add-action" type="button"><span class="plus">＋</span><span>Add task, meeting or plan</span><span class="chev">›</span></button>
+  </div>
  </div>
 </aside>
 <dialog id="todayDialog" class="managed-dialog creation-dialog" aria-labelledby="todayDialogTitle" aria-describedby="todayDialogDescription">
@@ -4415,6 +4448,7 @@ $('historyButton').onclick=openAppDrawer;
 $('closeAppDrawer').onclick=closeAppDrawer;
 $('sidebarNewChat').onclick=()=>personalAiDemoMode?showToast('Sample preview only — no conversation is created'):createConversation().catch(error=>showToast(error.message));
 $('timelineNewChat').onclick=$('sidebarNewChat').onclick;
+$('todayScreenNewChat').onclick=()=>todayScreenDemo||personalAiDemoMode?showToast('Sample preview only — no conversation is created'):createConversation().catch(error=>showToast(error.message));
 $('sidebarSearchToggle').onclick=()=>{
  const open=$('sidebarSearchPanel').classList.contains('hidden');
  if(!open){closeSidebarSearch();return}
