@@ -52,14 +52,14 @@ Independent personal AI assistant codebase designed from scratch.
 - Per-device scopes, device listing and revocation
 - Replaceable cloud/self-hosted model routing
 
-Operational details: [docs/OWNER_PRODUCT_OPERATIONS.md](docs/OWNER_PRODUCT_OPERATIONS.md).
+Operational details: [`docs/OWNER_PRODUCT_OPERATIONS.md`](docs/OWNER_PRODUCT_OPERATIONS.md).
 
 ## Run
 
 ```bash
 python -m venv .venv
 # Windows
-.venv\\Scripts\\activate
+.venv\Scripts\activate
 # macOS/Linux
 source .venv/bin/activate
 
