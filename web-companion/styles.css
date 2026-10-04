@@ -58,8 +58,10 @@ button:disabled,input:disabled,select:disabled,textarea:disabled{opacity:.58;cur
   .shell{padding-left:max(1rem,env(safe-area-inset-left));padding-right:max(1rem,env(safe-area-inset-right))}
   nav{flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-inline:contain}
   .core{height:clamp(9rem,36vw,10.5rem)}
-  .mode{grid-template-columns:repeat(2,minmax(0,1fr));gap:.2rem}
+  .mode{grid-template-columns:repeat(4,minmax(0,1fr));gap:.2rem}
   .mode span{min-width:0;overflow-wrap:anywhere}
+  article{padding:.75rem}
+  article strong{margin:.25rem 0}
   footer .footline{justify-content:flex-start;max-height:2.8em;overflow:auto}
 }
 @media(max-height:34rem) and (orientation:landscape){
@@ -71,6 +73,6 @@ button:disabled,input:disabled,select:disabled,textarea:disabled{opacity:.58;cur
   .shell{padding-top:max(.65rem,env(safe-area-inset-top))}
   nav{margin-block:.75rem}
   h2{margin-top:1rem}
-  .core{height:clamp(6rem,18vh,6.5rem)}
+  .core{height:clamp(4.5rem,14vh,5rem)}
 }
 @media(prefers-reduced-motion:reduce){.core:before,.core:after,.core i{animation:none!important}}
