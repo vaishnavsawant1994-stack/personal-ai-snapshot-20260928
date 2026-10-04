@@ -44,13 +44,13 @@ struct PersonalAICompanionApp: App {
                         Link(destination:URL(string:"https://personal-ai-runtime-production.up.railway.app/iphone/")!) {
                             Label("Open Personal AI",systemImage:"sparkles")
                         }
-                        Text("Uses Safari so Google sign-in, trusted-device cookies, microphone access and conversation continuity work correctly.").font(.caption).foregroundStyle(.secondary)
+                        Text("Uses Safari so Google sign-in, trusted-device cookies, microphone access and conversation continuity work correctly.").font(PersonalAITheme.Type.supporting).foregroundStyle(.secondary)
                     }
                     Section("Personal AI computer") {
                         TextField("https://your-computer:8766",text:$store.baseURL).textInputAutocapitalization(.never).keyboardType(.URL)
                         Toggle("Allow insecure local development",isOn:$store.allowInsecureDevelopment)
                         if store.allowInsecureDevelopment {
-                            Text("Development only. HTTP/WS exposes pairing and bearer credentials to the local network.").font(.caption).foregroundStyle(.orange)
+                            Text("Development only. HTTP/WS exposes pairing and bearer credentials to the local network.").font(PersonalAITheme.Type.supporting).foregroundStyle(.orange)
                         }
                     }
                     Section("Secure pairing") {
@@ -65,21 +65,23 @@ struct PersonalAICompanionApp: App {
                     }
                     Section("Voice") {
                         Toggle("Active voice session",isOn:Binding(get:{store.voiceActive},set:{ value in Task { await store.setVoiceActive(value) }}))
-                        Text("Background audio is used only while an active voice session is running. Ordinary device connectivity follows iOS lifecycle rules.").font(.caption).foregroundStyle(.secondary)
+                        Text("Background audio is used only while an active voice session is running. Ordinary device connectivity follows iOS lifecycle rules.").font(PersonalAITheme.Type.supporting).foregroundStyle(.secondary)
                     }
                     Section("Notifications") {
-                        Text("The iPhone registers its APNs token and sends it through the authenticated Personal AI device channel. A later APNs provider stage can use this registration for server-initiated background notifications.").font(.caption).foregroundStyle(.secondary)
+                        Text("The iPhone registers its APNs token and sends it through the authenticated Personal AI device channel. A later APNs provider stage can use this registration for server-initiated background notifications.").font(PersonalAITheme.Type.supporting).foregroundStyle(.secondary)
                     }
                     Section("Security") {
-                        Text("Device ID and bearer token are stored in the iPhone Keychain with this-device-only protection.").font(.caption)
+                        Text("Device ID and bearer token are stored in the iPhone Keychain with this-device-only protection.").font(PersonalAITheme.Type.supporting)
                         Button("Forget this iPhone",role:.destructive) { store.forgetDevice() }
                     }
                 }
                 .scrollContentBackground(.hidden)
-                .background(Color(red: 0.02, green: 0.035, blue: 0.055))
+                .background(PersonalAITheme.ColorToken.background)
                 .navigationTitle("Personal AI")
                 .navigationBarTitleDisplayMode(.inline)
-                .tint(Color(red: 0.38, green: 0.70, blue: 0.98))
+                .tint(PersonalAITheme.ColorToken.accent)
+                .font(PersonalAITheme.Type.body)
+                .toolbar { ToolbarItem(placement: .principal) { Text("Personal AI").font(PersonalAITheme.Type.pageTitle).fontWeight(.semibold) } }
             }
             .preferredColorScheme(.dark)
             .onAppear { if store.deviceID != nil { store.connect() } }

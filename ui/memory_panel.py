@@ -3,6 +3,7 @@ import html
 import json
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QLineEdit,QPushButton,QTabWidget,QWidget,QTreeWidget,QTreeWidgetItem,QTextBrowser
+from ui.design_tokens import fit_window_to_screen, stylesheet as design_system_stylesheet
 
 
 class MemoryPanel(QDialog):
@@ -14,8 +15,9 @@ class MemoryPanel(QDialog):
         self.brain = getattr(memory, 'second_brain', None)
         self.rows_by_id = {}
         self.setWindowTitle('Second Brain')
-        self.resize(1040,720)
+        fit_window_to_screen(self,preferred=(1040,720))
         self.setStyleSheet('QDialog,QWidget{background:#050608;color:#eef4f8} QLineEdit,QTreeWidget,QTextBrowser{background:#080c11;border:1px solid #22303b;padding:8px} QPushButton{background:#101822;border:1px solid #263746;padding:8px 12px}')
+        self.setStyleSheet(self.styleSheet()+design_system_stylesheet())
         lay=QVBoxLayout(self)
         top=QHBoxLayout(); self.search=QLineEdit(); self.search.setPlaceholderText('Search memory…')
         btn=QPushButton('Search'); btn.clicked.connect(self.refresh); top.addWidget(self.search,1); top.addWidget(btn); lay.addLayout(top)

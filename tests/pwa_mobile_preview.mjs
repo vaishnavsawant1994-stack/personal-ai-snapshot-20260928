@@ -169,6 +169,16 @@ try {
   });
   await page.waitForFunction(() => document.querySelectorAll("#todayTimeline .today-item").length === 2, { timeout: 10000 }).catch(async error => { const state = await page.evaluate(() => ({ date: document.querySelector("#todayDate")?.textContent, timeline: document.querySelector("#todayTimeline")?.innerHTML, startupError: document.querySelector("#voiceAlert")?.dataset.startupError, alert: document.querySelector("#voiceAlert")?.textContent, refreshing: typeof refreshToday })); throw new Error(error.message + "\\nToday state: " + JSON.stringify(state) + "\\nAPI requests: " + appRequests.join(", ") + "\\nPage errors: " + pageErrors.join("\\n")); });
   await page.waitForTimeout(500);
+  const semanticTokens=await page.evaluate(()=>{
+    const css=getComputedStyle(document.documentElement);
+    return {body:css.getPropertyValue('--pa-type-body').trim(),page:css.getPropertyValue('--pa-type-page').trim(),
+      spacing:css.getPropertyValue('--pa-space-4').trim(),touch:css.getPropertyValue('--pa-touch-target').trim(),
+      cardRadius:css.getPropertyValue('--ui-card-radius').trim()};
+  });
+  assert.equal(semanticTokens.body,'1rem','PWA body role must use the semantic type scale');
+  assert.equal(semanticTokens.spacing,'1rem','PWA spacing must expose the shared 4-unit token');
+  assert.equal(semanticTokens.touch,'2.75rem','PWA touch target must be 44px');
+  assert.ok(semanticTokens.page&&semanticTokens.cardRadius,'PWA page heading and Home card surface tokens must resolve');
 
   // The explicit demo mode shows realistic sample records without calling mutation APIs.
   await page.evaluate(async()=>{todayScreenDemo=true;await openTodayScreen()});
@@ -303,6 +313,7 @@ try {
   assert.ok(focusedEmptyHomeComposer.height>=52&&focusedEmptyHomeComposer.height<=56,"focused empty Home composer must stay slim");
   assert.ok(focusedEmptyHomeComposer.bottom>=focusedEmptyHomeComposer.viewport-1&&focusedEmptyHomeComposer.bottom<=focusedEmptyHomeComposer.viewport+1,"focused empty Home composer must stay fixed to the bottom");
   await page.locator("#historyButton").focus();
+  assert.equal(await page.evaluate(()=>getComputedStyle(document.activeElement).outlineStyle),'solid','keyboard focus remains visibly outlined');
   assert.equal(await page.locator("#sendButton").isVisible(), false, "idle Home composer must show microphone, not inactive send");
   assert.equal(await page.locator("#micButton").isVisible(), true, "idle Home composer microphone must remain available");
   assert.equal(await page.locator("#attachmentButton svg path").getAttribute("d"), "M12 5v14M5 12h14", "attachment icon must remain the existing compact plus");
@@ -1085,6 +1096,7 @@ try {
     assert.ok(wide.quick.every(card=>card.width<wide.home.width*.52),"2x2 shortcut grid must stay proportionate at "+width+"x"+height);
     if(width===768)await page.screenshot({path:"artifacts/personal-ai-home-tablet-768x1024.png",fullPage:true});
     if(width===1440)await page.screenshot({path:"artifacts/personal-ai-home-desktop-1440x1000.png",fullPage:true});
+    if(width===2560)await page.screenshot({path:"artifacts/personal-ai-home-wide-2560x1440.png",fullPage:true});
     await page.click("#ownerButton");
     await page.waitForFunction(()=>document.querySelector("#conversationDrawer").dataset.mode==="timeline"&&!document.querySelector("#conversationDrawer").classList.contains("hidden"));
     await page.waitForFunction(()=>{const r=document.querySelector("#conversationDrawer").getBoundingClientRect();return r.left>=0&&r.right<=innerWidth+1});

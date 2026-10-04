@@ -2313,12 +2313,49 @@ button:active:focus-visible{transform:none!important;transition:none!important}
   /* One responsive type, surface, and spacing system across every PWA screen.
      Home stays the visual reference; page-specific layouts and controls remain intact. */
   :root {
-    --ui-page-title: clamp(1.45rem, 4vw, 1.78rem);
-    --ui-section-title: clamp(1.05rem, 2.6vw, 1.22rem);
-    --ui-card-title: 0.94rem;
-    --ui-body: max(0.9375rem, 15px);
+    /* Semantic project tokens. These are Personal AI values calibrated to Home,
+       not measurements claimed to be ChatGPT's internal specification. */
+    --pa-type-display: clamp(1.875rem, 3.2vw, 2rem);
+    --pa-type-page: clamp(1.375rem, 2.6vw, 1.5rem);
+    --pa-type-section: clamp(1.125rem, 2vw, 1.25rem);
+    --pa-type-subsection: clamp(1rem, 1.5vw, 1.125rem);
+    --pa-type-body: 1rem;
+    --pa-type-supporting: 0.875rem;
+    --pa-type-control: 0.875rem;
+    --pa-type-metadata: 0.75rem;
+    --pa-type-micro: 0.6875rem;
+    --pa-leading-display: 1.25;
+    --pa-leading-heading: 1.3;
+    --pa-leading-body: 1.5;
+    --pa-leading-compact: 1.4;
+    --pa-space-1: 0.25rem;
+    --pa-space-2: 0.5rem;
+    --pa-space-3: 0.75rem;
+    --pa-space-4: 1rem;
+    --pa-space-5: 1.25rem;
+    --pa-space-6: 1.5rem;
+    --pa-space-8: 2rem;
+    --pa-space-10: 2.5rem;
+    --pa-space-12: 3rem;
+    --pa-space-16: 4rem;
+    --pa-page-gutter: clamp(1rem, 3vw, 2rem);
+    --pa-reading-width: 48rem;
+    --pa-conversation-width: 52rem;
+    --pa-control-height: 2.75rem;
+    --pa-touch-target: 2.75rem;
+    --pa-icon-small: 1rem;
+    --pa-icon-control: 1.25rem;
+    --pa-icon-prominent: 1.5rem;
+    --pa-control-radius: 0.8125rem;
+    --pa-focus-ring: 0 0 0 3px rgba(83, 166, 255, .4);
+    --pa-motion-fast: 140ms;
+    --pa-motion-standard: 180ms;
+    --ui-page-title: var(--pa-type-page);
+    --ui-section-title: var(--pa-type-section);
+    --ui-card-title: var(--pa-type-subsection);
+    --ui-body: var(--pa-type-body);
     --ui-supporting: max(0.875rem, 14px);
-    --ui-meta: max(0.8125rem, 13px);
+    --ui-meta: var(--pa-type-metadata);
     --ui-card-radius: 17px;
     --ui-card-border: rgba(135, 170, 228, 0.16);
     --ui-card-fill: linear-gradient(145deg, rgba(13, 26, 46, 0.88), rgba(6, 13, 25, 0.82));
@@ -2330,6 +2367,64 @@ button:active:focus-visible{transform:none!important;transition:none!important}
     font-size: var(--ui-body);
     line-height: 1.55;
     color: var(--text-primary, var(--text));
+  }
+
+  :where(.section-page, .settings-hub, .owner-page, .today-screen) {
+    max-width: 78rem;
+    margin-inline: auto;
+  }
+  :where(.section-page p, .settings-hub-description, .section-detail-copy,
+         .message-entry .message, .assistant-message, .reply, .transcript) {
+    line-height: var(--pa-leading-body);
+    overflow-wrap: anywhere;
+  }
+  :where(.message-entry .message, .assistant-message, .reply, .transcript) {
+    max-width: min(100%, var(--pa-conversation-width));
+  }
+  :where(.message-entry pre, .message pre, .reply pre, .transcript pre) {
+    max-width: 100%;
+    overflow: auto;
+    padding: var(--pa-space-4);
+    border: 1px solid var(--ui-card-border);
+    border-radius: var(--ui-card-radius);
+    line-height: 1.55;
+    tab-size: 2;
+  }
+  :where(.message-entry code, .message code, .reply code, .transcript code) {
+    overflow-wrap: anywhere;
+    font-size: .9em;
+  }
+  :where(.message-entry h1, .message h1, .reply h1, .transcript h1) { font-size: var(--pa-type-page); line-height: 1.3; }
+  :where(.message-entry h2, .message h2, .reply h2, .transcript h2) { font-size: var(--pa-type-section); line-height: var(--pa-leading-heading); }
+  :where(.message-entry h3, .message h3, .reply h3, .transcript h3) { font-size: var(--pa-type-subsection); line-height: var(--pa-leading-heading); }
+  :where(.message-entry blockquote, .message blockquote, .reply blockquote, .transcript blockquote) {
+    margin-inline: 0;
+    padding-inline-start: var(--pa-space-4);
+    border-inline-start: 3px solid var(--accent, #58aaff);
+    color: var(--text-secondary, #a8b7c9);
+  }
+  :where(.message-entry table, .message table, .reply table, .transcript table) {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+  :where(button, input, select, textarea, [role="button"], a[href]) { scroll-margin-block: var(--pa-space-4); }
+  :where(button, [role="button"], a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])):focus-visible {
+    outline: 2px solid #84c6ff;
+    outline-offset: 2px;
+  }
+  :where(button, [role="button"]) { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+  :where(.icon-button, .icon-only, [aria-label][data-icon-button]) {
+    min-width: var(--pa-touch-target);
+    min-height: var(--pa-touch-target);
+  }
+  :where(.module-toolbar button, .module-toolbar label, .ui-button,
+         .section-inline-action, .section-see-all, .today-add-action,
+         .home-section-link, .section-round, .drawer-close, .conversation-close,
+         .conversation-add, .history-button) { min-height: var(--pa-touch-target); }
+  @media (prefers-reduced-motion: reduce) {
+    :where(button, [role="button"], .section-record, .data-card) { transition-duration: .01ms !important; }
   }
 
   :where(.section-page-heading h1, .settings-hub h1, .owner-page h1,
@@ -2445,7 +2540,7 @@ button:active:focus-visible{transform:none!important;transition:none!important}
   }
 
   @media (max-width: 360px) {
-    :root { --ui-page-title: 1.38rem; --ui-body: 0.875rem; }
+    :root { --ui-page-title: var(--pa-type-page); --ui-body: var(--pa-type-body); --ui-meta: var(--pa-type-metadata); }
     :where(.module-grid, .settings-hub-group, .provider-grid,
            .activity-stat-grid) {
       grid-template-columns: minmax(0, 1fr);
@@ -2521,7 +2616,7 @@ button:active:focus-visible{transform:none!important;transition:none!important}
     }
   }
   @media (max-width: 360px) {
-    :root { --ui-body: max(0.875rem, 14px); --ui-meta: max(0.8125rem, 13px); }
+    :root { --ui-body: var(--pa-type-body); --ui-meta: var(--pa-type-metadata); }
   }
   /* The graph keeps legible labels inside its own labelled scroll region. */
   .graph-view {

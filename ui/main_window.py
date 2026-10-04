@@ -24,6 +24,7 @@ from ui.control_panel import ControlPanel
 from ui.memory_panel import MemoryPanel
 from ui.pulse import PulseWidget
 from ui.settings_panel import SettingsPanel
+from ui.design_tokens import fit_window_to_screen, stylesheet as design_system_stylesheet
 
 
 class Worker(QThread):
@@ -95,8 +96,7 @@ class MainWindow(QMainWindow):
         self.current_page = "Home"
 
         self.setWindowTitle("Personal AI")
-        self.resize(1380, 860)
-        self.setMinimumSize(1040, 700)
+        fit_window_to_screen(self, preferred=(1380, 860), minimum=(760, 560))
 
         prefs = self.runtime.get("preferences")
         high = bool(prefs.get("high_contrast")) if prefs else False
@@ -297,6 +297,7 @@ class MainWindow(QMainWindow):
             }}
             """
         )
+        self.setStyleSheet(self.styleSheet() + design_system_stylesheet(high_contrast=high))
 
         root = QWidget()
         self.setCentralWidget(root)

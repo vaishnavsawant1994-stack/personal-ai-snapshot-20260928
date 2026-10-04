@@ -2149,6 +2149,36 @@ body:not(.home-landing):not(.focused-module) .message-entry.is-collapsed .messag
     @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 button:active:focus-visible{transform:none!important;transition:none!important}
 </style>
+<style id="personal-ai-semantic-design-system">
+  /* Legacy standalone PWA entry: share the same semantic project tokens. */
+  :root {
+    --pa-type-display:clamp(1.875rem,3.2vw,2rem);--pa-type-page:clamp(1.375rem,2.6vw,1.5rem);
+    --pa-type-section:clamp(1.125rem,2vw,1.25rem);--pa-type-subsection:clamp(1rem,1.5vw,1.125rem);
+    --pa-type-body:1rem;--pa-type-supporting:.875rem;--pa-type-control:.875rem;--pa-type-metadata:.75rem;--pa-type-micro:.6875rem;
+    --pa-space-1:.25rem;--pa-space-2:.5rem;--pa-space-3:.75rem;--pa-space-4:1rem;--pa-space-5:1.25rem;
+    --pa-space-6:1.5rem;--pa-space-8:2rem;--pa-space-10:2.5rem;--pa-space-12:3rem;--pa-space-16:4rem;
+    --pa-page-gutter:clamp(1rem,3vw,2rem);--pa-reading-width:48rem;--pa-conversation-width:52rem;
+    --pa-control-height:2.75rem;--pa-touch-target:2.75rem;--pa-icon-small:1rem;--pa-icon-control:1.25rem;--pa-icon-prominent:1.5rem;
+    --pa-control-radius:.8125rem;--pa-motion-fast:140ms;--pa-motion-standard:180ms;
+  }
+  html,body{min-width:0;text-size-adjust:100%;-webkit-text-size-adjust:100%}
+  body{font-size:var(--pa-type-body);line-height:1.5}
+  :where(.module-panel,.section-page,.settings-hub,.owner-page,.today-screen,.conversation-drawer,.app-drawer,.timeline-drawer){min-width:0;overflow-wrap:anywhere}
+  :where(.section-page,.settings-hub,.owner-page,.today-screen){max-width:78rem;margin-inline:auto}
+  :where(.section-page-heading h1,.settings-hub h1,.owner-page h1,.today-screen-title,.module-head h2){font-size:var(--pa-type-page);line-height:1.3;letter-spacing:-.025em;text-wrap:balance}
+  :where(.home-section-heading,.today-section-head,.section-group-heading,.module-section-heading,.settings-hub-group h2,.section-page h2,.module-panel h3){font-size:var(--pa-type-section);line-height:1.35;text-wrap:balance}
+  :where(.section-page-heading p,.settings-hub-description,.module-head p,.section-chunk,.settings-card p){font-size:var(--pa-type-supporting);line-height:1.5}
+  :where(.section-record-time,.section-record-preview,.section-tag,.data-meta,.settings-value,.settings-model-meta,.section-detail-meta,.today-date){font-size:var(--pa-type-metadata);line-height:1.45}
+  :where(.data-card,.section-record,.section-action-card,.settings-card,.settings-hub-card,.today-card,.today-summary-card,.activity-record,.provider-card,.device-record,.workflow-record,.memory-record,.knowledge-record,.approval-panel){min-width:0;overflow-wrap:anywhere}
+  :where(.ui-button,.section-inline-action,.section-see-all,.today-add-action,.home-section-link,.managed-dialog-actions button){min-height:var(--pa-touch-target);font-size:var(--pa-type-control);line-height:1.35;white-space:normal}
+  :where(.module-toolbar button,.ui-button,.section-inline-action,.today-add-action,.history-button){min-width:var(--pa-touch-target);min-height:var(--pa-touch-target)}
+  :where(button,input,select,textarea){max-width:100%;min-width:0;scroll-margin-block:1rem}
+  :where(button,a[href],input,select,textarea,[tabindex]:not([tabindex="-1"])):focus-visible{outline:2px solid #84c6ff;outline-offset:2px}
+  :where([role="dialog"],dialog,.modal,.sheet,.context-menu,.menu-popover){max-width:calc(100vw - 1rem);max-height:calc(100dvh - max(.75rem,env(safe-area-inset-top)) - max(.75rem,env(safe-area-inset-bottom)));overscroll-behavior:contain}
+  @media(max-width:600px){:root{--pa-page-gutter:clamp(.875rem,4vw,1.25rem)}:where(.section-page,.settings-hub,.owner-page,.today-screen){padding-inline:var(--pa-page-gutter)}}
+  @media(max-height:520px){:where([role="dialog"],dialog,.modal,.sheet,.context-menu,.menu-popover){max-height:calc(100dvh - .75rem)}}
+  @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+</style>
 </head>
 <body>
 <main class="app-shell">
