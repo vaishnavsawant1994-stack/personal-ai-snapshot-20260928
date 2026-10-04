@@ -45,7 +45,14 @@ try {
   await page.click("#passwordChoice");
   assert.ok(await page.locator("#ownerPassword").isVisible(), "signed-out owner password remains reachable in a short viewport");
   await page.locator("#historyButton").focus();
-  assert.equal(await page.evaluate(() => getComputedStyle(document.activeElement).outlineStyle), "solid", "standalone keyboard focus remains visible");
+  await page.keyboard.press("Tab");
+  const keyboardFocus = await page.evaluate(() => {
+    const node = document.activeElement;
+    return node !== document.body && !!node && node.id !== "historyButton" &&
+      node.getClientRects().length > 0 && node.tabIndex >= 0 && node.matches(":focus-visible") &&
+      getComputedStyle(node).outlineStyle === "solid";
+  });
+  assert.ok(keyboardFocus, "Tab must move focus to a visible standalone control with a focus ring");
   await page.emulateMedia({ reducedMotion: "reduce" });
   assert.equal(await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches), true);
   assert.deepEqual(errors, [], "standalone entry renders without uncaught JavaScript errors");
