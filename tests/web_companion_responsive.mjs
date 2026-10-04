@@ -9,6 +9,13 @@ page.on("pageerror", error => errors.push(error.message));
 try {
   await page.goto("http://127.0.0.1:4174/", { waitUntil: "domcontentloaded" });
   await page.waitForSelector("#home.active");
+  const unnamedControls=await page.locator("button:visible").evaluateAll(buttons=>buttons
+    .filter(button=>!((button.getAttribute("aria-label")||"").trim()||(button.innerText||button.textContent||"").trim()||button.getAttribute("title")))
+    .map(button=>button.outerHTML));
+  assert.deepEqual(unnamedControls,[],"visible buttons must have accessible names");
+  for(const [id,name] of [["memory-query","Search memory"],["runtime-origin","Secure runtime URL"],["pair-token","Pairing token"],["pair-code","Pairing code"],["owner-secret","Owner secret"],["prompt","Ask Personal AI"]]){
+    assert.equal(await page.locator(`#${id}`).getAttribute("aria-label"),name,`${id} must have a programmatic label`);
+  }
   const widths = new Set([320, 360, 375, 390, 430, 600, 768, 820, 1024, 1280, 1440, 1920, 2560]);
   for (let width = 320; width <= 2560; width += 40) widths.add(width);
   for (const width of [...widths].sort((a, b) => a - b)) {
