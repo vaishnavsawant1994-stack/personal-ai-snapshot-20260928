@@ -62,7 +62,7 @@ def test_plugin_registry_rejects_insecure_remote_endpoint(tmp_path):
 def test_document_outputs_are_confined_to_workspace(tmp_path):
     settings=SimpleNamespace(autonomy_mode='act',data_dir=tmp_path);registry=ToolRegistry(settings);documents.register(registry,settings);tool=registry.get('create_docx')
     with pytest.raises(ValueError):tool.handler({'path':str(tmp_path.parent/'escape.docx'),'paragraphs':['no']})
-    result=tool.handler({'path':'reports/test.docx','title':'Personal AI','paragraphs':['ok']});assert Path(result['path']).exists();assert (tmp_path/'workspace') in Path(result['path']).parents
+    result=tool.handler({'path':'reports/test.docx','title':'Vishnu','paragraphs':['ok']});assert Path(result['path']).exists();assert (tmp_path/'workspace') in Path(result['path']).parents
 
 def test_signed_updater_can_restore_previous_installation(tmp_path):
     private=Ed25519PrivateKey.generate();public=private.public_key().public_bytes(serialization.Encoding.Raw,serialization.PublicFormat.Raw);import base64

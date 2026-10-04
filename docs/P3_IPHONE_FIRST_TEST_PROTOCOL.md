@@ -9,7 +9,7 @@ Use only after the Phase A candidate is deployed behind HTTPS and implementation
 5. Grant microphone/speech-recognition permission when iOS asks.
 6. Run natural voice conversations.
 7. Across the campaign collect at least 30 real-device turns over at least 3 sessions.
-8. Deliberately interrupt Personal AI at least 10 times while it is speaking.
+8. Deliberately interrupt Vishnu at least 10 times while it is speaking.
 9. Use at least three acoustic conditions/environments, such as quiet, normal room noise, and moderate background sound.
 10. Stop each session and preserve its report.
 

@@ -40,13 +40,13 @@ struct PersonalAICompanionApp: App {
         WindowGroup {
             NavigationStack {
                 Form {
-                    Section("Personal AI cloud") {
+                    Section("Vishnu cloud") {
                         Link(destination:URL(string:"https://personal-ai-runtime-production.up.railway.app/iphone/")!) {
-                            Label("Open Personal AI",systemImage:"sparkles")
+                            Label("Open Vishnu",systemImage:"sparkles")
                         }
                         Text("Uses Safari so Google sign-in, trusted-device cookies, microphone access and conversation continuity work correctly.").font(PersonalAITheme.Typography.supporting).foregroundStyle(.secondary)
                     }
-                    Section("Personal AI computer") {
+                    Section("Vishnu computer") {
                         TextField("https://your-computer:8766",text:$store.baseURL).textInputAutocapitalization(.never).keyboardType(.URL)
                         Toggle("Allow insecure local development",isOn:$store.allowInsecureDevelopment)
                         if store.allowInsecureDevelopment {
@@ -68,7 +68,7 @@ struct PersonalAICompanionApp: App {
                         Text("Background audio is used only while an active voice session is running. Ordinary device connectivity follows iOS lifecycle rules.").font(PersonalAITheme.Typography.supporting).foregroundStyle(.secondary)
                     }
                     Section("Notifications") {
-                        Text("The iPhone registers its APNs token and sends it through the authenticated Personal AI device channel. A later APNs provider stage can use this registration for server-initiated background notifications.").font(PersonalAITheme.Typography.supporting).foregroundStyle(.secondary)
+                        Text("The iPhone registers its APNs token and sends it through the authenticated Vishnu device channel. A later APNs provider stage can use this registration for server-initiated background notifications.").font(PersonalAITheme.Typography.supporting).foregroundStyle(.secondary)
                     }
                     Section("Security") {
                         Text("Device ID and bearer token are stored in the iPhone Keychain with this-device-only protection.").font(PersonalAITheme.Typography.supporting)
@@ -77,11 +77,11 @@ struct PersonalAICompanionApp: App {
                 }
                 .scrollContentBackground(.hidden)
                 .background(PersonalAITheme.ColorToken.background)
-                .navigationTitle("Personal AI")
+                .navigationTitle("Vishnu")
                 .navigationBarTitleDisplayMode(.inline)
                 .tint(PersonalAITheme.ColorToken.accent)
                 .font(PersonalAITheme.Typography.body)
-                .toolbar { ToolbarItem(placement: .principal) { Text("Personal AI").font(PersonalAITheme.Typography.pageTitle).fontWeight(.semibold) } }
+                .toolbar { ToolbarItem(placement: .principal) { Text("Vishnu").font(PersonalAITheme.Typography.pageTitle).fontWeight(.semibold) } }
             }
             .preferredColorScheme(.dark)
             .onAppear { if store.deviceID != nil { store.connect() } }

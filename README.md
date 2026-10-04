@@ -1,9 +1,9 @@
-# Personal AI
+# Vishnu
 
 <!-- repository-profile:start -->
 ## Repository profile
 
-**Purpose:** Operational continuation repository for the single-owner Personal AI product. This repository also preserves a dated recovery snapshot and documents the historical import boundary.
+**Purpose:** Operational continuation repository for the single-owner Vishnu product. This repository also preserves a dated recovery snapshot and documents the historical import boundary.
 
 **Core contents:** Python/PyQt6 desktop application, FastAPI control surface, model routing, SQLite-backed product data, memory and knowledge systems, governed tools/autonomy, companion/PWA areas, device pairing, audit/events, tests, qualification material, and deployment/packaging directories.
 
@@ -18,7 +18,7 @@
 **Release evidence:** See [docs/RELEASE_READINESS_2026-10-04.md](docs/RELEASE_READINESS_2026-10-04.md) for verified deployments, branch protection, backup status, CI scope, device gates, and performance limits.
 <!-- repository-profile:end -->
 
-Independent personal AI assistant codebase designed from scratch.
+Independent Vishnu assistant codebase designed from scratch.
 
 ## Current integrated product
 
@@ -71,7 +71,7 @@ python -m app.main
 
 ## Secure vault startup
 
-Personal AI fails closed when it cannot unlock its encrypted secret vault. The
+Vishnu fails closed when it cannot unlock its encrypted secret vault. The
 recommended desktop configuration stores the generated root key in the operating
 system keychain. On a headless machine or in CI, set
 `PERSONAL_AI_VAULT_PASSWORD` to a strong value supplied by the deployment secret

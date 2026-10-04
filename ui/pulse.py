@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import QWidget
 
 
 class PulseWidget(QWidget):
-    """Personal AI Home V1 living neural field: presentation only, never authority."""
+    """Vishnu Home V1 living neural field: presentation only, never authority."""
 
     STATE_ALIASES = {"memory_retrieval":"memory","retrieving_memory":"memory","knowledge_retrieval":"knowledge","retrieving_knowledge":"knowledge","tool_action":"acting","tool":"acting","action":"acting","responding":"speaking","response":"speaking","needs_approval":"approval","waiting_approval":"approval","ready":"active"}
     STATE_SPEEDS = {"idle":.012,"active":.022,"listening":.046,"understanding":.038,"thinking":.061,"memory":.042,"knowledge":.048,"acting":.072,"speaking":.052,"approval":.010,"background":.006,"success":.014,"warning":.018,"error":.026}
@@ -24,7 +24,7 @@ class PulseWidget(QWidget):
         self.memory_labels=("Project","Person","Decision","Conversation")
         self.seed=[random.Random(101+i).uniform(-1.,1.) for i in range(48)]
         self.timer=QTimer(self); self.timer.timeout.connect(self.tick); self.timer.start(16)
-        self.setAccessibleName("Personal AI living core")
+        self.setAccessibleName("Vishnu living core")
 
     @classmethod
     def normalize_state(cls,state:str)->str:

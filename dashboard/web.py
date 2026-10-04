@@ -5,7 +5,7 @@ HTML = r'''<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Personal AI Control</title>
+<title>Vishnu Control</title>
 <style>
 :root{color-scheme:dark;--bg:#050608;--panel:#0a0e13;--panel2:#0d131a;--line:#1c2a35;--text:#edf4f7;--muted:#7f929f;--good:#79e0bd;--warn:#e8cc83;--bad:#ef8f8f;--glow:#9dd8f2}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 50% -20%,#11202a 0,#070a0e 36%,var(--bg) 70%);color:var(--text);font:14px Inter,ui-sans-serif,system-ui,-apple-system,sans-serif;min-height:100vh}
@@ -52,7 +52,7 @@ button:active:focus-visible{transform:none!important;transition:none!important}
 </style>
 </head>
 <body>
-<header><div class="brand">PERSONAL AI</div><div class="sub">Control Dashboard</div><div class="spacer"></div><div id="connection"><span class="dot"></span><span class="sub">Disconnected</span></div><div class="auth"><input id="d" placeholder="device id"><input id="t" type="password" placeholder="bearer token"><button onclick="saveAuth()">Connect</button></div></header>
+<header><div class="brand">VISHNU</div><div class="sub">Control Dashboard</div><div class="spacer"></div><div id="connection"><span class="dot"></span><span class="sub">Disconnected</span></div><div class="auth"><input id="d" placeholder="device id"><input id="t" type="password" placeholder="bearer token"><button onclick="saveAuth()">Connect</button></div></header>
 <div class="wrap">
 <section class="hero">
  <div class="pulse"><div class="wave"><svg viewBox="0 0 600 90" preserveAspectRatio="none"><path d="M0 48 C45 48,55 17,92 48 S145 77,183 48 S237 8,275 48 S330 83,368 48 S420 20,458 48 S523 66,600 48"/><path d="M0 48 C65 35,92 68,150 48 S240 31,300 48 S398 70,455 48 S540 30,600 48"/></svg></div><div class="state" id="aiState">OFFLINE<small id="stateDetail">Authenticate to inspect runtime</small></div></div>

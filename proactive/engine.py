@@ -162,7 +162,7 @@ class AttentionRelevanceEngine:
             or payload.get('summary')
             or payload.get('title')
             or payload.get('subject')
-            or f'Personal AI noticed a relevant {source} event.'
+            or f'Vishnu noticed a relevant {source} event.'
         )
 
     def consider(

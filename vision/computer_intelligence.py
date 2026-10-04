@@ -70,7 +70,7 @@ class ComputerIntelligence:
         prompt=f'''Create a cautious desktop action plan for this goal:\n{goal}\n\nCURRENT SCREEN ANALYSIS:\n{observation.get('analysis', observation)}\n\nReturn JSON only with this shape:\n{{"summary":"...","steps":[{{"kind":"move|click|type_text|hotkey","params":{{}},"reason":"...","verify":"what should be visibly true after this action"}}]}}\nRules: at most {max_steps} steps; do not invent coordinates unless supported by screen evidence; do not submit purchases, send messages, delete data, change security settings, or type secrets unless the user's goal explicitly requires it. Prefer the smallest reversible sequence.'''
         data=self.models.json(
             prompt,
-            system='You are Personal AI computer-control planner. Return bounded JSON only.',
+            system='You are Vishnu computer-control planner. Return bounded JSON only.',
             private_context=json.dumps(memory, default=str)[:5000],
         ); steps=[]
         for row in list(data.get('steps',[]))[:max_steps]:
@@ -181,7 +181,7 @@ class ComputerIntelligence:
 
     def execute_prepared(self,parameters:dict,*,cancel_event=None):
         params=dict(parameters or {})
-        if not params.get('_personal_ai_prepared'):raise PermissionError('computer execution requires a Personal AI prepared and approved plan')
+        if not params.get('_personal_ai_prepared'):raise PermissionError('computer execution requires a Vishnu prepared and approved plan')
         context=dict(params.get('_trusted_context') or {}); binding=self._binding(context); txid=str(params.get('_operator_transaction_id') or ''); plan=params.get('_operator_plan')
         if not txid or not isinstance(plan,dict):raise PermissionError('computer execution is missing its approved operator transaction')
         goal=str(params.get('goal') or ''); monitor=int(params.get('monitor',1))

@@ -1,4 +1,4 @@
-# Personal AI — Missing/Partial Matrix Addendum (2026-09-14 W4 A-C)
+# Vishnu — Missing/Partial Matrix Addendum (2026-09-14 W4 A-C)
 
 Current W4 batch narrows the following previously identified gaps:
 

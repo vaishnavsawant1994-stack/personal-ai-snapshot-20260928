@@ -45,7 +45,7 @@ def build_runtime():
     memory=MemoryStore(settings.data_dir/'assistant.sqlite3'); models=GovernedModelRouter(settings,events=events,audit=memory.audit); models.set_owner_privacy(str(preferences.get('model_privacy_mode',settings.model_privacy_mode))); vector=VectorStore(settings.data_dir/'vectors.sqlite3',lambda text:models.embed(text,sensitivity='sensitive')); memory_engine=SecondBrain(memory,models,vector); second_brain=GovernedMemory(memory_engine,settings.data_dir/'memory-candidates.sqlite3',events=events)
     knowledge_store=KnowledgeStore(settings.data_dir/'knowledge.sqlite3',settings.data_dir/'knowledge'/'objects'); knowledge=KnowledgeAuthority(knowledge_store,events=events); device_registry=DeviceRegistry(settings.data_dir/'devices.sqlite3'); owner_access=OwnerAccessStore(settings.data_dir/'owner-access.sqlite3'); device_gateway=DeviceGateway(device_registry,events); continuity=ContinuityService(settings.data_dir/'continuity.sqlite3',events=events,second_brain=second_brain)
     primary_thread=continuity.latest_thread()
-    if primary_thread is None: primary_thread_id=continuity.create_thread('Primary Personal AI Context',device_id='desktop',context={'surface':'desktop','topic':'current work'})
+    if primary_thread is None: primary_thread_id=continuity.create_thread('Primary Vishnu Context',device_id='desktop',context={'surface':'desktop','topic':'current work'})
     else: primary_thread_id=primary_thread['id']; continuity.set_active('desktop',primary_thread_id)
     proactive=AttentionRelevanceEngine(settings.data_dir/'proactive.sqlite3',events=events,second_brain=second_brain,enabled=settings.proactive_enabled,interruptions_per_hour=settings.proactive_interruptions_per_hour,default_cooldown_seconds=settings.proactive_default_cooldown_seconds)
     vault=SecretVault(settings.data_dir/'vault.json',settings.vault_password or None); integrations,adapters,oauth,oauth_providers=build_integrations(settings,vault); plugins=PluginManifestRegistry(settings.data_dir/'plugins'); plugins.load(); apns=APNsProvider(settings,device_registry,events); tools=ToolRegistry(settings); tools.set_autonomy_mode(str(preferences.get('autonomy_mode',settings.autonomy_mode)))
@@ -86,7 +86,7 @@ def main():
     # qualification while Stage 5 selects its canonical semantic-state wrapper.
     from ui.main_window import MainWindow
     from ui.canonical_main_window import CanonicalMainWindow
-    app=QApplication(sys.argv); app.setApplicationName('Personal AI'); runtime=build_runtime(); runtime['automations'].start()
+    app=QApplication(sys.argv); app.setApplicationName('Vishnu'); runtime=build_runtime(); runtime['automations'].start()
     if settings.control_server_enabled:threading.Thread(target=start_server,args=(runtime,),daemon=True).start()
     window=CanonicalMainWindow(events=runtime['events'],executor=runtime['executor'],memory=runtime['memory'],runtime=runtime); window.show(); floating_presence=FloatingPresence(runtime=runtime); runtime['floating_presence']=floating_presence; floating_presence.show()
     if runtime['preferences'].get('launch_voice_on_start'):window.toggle_voice()

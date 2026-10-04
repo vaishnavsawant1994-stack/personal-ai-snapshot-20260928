@@ -1,1 +1,1 @@
-"""Trusted device registry and command gateway for Personal AI."""
+"""Trusted device registry and command gateway for Vishnu."""

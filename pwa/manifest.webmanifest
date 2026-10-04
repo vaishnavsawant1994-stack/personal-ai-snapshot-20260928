@@ -1,10 +1,10 @@
 {
-  "name": "Personal AI",
-  "short_name": "Personal AI",
+  "name": "Vishnu",
+  "short_name": "Vishnu",
   "start_url": "/iphone/",
   "scope": "/iphone/",
   "display": "standalone",
   "background_color": "#090b10",
   "theme_color": "#090b10",
-  "description": "Personal AI iPhone qualification client"
+  "description": "Vishnu iPhone qualification client"
 }

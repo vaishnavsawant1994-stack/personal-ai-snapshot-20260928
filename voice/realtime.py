@@ -14,7 +14,7 @@ class RealtimeVoiceSession:
     The production facade therefore always uses the provider-agnostic
     STT -> CanonicalTurnRuntime -> canonical answer -> TTS path. Provider-specific
     realtime classes remain compatibility/qualification code only and are not
-    selected by the Personal AI runtime.
+    selected by the Vishnu runtime.
     """
 
     def __init__(self, models, executor, events=None):

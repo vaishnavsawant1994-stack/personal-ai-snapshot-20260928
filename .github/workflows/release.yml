@@ -82,7 +82,7 @@ jobs:
           codesign --verify --deep --strict --verbose=2 dist/PersonalAI.app
       - name: Build and sign DMG
         run: |
-          hdiutil create -volname 'Personal AI' -srcfolder dist/PersonalAI.app -ov -format UDZO dist/PersonalAI.dmg
+          hdiutil create -volname 'Vishnu' -srcfolder dist/PersonalAI.app -ov -format UDZO dist/PersonalAI.dmg
           codesign --force --timestamp --sign "$APPLE_SIGNING_IDENTITY" dist/PersonalAI.dmg
           codesign --verify --verbose=2 dist/PersonalAI.dmg
       - name: Notarize and staple DMG

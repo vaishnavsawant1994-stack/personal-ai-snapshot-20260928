@@ -12,7 +12,7 @@ def _now() -> str:
 
 @dataclass(frozen=True)
 class TurnContext:
-    """Safe request-scoped metadata for one authoritative Personal AI turn.
+    """Safe request-scoped metadata for one authoritative Vishnu turn.
 
     This object is context, not authority. Identity/session validation remains with
     the canonical security layer, model choice remains with P9/W8, and actions

@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QLabel,QPushButton,Q
 from ui.design_tokens import fit_window_to_screen, stylesheet as design_system_stylesheet
 class ControlPanel(QDialog):
     def __init__(self,runtime,parent=None):
-        super().__init__(parent); self.runtime=runtime; self.setWindowTitle('Personal AI — Owner Control Center'); fit_window_to_screen(self,preferred=(900,650)); self.setStyleSheet(design_system_stylesheet()); lay=QVBoxLayout(self); top=QHBoxLayout(); top.addWidget(QLabel('OWNER CONTROL CENTER')); top.addStretch(1); b=QPushButton('Refresh'); b.clicked.connect(self.refresh); top.addWidget(b); lay.addLayout(top); self.tabs=QTabWidget(); lay.addWidget(self.tabs); self.views={}
+        super().__init__(parent); self.runtime=runtime; self.setWindowTitle('Vishnu — Owner Control Center'); fit_window_to_screen(self,preferred=(900,650)); self.setStyleSheet(design_system_stylesheet()); lay=QVBoxLayout(self); top=QHBoxLayout(); top.addWidget(QLabel('OWNER CONTROL CENTER')); top.addStretch(1); b=QPushButton('Refresh'); b.clicked.connect(self.refresh); top.addWidget(b); lay.addLayout(top); self.tabs=QTabWidget(); lay.addWidget(self.tabs); self.views={}
         for name in ['Overview','Devices & Presence','Automations','Integrations','Models','Privacy & Data','Security','Preferences']:
             view=QTextBrowser(); self.views[name]=view; self.tabs.addTab(view,name)
         self.refresh()

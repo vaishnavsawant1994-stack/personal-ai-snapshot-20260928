@@ -1,4 +1,4 @@
-# Personal AI — Owner Blockers
+# Vishnu — Owner Blockers
 
 Baseline date: 2026-09-14
 
@@ -45,7 +45,7 @@ Only genuine external/owner-only dependencies belong here. Work on independent t
 - Workstream: W6
 - Status: BLOCKED_OWNER_WHEN_LIVE_QUALIFICATION_REACHED
 - Description: live Gmail/Calendar/Drive/Sheets/Microsoft-style connector qualification requires the owner's provider consent and credentials/scopes.
-- Why owner involvement is required: OAuth consent cannot be self-granted by Personal AI.
+- Why owner involvement is required: OAuth consent cannot be self-granted by Vishnu.
 - Exact owner action: complete the provider's OAuth consent screen when the coordinator reaches live connector qualification. Do not paste client secrets/tokens into chat; add them through the provider/deployment secret interface.
 - Date discovered/confirmed: 2026-09-14
 - Branch/SHA: continuation branch from PR #21

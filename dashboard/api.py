@@ -21,7 +21,7 @@ def dashboard_router(runtime,auth_device):
     @r.post('/tool')
     def tool(req:ActionRequest,authorization:str|None=Header(default=None),x_device_id:str|None=Header(default=None)):
         auth(authorization,x_device_id,'ai:chat')
-        raise HTTPException(409,'Direct dashboard tool execution is disabled; use the canonical governed Personal AI runtime')
+        raise HTTPException(409,'Direct dashboard tool execution is disabled; use the canonical governed Vishnu runtime')
     @r.post('/device/{device_id}/command')
     async def device_command(device_id:str,req:DeviceActionRequest,authorization:str|None=Header(default=None),x_device_id:str|None=Header(default=None)):
         auth(authorization,x_device_id,'device:read')

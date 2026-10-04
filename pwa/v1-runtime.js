@@ -40,9 +40,9 @@
     try{
       const panel=$('approvalPanel');
       if(panel){panel.setAttribute('role','alertdialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','approvalTitle');panel.setAttribute('aria-describedby','approvalDescription')}
-      const stateLabel=$('stateLabel');if(stateLabel)stateLabel.setAttribute('aria-label','Personal AI semantic state: Idle');
+      const stateLabel=$('stateLabel');if(stateLabel)stateLabel.setAttribute('aria-label','Vishnu semantic state: Idle');
       const core=typeof document!=='undefined'&&typeof document.querySelector==='function'?document.querySelector('.core-stage'):null;
-      if(core){core.removeAttribute('aria-hidden');core.setAttribute('role','img');core.setAttribute('aria-label','Personal AI living core. The current semantic state is announced below.');const canvas=typeof core.querySelector==='function'?core.querySelector('canvas'):null;if(canvas)canvas.setAttribute('aria-hidden','true')}
+      if(core){core.removeAttribute('aria-hidden');core.setAttribute('role','img');core.setAttribute('aria-label','Vishnu living core. The current semantic state is announced below.');const canvas=typeof core.querySelector==='function'?core.querySelector('canvas'):null;if(canvas)canvas.setAttribute('aria-hidden','true')}
     }catch{}
   };
   configureStage5Accessibility();
@@ -68,7 +68,7 @@
     }
     try{
       const safeLabel=String(snapshot.label||canonicalName.replaceAll('_',' '));
-      const stateLabel=$('stateLabel');if(stateLabel){stateLabel.textContent=safeLabel;stateLabel.setAttribute('aria-label',`Personal AI semantic state: ${safeLabel}`)}
+      const stateLabel=$('stateLabel');if(stateLabel){stateLabel.textContent=safeLabel;stateLabel.setAttribute('aria-label',`Vishnu semantic state: ${safeLabel}`)}
       document.documentElement.dataset.aiState=canonicalName.toLowerCase();document.documentElement.dataset.aiSequence=String(sequence);
     }catch{}
     return true;

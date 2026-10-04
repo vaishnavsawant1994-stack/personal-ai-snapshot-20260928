@@ -33,7 +33,7 @@ class ActivitiesProjection:
     """
 
     CATEGORY_LABELS = {
-        'agent': 'Personal AI', 'approval': 'Approval', 'tool': 'Tool',
+        'agent': 'Vishnu', 'approval': 'Approval', 'tool': 'Tool',
         'memory': 'Memory', 'knowledge': 'Knowledge', 'automation': 'Automation',
         'workflow': 'Workflow', 'model': 'Model', 'continuity': 'Continuity',
         'owner-product': 'Owner action', 'recovery': 'Recovery',

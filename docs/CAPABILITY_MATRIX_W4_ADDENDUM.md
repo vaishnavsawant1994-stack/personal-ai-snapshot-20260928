@@ -1,4 +1,4 @@
-# Personal AI — Capability Matrix Addendum (2026-09-14 W4 A-C)
+# Vishnu — Capability Matrix Addendum (2026-09-14 W4 A-C)
 
 This addendum records the current branch-only W4 batch without rewriting the historical baseline matrix.
 

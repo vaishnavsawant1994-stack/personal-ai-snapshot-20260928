@@ -1,8 +1,8 @@
-# Personal AI for Android
+# Vishnu for Android
 
 The Android application provides two owner-controlled surfaces:
 
-- **Open Personal AI** launches the production cloud experience in a secure Chrome
+- **Open Vishnu** launches the production cloud experience in a secure Chrome
   Custom Tab. This preserves Google sign-in, trusted-device cookies, microphone
   access, voice responses and conversation continuity.
 - **Advanced device pairing** retains the encrypted local-computer companion and

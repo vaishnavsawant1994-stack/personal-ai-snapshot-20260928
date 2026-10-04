@@ -9,7 +9,7 @@ class WakePhraseGate:
     A future low-power acoustic detector can feed the same `accept()` contract.
     """
     def __init__(self,events=None,phrases=None,window_seconds:float=8.0):
-        self.events=events;self.phrases=tuple((phrases or ('hey personal','personal ai')));self.window_seconds=float(window_seconds);self.awake_until=0.0
+        self.events=events;self.phrases=tuple((phrases or ('hey vishnu','vishnu')));self.window_seconds=float(window_seconds);self.awake_until=0.0
     def accept(self,text:str,now:float|None=None):
         now=time.monotonic() if now is None else now;raw=' '.join(str(text or '').strip().split());lower=raw.lower()
         for phrase in self.phrases:

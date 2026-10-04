@@ -43,7 +43,7 @@ class Settings:
     realtime_voice:str=os.getenv('REALTIME_VOICE','marin')
     realtime_reasoning_effort:str=os.getenv('REALTIME_REASONING_EFFORT','low').lower().strip()
     realtime_safety_identifier:str=os.getenv('REALTIME_SAFETY_IDENTIFIER','')
-    realtime_instructions:str=os.getenv('REALTIME_INSTRUCTIONS','You are Personal AI. Be concise, natural, context-aware, and ask before taking consequential actions.')
+    realtime_instructions:str=os.getenv('REALTIME_INSTRUCTIONS','You are Vishnu. Be concise, natural, context-aware, and ask before taking consequential actions.')
     realtime_sample_rate:int=int(os.getenv('REALTIME_SAMPLE_RATE','24000'))
     voice_personality:str=os.getenv('VOICE_PERSONALITY','calm, concise, warm and direct')
     voice_speaking_rate:float=float(os.getenv('VOICE_SPEAKING_RATE','1.0'))

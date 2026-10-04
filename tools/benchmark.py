@@ -7,7 +7,7 @@ def register(reg, benchmark, scenarios=None):
     reg.register(
         Tool(
             'capability_benchmark',
-            'Run the Personal AI P2 capability benchmark; params: capability or all',
+            'Run the Vishnu P2 capability benchmark; params: capability or all',
             lambda p: benchmark.run_all()
             if str(p.get('capability', 'all')).lower() == 'all'
             else benchmark.run(str(p['capability'])),

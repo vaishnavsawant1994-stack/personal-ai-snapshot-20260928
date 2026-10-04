@@ -16,7 +16,7 @@ def multimodal_world_router(runtime):
         if not device_id or not token or not registry.authenticate(device_id, token):
             raise HTTPException(401, 'This browser is not trusted or its device credential was revoked')
         if hasattr(registry, 'authorize') and not registry.authorize(device_id, 'ai:chat'):
-            raise HTTPException(403, 'This device is not permitted to inspect Personal AI world context')
+            raise HTTPException(403, 'This device is not permitted to inspect Vishnu world context')
         context = current_trusted_request()
         if context is None:
             raise HTTPException(401, 'A trusted browser session is required')

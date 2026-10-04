@@ -43,7 +43,7 @@ class Worker(QThread):
 
 
 class MainWindow(QMainWindow):
-    """Personal AI Home V1.
+    """Vishnu Home V1.
 
     The application keeps one persistent intelligence at the centre of the UI.
     Dashboard and Main Menu are shortcuts; the rest of the product expands away
@@ -95,7 +95,7 @@ class MainWindow(QMainWindow):
         self.voice_running = False
         self.current_page = "Home"
 
-        self.setWindowTitle("Personal AI")
+        self.setWindowTitle("Vishnu")
         fit_window_to_screen(self, preferred=(1380, 860), minimum=(760, 560))
 
         prefs = self.runtime.get("preferences")
@@ -346,7 +346,7 @@ class MainWindow(QMainWindow):
 
     def _build_top_nav(self):
         nav = QHBoxLayout()
-        brand = QLabel("PERSONAL AI")
+        brand = QLabel("VISHNU")
         brand.setObjectName("brand")
         nav.addWidget(brand)
         nav.addStretch(1)
@@ -357,7 +357,7 @@ class MainWindow(QMainWindow):
         self.dashboard_btn.clicked.connect(lambda _checked=False: self._show_page("Dashboard"))
         nav.addWidget(self.dashboard_btn)
 
-        self.cloud_btn = QPushButton("Cloud Personal AI  ↗")
+        self.cloud_btn = QPushButton("Cloud Vishnu  ↗")
         self.cloud_btn.setObjectName("navAction")
         self.cloud_btn.setToolTip("Open your shared conversations, voice and trusted cloud session")
         self.cloud_btn.clicked.connect(self.open_cloud)
@@ -378,7 +378,7 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(18, 18, 18, 18)
         layout.setSpacing(5)
 
-        caption = QLabel("PERSONAL AI")
+        caption = QLabel("VISHNU")
         caption.setObjectName("menuCaption")
         layout.addWidget(caption)
         layout.addSpacing(8)
@@ -493,7 +493,7 @@ class MainWindow(QMainWindow):
         composer_row.addWidget(self.mic_btn)
 
         self.input = QLineEdit()
-        self.input.setAccessibleName("Ask Personal AI")
+        self.input.setAccessibleName("Ask Vishnu")
         self.input.setPlaceholderText("Speak or type…")
         self.input.returnPressed.connect(lambda: self.submit(self.input))
         composer_row.addWidget(self.input, 1)
@@ -622,7 +622,7 @@ class MainWindow(QMainWindow):
             self._card(
                 "Connected sources",
                 len(linked),
-                "External knowledge sources available to Personal AI",
+                "External knowledge sources available to Vishnu",
             ),
             0,
             0,
@@ -754,7 +754,7 @@ class MainWindow(QMainWindow):
 
     def _settings_content(self, layout):
         text = QLabel(
-            "Personal AI · Identity · Voice · Appearance · Memory · Privacy · Permissions · Connected Apps · Notifications · Automation · Data · Security · Devices · Models · Advanced"
+            "Vishnu · Identity · Voice · Appearance · Memory · Privacy · Permissions · Connected Apps · Notifications · Automation · Data · Security · Devices · Models · Advanced"
         )
         text.setObjectName("muted")
         text.setWordWrap(True)
@@ -768,11 +768,11 @@ class MainWindow(QMainWindow):
     def _subtitle(self, name):
         return {
             "Memory": "Your personal context, relationships and recall surfaces.",
-            "Knowledge": "Documents, research, files and connected information Personal AI can retrieve.",
-            "Activities": "What Personal AI has done, is doing, or needs from you.",
+            "Knowledge": "Documents, research, files and connected information Vishnu can retrieve.",
+            "Activities": "What Vishnu has done, is doing, or needs from you.",
             "Dashboard": "Overview and system evidence without turning Home into a dashboard.",
-            "Apps & Tools": "Capabilities behind Personal AI for visibility, configuration and manual control.",
-            "Settings": "Control Personal AI, identity, privacy, permissions, devices and models.",
+            "Apps & Tools": "Capabilities behind Vishnu for visibility, configuration and manual control.",
+            "Settings": "Control Vishnu, identity, privacy, permissions, devices and models.",
         }[name]
 
     def _show_page(self, name, close_menu=True):
@@ -848,7 +848,7 @@ class MainWindow(QMainWindow):
         if not QDesktopServices.openUrl(QUrl(self.CLOUD_URL)):
             QMessageBox.warning(
                 self,
-                "Personal AI cloud",
+                "Vishnu cloud",
                 f"Could not open your browser. Open this address manually:\n{self.CLOUD_URL}",
             )
 
@@ -974,7 +974,7 @@ class MainWindow(QMainWindow):
                 self,
                 "Approve once",
                 (
-                    "Personal AI wants to run:\n\n"
+                    "Vishnu wants to run:\n\n"
                     f"{exc.tool_name}\n{exc.description}\n{exc.parameters}\n\n"
                     "This approval is one-use and bound to these exact parameters. Allow it?"
                 ),

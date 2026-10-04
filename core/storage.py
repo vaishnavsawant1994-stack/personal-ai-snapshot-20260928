@@ -6,7 +6,7 @@ from typing import Iterable, Mapping
 
 
 class StorageUnavailable(RuntimeError):
-    """Raised when hosted Personal AI cannot prove it is using durable storage."""
+    """Raised when hosted Vishnu cannot prove it is using durable storage."""
 
 
 def _decode_mount_path(value: str) -> str:
@@ -53,11 +53,11 @@ def _write_probe(data_dir: Path) -> None:
             handle.flush()
             os.fsync(handle.fileno())
         if probe.read_bytes() != payload:
-            raise StorageUnavailable('Hosted Personal AI storage probe could not be read back correctly')
+            raise StorageUnavailable('Hosted Vishnu storage probe could not be read back correctly')
     except StorageUnavailable:
         raise
     except OSError as exc:
-        raise StorageUnavailable('Hosted Personal AI durable storage is not writable') from exc
+        raise StorageUnavailable('Hosted Vishnu durable storage is not writable') from exc
     finally:
         try:
             probe.unlink(missing_ok=True)
@@ -73,7 +73,7 @@ def validate_runtime_storage(
 ) -> dict:
     """Validate the runtime data root before any hosted database is opened.
 
-    Hosted Personal AI must resolve its data directory beneath a non-root mount
+    Hosted Vishnu must resolve its data directory beneath a non-root mount
     rooted at ``PERSONAL_AI_DURABLE_ROOT`` (``/data`` by default). This prevents
     Railway or another hosted runtime from silently falling back to ephemeral
     container storage. Local/desktop use remains unchanged.
@@ -102,7 +102,7 @@ def validate_runtime_storage(
     durable_root = Path(env.get('PERSONAL_AI_DURABLE_ROOT', '/data')).expanduser().resolve()
     if not _is_within(data_dir, durable_root):
         raise StorageUnavailable(
-            'Hosted Personal AI refuses ephemeral storage: PERSONAL_AI_DATA_DIR '
+            'Hosted Vishnu refuses ephemeral storage: PERSONAL_AI_DATA_DIR '
             f'must resolve beneath {durable_root}'
         )
 
@@ -117,7 +117,7 @@ def validate_runtime_storage(
     ]
     if not qualifying:
         raise StorageUnavailable(
-            'Hosted Personal AI cannot prove that its data directory is backed by '
+            'Hosted Vishnu cannot prove that its data directory is backed by '
             f'a durable mount beneath {durable_root}'
         )
 

@@ -1,4 +1,4 @@
-# Personal AI Owner Product Operations
+# Vishnu Owner Product Operations
 
 ## Implemented product surfaces
 
@@ -19,7 +19,7 @@
 
 The enrollment code remains a first-device and emergency bootstrap path. A trusted owner can additionally create a Face ID/passkey, an owner password and one-time recovery codes in **Settings → Security**.
 
-Google owner sign-in requires both `GOOGLE_SIGNIN_CLIENT_ID` and `PERSONAL_AI_OWNER_GOOGLE_EMAIL`. Create a Google Identity Services Web client whose authorized JavaScript origin is the exact Personal AI HTTPS origin. The server verifies the Google ID-token signature, audience, expiry, subject, verified-email claim and exact configured owner email before issuing the same scoped HttpOnly trusted-device cookies. Other Google accounts fail closed. A Google client secret is not required for this authentication-only ID-token flow.
+Google owner sign-in requires both `GOOGLE_SIGNIN_CLIENT_ID` and `PERSONAL_AI_OWNER_GOOGLE_EMAIL`. Create a Google Identity Services Web client whose authorized JavaScript origin is the exact Vishnu HTTPS origin. The server verifies the Google ID-token signature, audience, expiry, subject, verified-email claim and exact configured owner email before issuing the same scoped HttpOnly trusted-device cookies. Other Google accounts fail closed. A Google client secret is not required for this authentication-only ID-token flow.
 
 ## Connector configuration
 

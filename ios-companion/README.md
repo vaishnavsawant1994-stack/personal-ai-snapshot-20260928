@@ -1,8 +1,8 @@
-# Personal AI iPhone Companion
+# Vishnu iPhone Companion
 
 The iOS companion is the primary real-device companion for the owner's current setup.
 
-The app also includes a cloud-first **Open Personal AI** route. It hands off to
+The app also includes a cloud-first **Open Vishnu** route. It hands off to
 Safari so the same Google sign-in, trusted-device cookie, microphone permissions,
 voice experience and persistent conversations are shared with the web and desktop
 surfaces. This repository can build and test an unsigned iOS Simulator artifact
@@ -12,7 +12,7 @@ require an Apple Developer team and Apple-issued signing assets.
 ## Implemented foundation
 
 - SwiftUI iPhone app foundation (iOS 17+)
-- existing Personal AI desktop pairing token + six-digit code flow
+- existing Vishnu desktop pairing token + six-digit code flow
 - device identity and bearer credential stored in iOS Keychain with `ThisDeviceOnly` protection
 - HTTPS/WSS required by default; plaintext HTTP/WS is an explicit development-only opt-in
 - authenticated `URLSessionWebSocketTask` command channel
@@ -32,7 +32,7 @@ A later push-notification stage can add production APNs wake/notification delive
 
 ## Pairing
 
-1. Start Personal AI on the trusted computer and create the one-time pairing offer locally.
+1. Start Vishnu on the trusted computer and create the one-time pairing offer locally.
 2. On iPhone, enter the computer's secure HTTPS address, pairing token, and six-digit code.
 3. Pairing returns a device ID and bearer credential. The bearer is written to Keychain and is never placed in a URL.
 

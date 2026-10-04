@@ -1,4 +1,4 @@
-# Personal AI — P4 to P10 Integrated Intelligence Program
+# Vishnu — P4 to P10 Integrated Intelligence Program
 
 Status: IMPLEMENTATION FOUNDATION / QUALIFICATION-GATED
 
@@ -32,7 +32,7 @@ Implemented integration: durable normalized source-attributed observations for s
 
 Activation prerequisite for governed action: proven P3 permission evidence. Physical sensors/connectors remain device-dependent.
 
-## P8 — Personal AI Everywhere
+## P8 — Vishnu Everywhere
 
 Implemented foundation: canonical surfaces for iPhone, iPad, desktop, web, watch/wearable, earbuds, car, home and future AR, reusing the existing device registry + continuity service so there is one identity/context system.
 

@@ -101,7 +101,7 @@ const flush=()=>new Promise(resolve=>setImmediate(resolve));
     assert 'aria-hidden' not in result['core']
     assert result['canvas']['aria-hidden'] == 'true'
     assert result['stateText'] == 'Attention needed'
-    assert result['stateAria'] == 'Personal AI semantic state: Attention needed'
+    assert result['stateAria'] == 'Vishnu semantic state: Attention needed'
     assert result['focusLog'][:2] == ['rejectApproval', 'return-target']
     assert result['stateCalls'] == 1
 
@@ -111,7 +111,7 @@ def test_home_keyboard_text_alternatives_reduced_motion_and_responsive_breakpoin
     runtime = (ROOT / 'pwa' / 'v1-runtime.js').read_text(encoding='utf-8')
 
     # Keyboard-accessible native controls and icon text alternatives.
-    assert 'id="message"' in page and 'aria-label="Message Personal AI"' in page
+    assert 'id="message"' in page and 'aria-label="Message Vishnu"' in page
     assert 'id="sendButton"' in page and 'aria-label="Send message"' in page
     assert 'id="micButton"' in page and 'aria-label="Start hands-free conversation"' in page
     assert 'id="attachmentButton"' in page and 'aria-label="Add a document"' in page
@@ -124,7 +124,7 @@ def test_home_keyboard_text_alternatives_reduced_motion_and_responsive_breakpoin
     # Semantic state/error text is announced independently of color or animation.
     assert 'aria-live="polite"' in page
     assert 'role="alert"' in page
-    assert 'Personal AI semantic state:' in runtime
+    assert 'Vishnu semantic state:' in runtime
 
     # Reduced-motion and software-responsive contracts cover desktop default,
     # tablet/mobile width, and short mobile/PWA height without claiming devices.

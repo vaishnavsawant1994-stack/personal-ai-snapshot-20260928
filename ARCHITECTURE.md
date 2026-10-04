@@ -1,4 +1,4 @@
-# Personal AI Architecture V2
+# Vishnu Architecture V2
 
 ```text
 Desktop UI / Local API
