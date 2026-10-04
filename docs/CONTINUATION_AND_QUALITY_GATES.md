@@ -4,15 +4,15 @@ Updated: 2026-10-04
 
 ## Source and deployment record
 
-For this workstream, the active source repository is `vaishnavsawant1994-stack/personal-ai-snapshot-20260928`: both Railway services inspected on 2026-10-04 are connected to it. The repository is explicitly a dated snapshot, so this records the current working source without claiming it contains the complete historical canonical lineage.
+For this workstream, the active source repository is `vaishnavsawant1994-stack/personal-ai-snapshot-20260928`: the inspected Railway services use it as their source. The repository is explicitly a dated snapshot, so this records the current working source without claiming it contains the complete historical canonical lineage.
 
 | Role | Railway service | Source ref at inspection | Domain | Storage |
 |---|---|---|---|---|
-| Stable hosted runtime | `personal-ai-runtime` in `personal-ai-runtime` project | `main`, deployed commit `2e74e8a45cd9543b7578bb879df39a90d407737e` | `personal-ai-runtime-production.up.railway.app` | Separate 500 MB persistent volume at `/data` |
-| Active UI preview | `personal-ai-mobile-preview` in `personal-ai-secondary-preview` project | `ui/approved-pages-implementation-20261003`; candidate `045ca1860c776a69ac03689243feb51e7456e05c` | `personal-ai-mobile-preview-production.up.railway.app` | Separate 500 MB persistent volume at `/data` |
-| Earlier qualification service | `personal-ai-iphone-qualification` | `ui/compact-neural-header-home-20260930`, deployed commit `36eeb003647dc8f1e72673e6d3bfaf55ebef1155` | `personal-ai-iphone-qualification-production.up.railway.app` | Separate 500 MB persistent volume at `/data` |
+| Stable hosted runtime | `personal-ai-runtime` in project `personal-ai-runtime` | `main`, deployed commit `2e74e8a45cd9543b7578bb879df39a90d407737e` | [personal-ai-runtime-production.up.railway.app](https://personal-ai-runtime-production.up.railway.app) | Separate 500 MB persistent volume at `/data` |
+| Active UI preview | `personal-ai-mobile-preview` in project `personal-ai-secondary-preview` | `ui/approved-pages-implementation-20261003`, deployed commit `8d034d6510fef3e5a253c6aa7ac838dea6fcfd40`, deployment `ce889f82-54c1-4279-9576-07550a4d77d2` | [personal-ai-mobile-preview-production.up.railway.app](https://personal-ai-mobile-preview-production.up.railway.app) | Separate 500 MB persistent volume at `/data` |
+| Earlier qualification service | `personal-ai-iphone-qualification` | `ui/compact-neural-header-home-20260930`, deployed commit `36eeb003647dc8f1e72673e6d3bfaf55ebef1155` | [personal-ai-iphone-qualification-production.up.railway.app](https://personal-ai-iphone-qualification-production.up.railway.app) | Separate 500 MB persistent volume at `/data` |
 
-The two active Railway projects are separate installations, each with its own volume. The stable service was online with a successful deployment at inspection. The current UI preview was on the candidate above; its new deployment and checks must finish successfully before promotion. No custom domain is connected; these are Railway-managed HTTPS service domains.
+The stable runtime and UI preview are separate installations, each with its own volume. At inspection the stable service was online, and the preview deployment succeeded. No custom domain is connected; these are Railway-managed HTTPS service domains. The documented preview SHA is the deployment inspected before this record-only follow-up commit.
 
 ## Operating model
 
