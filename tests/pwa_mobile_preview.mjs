@@ -907,6 +907,7 @@ try {
   const viewports = [
     [320, 568], [360, 780], [375, 812], [390, 844], [393, 852], [402, 874], [414, 896], [430, 932],
     [768, 1024], [1024, 768], [1366, 768], [1920, 1080],
+  ];
   const responsiveScreenshots = new Map([
     [320, "personal-ai-phone-small-320x568.png"],
     [390, "personal-ai-phone-standard-390x844.png"],
@@ -915,7 +916,6 @@ try {
     [1366, "personal-ai-desktop-1366x768.png"],
     [1920, "personal-ai-wide-desktop-1920x1080.png"],
   ]);
-  ];
   for (const [width, height] of viewports) {
     await page.setViewportSize({ width, height });
     await page.evaluate(() => enterHomeLanding());
