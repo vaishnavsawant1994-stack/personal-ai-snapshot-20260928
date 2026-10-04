@@ -3563,7 +3563,8 @@ async function sendTurn(text){
    applyConversation(bundle);enterConversationView();
   }
   appendMessage('user_message',clean,{pending:true});setState('thinking');
-  const result=await api('/voice/turn',{method:'POST',body:JSON.stringify({transcript:clean,conversation_id:currentConversationId})});
+  const requestId=globalThis.crypto.randomUUID();
+  const result=await api('/voice/turn',{method:'POST',body:JSON.stringify({request_id:requestId,transcript:clean,conversation_id:currentConversationId})});
   currentConversationId=result.conversation_id||currentConversationId;syncChatMenuAvailability();
   if(result.conversation_title){currentConversationTitle=result.conversation_title;$('conversationTitle').textContent=currentConversationTitle}
   $('reply').textContent=result.reply;turnInFlight=false;
