@@ -1230,7 +1230,7 @@
       z-index:45!important;
       left:max(var(--home-fixed-x),env(safe-area-inset-left))!important;
       right:max(var(--home-fixed-x),env(safe-area-inset-right))!important;
-      bottom:0!important;
+      bottom:var(--shared-composer-bottom)!important;
       width:auto!important;
       max-width:var(--home-max)!important;
       margin:0 auto!important;
@@ -1243,7 +1243,7 @@
       max-height:var(--home-fixed-composer-h)!important;
     }
     body.home-landing #composer.is-expanded{
-      bottom:0!important;
+      bottom:var(--shared-composer-bottom)!important;
       height:auto!important;
       min-height:110px!important;
       max-height:min(50dvh,240px)!important;
@@ -1269,6 +1269,7 @@
       --shared-chrome-max:720px;
       --shared-header-h:52px;
       --shared-composer-h:54px;
+      --shared-composer-bottom:24px;
     }
     body:not(.home-landing) .app-shell{
       position:relative;
@@ -1353,7 +1354,7 @@
       z-index:45!important;
       left:max(var(--shared-chrome-x),env(safe-area-inset-left))!important;
       right:max(var(--shared-chrome-x),env(safe-area-inset-right))!important;
-      bottom:0!important;
+      bottom:var(--shared-composer-bottom)!important;
       width:auto!important;
       max-width:var(--shared-chrome-max)!important;
       height:var(--shared-composer-h)!important;
@@ -1420,8 +1421,9 @@
       overscroll-behavior:contain;
       -webkit-overflow-scrolling:touch;
     }
-    body.keyboard-open #composer{
-      bottom:max(0px,calc(100dvh - var(--keyboard-visible-height,100dvh)))!important;
+    body.keyboard-open #composer,
+    body.keyboard-open #composer.is-expanded{
+      bottom:max(var(--shared-composer-bottom),calc(100dvh - var(--keyboard-visible-height,100dvh) + var(--shared-composer-bottom)))!important;
     }
     @media(max-width:350px){
       body{--shared-chrome-x:12px}
