@@ -64,7 +64,7 @@ def test_memory_explanation_api_filters_sensitive_before_selection(tmp_path):
 def test_life_graph_api_links_live_second_brain_and_filters_sensitive_memory(tmp_path):
     browser, second_brain, _ = client(tmp_path)
     normal_id = second_brain.remember(
-        MemoryCandidate(type='project', subject='Personal AI', content='Qualification work is active.', confidence=.9)
+        MemoryCandidate(type='project', subject='Vishnu', content='Qualification work is active.', confidence=.9)
     )
     secret_id = second_brain.remember(
         MemoryCandidate(

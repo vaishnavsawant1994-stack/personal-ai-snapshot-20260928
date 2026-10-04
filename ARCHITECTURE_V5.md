@@ -1,4 +1,4 @@
-# Personal AI V5 — Production Hardening
+# Vishnu V5 — Production Hardening
 
 V5 upgrades V4 with interruptible full-duplex voice, OAuth PKCE + refresh lifecycle, OS-keychain-protected vault root keys, transactional desktop actions, persistent Android background device execution, request/response device commands, authenticated visual dashboard, signed release manifests, native installer packaging, emulator instrumentation, dependency auditing, and soak testing.
 

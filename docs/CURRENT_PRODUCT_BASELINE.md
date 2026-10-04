@@ -1,4 +1,4 @@
-# Personal AI — Current Product Baseline
+# Vishnu — Current Product Baseline
 
 Generated: 2026-09-14
 

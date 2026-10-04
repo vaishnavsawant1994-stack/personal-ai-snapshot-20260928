@@ -10,7 +10,7 @@ Specification baseline: `9843b15aad3c7613f2ad89b5e2495ad200f7801c`
 
 - isolated iPhone PWA router mounted only in the cloud runtime
 - HTTPS-only owner enrollment with constant-time enrollment-code verification
-- trusted-device enrollment through the existing Personal AI device registry
+- trusted-device enrollment through the existing Vishnu device registry
 - 30-day Secure + HttpOnly + SameSite=Strict device credential cookies
 - revocation-aware authenticated PWA status and voice endpoints
 - installable PWA shell, manifest and service worker
@@ -36,8 +36,8 @@ Specification baseline: `9843b15aad3c7613f2ad89b5e2495ad200f7801c`
 The cloud environment must provide:
 
 - `PERSONAL_AI_IPHONE_ENROLLMENT_CODE` with a random value of at least 12 characters
-- the selected Personal AI model/provider credentials on the server, never in browser JavaScript
+- the selected Vishnu model/provider credentials on the server, never in browser JavaScript
 - HTTPS termination
-- persistent Personal AI data storage sufficient to retain trusted-device and P3 evidence databases
+- persistent Vishnu data storage sufficient to retain trusted-device and P3 evidence databases
 
-The physical test entry point is `/iphone/` on the deployed HTTPS Personal AI cloud runtime.
+The physical test entry point is `/iphone/` on the deployed HTTPS Vishnu cloud runtime.

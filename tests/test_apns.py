@@ -25,7 +25,7 @@ def test_provider_token_is_cached_and_es256_shaped():
 
 def test_apns_success_uses_http2_provider_contract():
     c=Client(Response(200,headers={'apns-id':'abc'}));p=APNsProvider(settings(),client=c)
-    r=p.send_token('deadbeef','Personal AI','Ready',data={'kind':'test'})
+    r=p.send_token('deadbeef','Vishnu','Ready',data={'kind':'test'})
     assert r.ok and r.apns_id=='abc'
     url,headers,payload=c.calls[0]
     assert url.endswith('/3/device/deadbeef')
@@ -35,7 +35,7 @@ def test_apns_success_uses_http2_provider_contract():
 def test_invalid_device_token_is_removed(tmp_path):
     registry=DeviceRegistry(tmp_path/'devices.sqlite3');device,_=registry.enroll('iPhone','ios');registry.set_metadata(device['id'],'push.apns.token','badtoken')
     p=APNsProvider(settings(),registry,client=Client(Response(410,'Unregistered')))
-    r=p.send_device(device['id'],'Personal AI','Test')
+    r=p.send_device(device['id'],'Vishnu','Test')
     assert r.token_invalid and registry.metadata(device['id']).get('push.apns.token','')==''
 
 def test_permission_gated_tool_remains_external_side_effect():

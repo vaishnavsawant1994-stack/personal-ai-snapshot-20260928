@@ -1,4 +1,4 @@
-# Personal AI — Test Matrix Addendum (2026-09-14 W4 A-C)
+# Vishnu — Test Matrix Addendum (2026-09-14 W4 A-C)
 
 The following tests are added for the current branch-only W4 A-C batch:
 

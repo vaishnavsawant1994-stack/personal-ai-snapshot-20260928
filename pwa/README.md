@@ -1,6 +1,6 @@
-# Personal AI iPhone PWA
+# Vishnu iPhone PWA
 
-This PWA is the responsive owner web/iPhone surface for the frozen Personal AI Home V1 and the physical-iPhone P3 qualification path.
+This PWA is the responsive owner web/iPhone surface for the frozen Vishnu Home V1 and the physical-iPhone P3 qualification path.
 
 The normal product experience is conversation-first:
 
@@ -16,7 +16,7 @@ Production requirements:
 - set `PERSONAL_AI_IPHONE_ENROLLMENT_CODE` to a random secret of at least 12 characters
 - keep `PERSONAL_AI_IPHONE_ALLOW_INSECURE=false`
 - configure the model/provider on the server; provider secrets never belong in browser storage
-- use persistent storage for Personal AI data and P3 evidence
+- use persistent storage for Vishnu data and P3 evidence
 
 Open `/iphone/` on the physical iPhone. Enrollment creates a trusted `ios-pwa` device using the existing device registry and stores the resulting credential in Secure, HttpOnly, SameSite=Strict cookies.
 

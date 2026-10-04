@@ -7,4 +7,4 @@ pyz=PYZ(a.pure)
 exe=EXE(pyz,a.scripts,[],exclude_binaries=True,name='PersonalAI',debug=False,bootloader_ignore_signals=False,strip=False,upx=False,console=False)
 coll=COLLECT(exe,a.binaries,a.datas,strip=False,upx=False,upx_exclude=[],name='PersonalAI')
 if sys.platform=='darwin':
-    app=BUNDLE(coll,name='PersonalAI.app',bundle_identifier='ai.personal.desktop',info_plist={'CFBundleDisplayName':'Personal AI','NSHighResolutionCapable':True})
+    app=BUNDLE(coll,name='PersonalAI.app',bundle_identifier='ai.personal.desktop',info_plist={'CFBundleDisplayName':'Vishnu','NSHighResolutionCapable':True})

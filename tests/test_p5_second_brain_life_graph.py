@@ -16,14 +16,14 @@ def test_bridge_projects_second_brain_without_copying_memory_database_state(tmp_
     memory_id = second_brain.remember(
         MemoryCandidate(
             type='project',
-            subject='Personal AI',
-            content='Personal AI is the active owner project.',
+            subject='Vishnu',
+            content='Vishnu is the active owner project.',
             confidence=.95,
             source='explicit-user',
             verified=True,
         )
     )
-    life_node = life_graph.node('goal', 'Ship reliable Personal AI', summary='Qualification before release')
+    life_node = life_graph.node('goal', 'Ship reliable Vishnu', summary='Qualification before release')
 
     base = life_graph.graph()
     assert {node['id'] for node in base['nodes']} == {life_node}
@@ -68,7 +68,7 @@ def test_bridge_fails_closed_for_sensitive_memory_and_maps_unmodeled_memory_type
 def test_bridge_projects_relationships_and_authoritative_supersession(tmp_path):
     linked, second_brain, store, _ = bridge(tmp_path)
     project_id = second_brain.remember(
-        MemoryCandidate(type='project', subject='Personal AI', content='Project is in qualification.', confidence=.8)
+        MemoryCandidate(type='project', subject='Vishnu', content='Project is in qualification.', confidence=.8)
     )
     goal_id = second_brain.remember(
         MemoryCandidate(type='goal', subject='Release', content='Release only after qualification.', confidence=.9)

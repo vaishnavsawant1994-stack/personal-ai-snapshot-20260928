@@ -40,7 +40,7 @@ def redact_audit_value(value: Any, key: str = '') -> Any:
 
 
 class TrustedActionAudit:
-    """Redacted append-only hash chain for consequential Personal AI actions."""
+    """Redacted append-only hash chain for consequential Vishnu actions."""
 
     def __init__(self, path: Path):
         self.path = Path(path)

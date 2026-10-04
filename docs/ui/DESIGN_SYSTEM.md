@@ -1,6 +1,6 @@
-# Personal AI product design system
+# Vishnu product design system
 
-Status: implemented for the responsive web experiences and introduced as shared semantic tokens for the native companions. The values below are Personal AI project tokens. They are informed by direct reference observations but are **not** represented as ChatGPT's internal design specification.
+Status: implemented for the responsive web experiences and introduced as shared semantic tokens for the native companions. The values below are Vishnu project tokens. They are informed by direct reference observations but are **not** represented as ChatGPT's internal design specification.
 
 ## Reference observations
 
@@ -15,7 +15,7 @@ The official help pages document interaction patterns that are useful for this p
 
 Web uses rem-based values and fluid `clamp()` values. Native interfaces map roles to platform text styles and keep Dynamic Type / scaled text enabled.
 
-| Role | Personal AI web token | Usage | Narrow layout |
+| Role | Vishnu web token | Usage | Narrow layout |
 |---|---|---|---|
 | Display | 30–32 px / 38–40 px | Rare welcome or hero statement | Fluidly caps at 32 px; wraps naturally |
 | Page title | 22–24 px / 29–31 px | Main screen title | 22 px minimum; balanced wrap |
@@ -37,7 +37,7 @@ Standard controls use a 44 px minimum web height, and icon-only controls use a 4
 
 ## Surfaces and responsive rules
 
-- Home remains the brand and surface reference: Personal AI colors, logo, icons, and animated sphere are preserved.
+- Home remains the brand and surface reference: Vishnu colors, logo, icons, and animated sphere are preserved.
 - Page headers keep title, description, and actions in wrapping, min-width-safe layouts.
 - Cards share the Home-derived dark surface, subtle border, and rounded corners; sections retain their distinct task hierarchy.
 - Buttons and filters wrap before their labels become unreadable. Search and form fields use a 16 px mobile floor where needed to avoid browser auto-zoom.

@@ -13,7 +13,7 @@ try {
     .filter(button=>!((button.getAttribute("aria-label")||"").trim()||(button.innerText||button.textContent||"").trim()||button.getAttribute("title")))
     .map(button=>button.outerHTML));
   assert.deepEqual(unnamedControls,[],"visible buttons must have accessible names");
-  for(const [id,name] of [["memory-query","Search memory"],["runtime-origin","Secure runtime URL"],["pair-token","Pairing token"],["pair-code","Pairing code"],["owner-secret","Owner secret"],["prompt","Ask Personal AI"]]){
+  for(const [id,name] of [["memory-query","Search memory"],["runtime-origin","Secure runtime URL"],["pair-token","Pairing token"],["pair-code","Pairing code"],["owner-secret","Owner secret"],["prompt","Ask Vishnu"]]){
     assert.equal(await page.locator(`#${id}`).getAttribute("aria-label"),name,`${id} must have a programmatic label`);
   }
   const widths = new Set([320, 360, 375, 390, 430, 600, 768, 820, 1024, 1280, 1440, 1920, 2560]);

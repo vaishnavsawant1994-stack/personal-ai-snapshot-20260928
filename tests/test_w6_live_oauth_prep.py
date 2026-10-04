@@ -70,4 +70,4 @@ def test_callback_redirect_is_explicit_https(tmp_path):
 def test_qualification_evidence_redacts_and_harmless_names(tmp_path):
     rec=GoogleQualificationRecorder(tmp_path/'evidence.jsonl');row=rec.append(GoogleQualificationEvidence('sha','dep','qualification','svc','person@example.com','drive',['b','a'],'owner','d','s',3,'op','created','created',1.0,{'status':200,'access_token':'DO-NOT-STORE','message':'ok'},'artifact:1',True))
     raw=(tmp_path/'evidence.jsonl').read_text();assert 'person@example.com' not in raw and 'DO-NOT-STORE' not in raw and row['google_account'].endswith('@example.com')
-    names=qualification_resource_names(123);assert all('Personal AI Connector Qualification 123' in x for x in names.values())
+    names=qualification_resource_names(123);assert all('Vishnu Connector Qualification 123' in x for x in names.values())

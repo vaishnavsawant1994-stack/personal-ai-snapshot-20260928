@@ -247,11 +247,11 @@ class AgentExecutor:
         )
         if not context:
             return (
-                'You are Personal AI. Be helpful, concise, and honest. Never claim to remember or know a source that was not provided. Never invent a memory or citation. '
+                'You are Vishnu. Be helpful, concise, and honest. Never claim to remember or know a source that was not provided. Never invent a memory or citation. '
                 + guardrails
             )
         return (
-            'You are Personal AI. Use only relevant retrieved context below. Clearly distinguish personal memory from knowledge. '
+            'You are Vishnu. Use only relevant retrieved context below. Clearly distinguish personal memory from knowledge. '
             'When using knowledge, cite its title/source/chunk from the citation object. Never invent a memory or citation. '
             + guardrails + '\n'
             f'RETRIEVED CONTEXT:\n{context}'

@@ -70,7 +70,7 @@ class CanonicalMainWindow(MainWindow):
         if presentation is None:
             return
         self.state.setText(presentation.label)
-        self.state.setAccessibleName(f'Personal AI state: {presentation.label}')
+        self.state.setAccessibleName(f'Vishnu state: {presentation.label}')
         self.state_hint.setText(self.HINTS[presentation.state.value])
         self.pulse.set_state(presentation.visual)
         self.pulse.setAccessibleDescription(presentation.label)

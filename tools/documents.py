@@ -6,7 +6,7 @@ def register(reg,settings):
     def safe_path(raw,suffix):
         value=str(raw or '').strip() or f'untitled{suffix}'
         candidate=(root/value).resolve() if not Path(value).is_absolute() else Path(value).expanduser().resolve()
-        if root not in candidate.parents and candidate!=root:raise ValueError(f'document output must stay inside Personal AI workspace: {root}')
+        if root not in candidate.parents and candidate!=root:raise ValueError(f'document output must stay inside Vishnu workspace: {root}')
         if candidate.suffix.lower()!=suffix:candidate=candidate.with_suffix(suffix)
         candidate.parent.mkdir(parents=True,exist_ok=True);return candidate
     def docx_create(p):
@@ -42,8 +42,8 @@ def register(reg,settings):
             for para in section.get('paragraphs',[]):story.extend([Paragraph(str(para),styles['BodyText']),Spacer(1,8)])
             if section.get('page_break'):story.append(PageBreak())
         for para in p.get('paragraphs',[]):story.extend([Paragraph(str(para),styles['BodyText']),Spacer(1,8)])
-        SimpleDocTemplate(str(path),pagesize=A4,title=str(p.get('title','Personal AI document'))).build(story or [Paragraph('',styles['BodyText'])]);return {'ok':True,'path':str(path),'kind':'pdf'}
-    reg.register(Tool('create_docx','Create a Word document inside the Personal AI workspace; params: path,title,paragraphs,sections',docx_create,Risk.REVERSIBLE))
-    reg.register(Tool('create_xlsx','Create a spreadsheet inside the Personal AI workspace; params: path,rows or sheets',xlsx_create,Risk.REVERSIBLE))
-    reg.register(Tool('create_pptx','Create a presentation inside the Personal AI workspace; params: path,slides',pptx_create,Risk.REVERSIBLE))
-    reg.register(Tool('create_pdf','Create a PDF inside the Personal AI workspace; params: path,title,paragraphs,sections',pdf_create,Risk.REVERSIBLE))
+        SimpleDocTemplate(str(path),pagesize=A4,title=str(p.get('title','Vishnu document'))).build(story or [Paragraph('',styles['BodyText'])]);return {'ok':True,'path':str(path),'kind':'pdf'}
+    reg.register(Tool('create_docx','Create a Word document inside the Vishnu workspace; params: path,title,paragraphs,sections',docx_create,Risk.REVERSIBLE))
+    reg.register(Tool('create_xlsx','Create a spreadsheet inside the Vishnu workspace; params: path,rows or sheets',xlsx_create,Risk.REVERSIBLE))
+    reg.register(Tool('create_pptx','Create a presentation inside the Vishnu workspace; params: path,slides',pptx_create,Risk.REVERSIBLE))
+    reg.register(Tool('create_pdf','Create a PDF inside the Vishnu workspace; params: path,title,paragraphs,sections',pdf_create,Risk.REVERSIBLE))

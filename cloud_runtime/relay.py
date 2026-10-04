@@ -33,7 +33,7 @@ class SlidingWindowLimiter:
 
 
 class SecureCloudRelay:
-    """Policy boundary between an internet-facing client and the privileged Personal AI runtime."""
+    """Policy boundary between an internet-facing client and the privileged Vishnu runtime."""
 
     DEVICE_SCOPE_MAP = {
         'ai:chat': 'ai:chat',

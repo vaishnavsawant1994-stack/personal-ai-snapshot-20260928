@@ -68,7 +68,7 @@ class CanonicalTurnRuntime:
     @classmethod
     def _owner(cls, owner_id):
         owner = str(owner_id or cls.CANONICAL_OWNER)
-        if owner != cls.CANONICAL_OWNER: raise PermissionError('Personal AI V1 is single-owner; alternate owner identity is forbidden')
+        if owner != cls.CANONICAL_OWNER: raise PermissionError('Vishnu V1 is single-owner; alternate owner identity is forbidden')
         return owner
     def _existing(self, request_id):
         with self._con() as con: row = con.execute('SELECT * FROM canonical_turns WHERE request_id=?', (request_id,)).fetchone()

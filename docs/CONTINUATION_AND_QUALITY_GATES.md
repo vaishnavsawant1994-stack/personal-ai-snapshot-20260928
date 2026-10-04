@@ -1,4 +1,4 @@
-# Personal AI continuation and quality gates
+# Vishnu continuation and quality gates
 
 Updated: 2026-10-04
 

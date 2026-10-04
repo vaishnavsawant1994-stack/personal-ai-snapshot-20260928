@@ -7,7 +7,7 @@ def register(reg, service):
     reg.register(
         Tool(
             'continuity_resume',
-            'Resume the active Personal AI context for a trusted device; params: device_id,thread_id',
+            'Resume the active Vishnu context for a trusted device; params: device_id,thread_id',
             lambda p: service.resume(str(p['device_id']), thread_id=p.get('thread_id')),
             Risk.READ_ONLY,
         )
@@ -23,7 +23,7 @@ def register(reg, service):
     reg.register(
         Tool(
             'continuity_handoff',
-            'Hand off an active Personal AI thread between trusted devices; params: thread_id,from_device,to_device',
+            'Hand off an active Vishnu thread between trusted devices; params: thread_id,from_device,to_device',
             lambda p: service.handoff(
                 str(p['thread_id']),
                 from_device=p.get('from_device'),

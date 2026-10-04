@@ -175,7 +175,7 @@ def drive_manifest():
         token_revocation_supported=True,healthcheck_operation='drive.files.list',configuration_requirements=('google_client_id',),read_only=False,
         scope_reasons=(
             (read_scope[0],'Read metadata and content only for owner-selected Drive files.'),
-            (write_scope[0],'Create and update only files created by or explicitly opened/selected for Personal AI; does not grant blanket delete/share/permission control.'),
+            (write_scope[0],'Create and update only files created by or explicitly opened/selected for Vishnu; does not grant blanket delete/share/permission control.'),
         ),
         content_limits=(('max_file_bytes',10*1024*1024),('max_pages',10),('max_results',1000),('max_filename_chars',255)),
         supported_content_types=('text/plain','text/csv','application/json','application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/vnd.google-apps.document','application/vnd.google-apps.spreadsheet'))
@@ -196,7 +196,7 @@ def sheets_manifest():
         token_revocation_supported=True,configuration_requirements=('google_client_id',),read_only=False,
         scope_reasons=(
             (read_scope[0],'Read spreadsheet metadata and explicitly requested ranges.'),
-            (write_scope[0],'Create spreadsheets and update/append bounded RAW values. This scope can edit spreadsheets accessible to the connected account; delete, clear, sharing and structural batchUpdate remain prohibited by Personal AI policy.'),
+            (write_scope[0],'Create spreadsheets and update/append bounded RAW values. This scope can edit spreadsheets accessible to the connected account; delete, clear, sharing and structural batchUpdate remain prohibited by Vishnu policy.'),
         ),
         content_limits=(('max_worksheets',20),('max_ranges',10),('max_rows',1000),('max_columns',100),('max_cells',50000),('max_write_cells',10000),('max_append_rows',500),('max_request_bytes',1024*1024),('max_response_bytes',2*1024*1024)),
         supported_content_types=('application/vnd.google-apps.spreadsheet','text/csv'))

@@ -154,7 +154,7 @@ Gates:
 - error rate <= 5%
 - same task protocol recorded for both systems
 - competitor result retained
-- Personal AI result retained
+- Vishnu result retained
 - zero self-awarded Superior labels
 - zero Superior decisions without competitor evidence
 

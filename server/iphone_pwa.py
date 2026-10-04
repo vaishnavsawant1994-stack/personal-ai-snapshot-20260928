@@ -397,7 +397,7 @@ def iphone_pwa_router(runtime, settings, *, include_legacy_runtime_routes: bool 
                 raise ValueError('Google account is not the configured owner')
         except Exception:
             failed_access_attempt(key)
-            raise HTTPException(401, 'This Google account is not authorized for Personal AI')
+            raise HTTPException(401, 'This Google account is not authorized for Vishnu')
         clear_access_attempts(key)
         device = trust_browser(response, body.name, 'web-pwa-google')
         emit('owner.google.login', device_id=device['id'], provider='google')
@@ -471,10 +471,10 @@ def iphone_pwa_router(runtime, settings, *, include_legacy_runtime_routes: bool 
         ]
         options = generate_registration_options(
             rp_id=rp_id,
-            rp_name='Personal AI',
+            rp_name='Vishnu',
             user_name='owner',
             user_id=b'personal-ai-owner',
-            user_display_name='Personal AI Owner',
+            user_display_name='Vishnu Owner',
             authenticator_selection=AuthenticatorSelectionCriteria(
                 authenticator_attachment=AuthenticatorAttachment.PLATFORM,
                 resident_key=ResidentKeyRequirement.PREFERRED,
@@ -610,7 +610,7 @@ def iphone_pwa_router(runtime, settings, *, include_legacy_runtime_routes: bool 
         conversation = resolve_conversation(device_id, body.conversation_id)
         conversation_history = model_history(conversation)
         append_conversation(conversation, device_id, 'user_message', transcript)
-        if conversation and conversation['title'] in {'New conversation', 'Current context', 'Primary Personal AI Context'}:
+        if conversation and conversation['title'] in {'New conversation', 'Current context', 'Primary Vishnu Context'}:
             continuity.rename_thread(conversation['id'], transcript[:72])
             conversation = continuity.thread(conversation['id'])
         cancel_event = state.begin_turn(device_id)
@@ -680,7 +680,7 @@ def iphone_pwa_router(runtime, settings, *, include_legacy_runtime_routes: bool 
             emit('state', state='error', error='tool_error', device_id=device_id, source='iphone-pwa')
             raise HTTPException(502, {
                 'code': 'tool_error',
-                'message': 'That tool is unavailable on this Personal AI surface. No action was completed.',
+                'message': 'That tool is unavailable on this Vishnu surface. No action was completed.',
             })
         finally:
             state.finish(device_id, cancel_event)

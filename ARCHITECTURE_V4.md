@@ -1,4 +1,4 @@
-# Personal AI Architecture V4
+# Vishnu Architecture V4
 
 V4 extends the validated V3 foundation with executable multimodal and device-facing capabilities.
 

@@ -20,7 +20,7 @@ class CanonicalTurnInProgress(ModelError):
 
 
 class SessionBoundExecutor:
-    """Bind an authenticated browser session to the canonical Personal AI runtime."""
+    """Bind an authenticated browser session to the canonical Vishnu runtime."""
 
     def __init__(self, executor, *, continuity=None, surface: str = 'pwa'):
         self._executor = executor
@@ -53,7 +53,7 @@ class SessionBoundExecutor:
     def _owner_only(kwargs):
         owner = str(kwargs.get('owner_id') or 'owner')
         if owner != 'owner':
-            raise PermissionError('authenticated Personal AI surfaces are owner-only')
+            raise PermissionError('authenticated Vishnu surfaces are owner-only')
 
     def chat(self, text, **kwargs):
         context = self._context()

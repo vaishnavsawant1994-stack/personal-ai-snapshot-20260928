@@ -8,7 +8,7 @@ Final P8 implementation: `041584c50e2e2df8e74aa67843eebd2c2e0e058c`
 
 ## Classification
 
-P8 implements governed continuity across existing Personal AI authorities. It does not create a second owner identity, device/session authority, conversation authority, memory authority, P7 world-understanding authority, P6/W7 action authority, approval authority, executor, recovery authority, or Emergency Stop authority.
+P8 implements governed continuity across existing Vishnu authorities. It does not create a second owner identity, device/session authority, conversation authority, memory authority, P7 world-understanding authority, P6/W7 action authority, approval authority, executor, recovery authority, or Emergency Stop authority.
 
 Repository/automated implementation qualification is complete at the frozen implementation SHA. Physical cross-device, live-service and production qualification are intentionally deferred to final pre-release/W10 because the required physical environment is not currently available.
 
@@ -20,7 +20,7 @@ Repository/automated implementation qualification is complete at the frozen impl
 - P7 context continuity uses safe, freshness/retention/provenance-aware P7 projections; raw multimodal replication is not P8 authority.
 - P6/W7 remain the only consequential-operation, approval, execution, verification, retry/recovery and Emergency Stop authorities. P8 exposes only safe status where permitted.
 - Activities/audit reuse the existing event/audit authority.
-- `PersonalAIEverywhere` remains a surface adapter over the governed continuity service rather than a new Personal AI system.
+- `PersonalAIEverywhere` remains a surface adapter over the governed continuity service rather than a new Vishnu system.
 
 ## Security and deterministic qualification
 

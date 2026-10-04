@@ -115,13 +115,13 @@ def create_app(
     automations=None,
     runtime=None,
 ):
-    app = FastAPI(title='Personal AI Control', docs_url=None, redoc_url=None)
+    app = FastAPI(title='Vishnu Control', docs_url=None, redoc_url=None)
     pairing = PairingManager(settings.pairing_ttl_seconds)
     cloud = None
 
     if getattr(settings, 'cloud_runtime_enabled', False):
         if not runtime or not device_registry:
-            raise RuntimeError('Cloud runtime requires the full Personal AI runtime and device registry')
+            raise RuntimeError('Cloud runtime requires the full Vishnu runtime and device registry')
         owner = OwnerAuthenticator(getattr(settings, 'cloud_owner_secret', ''))
         if not owner.configured:
             raise RuntimeError('CLOUD_RUNTIME_ENABLED requires PERSONAL_AI_CLOUD_OWNER_SECRET with at least 32 characters')
@@ -281,7 +281,7 @@ def create_app(
         if not runtime or not runtime.get('oauth'):
             raise HTTPException(503, 'OAuth unavailable')
         runtime['oauth'].complete(state, code)
-        return HTMLResponse('<h2>Personal AI account linked. You can close this window.</h2>')
+        return HTMLResponse('<h2>Vishnu account linked. You can close this window.</h2>')
 
     @app.post('/command')
     def command(
