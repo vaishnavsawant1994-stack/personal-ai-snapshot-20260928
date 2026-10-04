@@ -2649,6 +2649,23 @@ button:active:focus-visible{transform:none!important;transition:none!important}
   .owner-menu{bottom:var(--shared-composer-bottom)!important}
   .section-bottom-action{bottom:var(--shared-composer-bottom)!important}
   .toast,.more-sheet{bottom:calc(var(--shared-composer-bottom) + var(--shared-composer-h) + 12px)!important}
+  .timeline-sidebar-footer{
+    flex:0 0 auto;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;
+    padding:10px 14px var(--shared-composer-bottom);border-top:1px solid rgba(148,177,230,.12);
+    background:linear-gradient(180deg,rgba(5,12,21,.92),rgba(3,7,13,.98))
+  }
+  .timeline-sidebar-footer .sidebar-new-compact,.timeline-sidebar-footer .timeline-plan-button{
+    box-sizing:border-box;width:100%;min-width:0!important;height:48px;min-height:48px!important;
+    padding:0 8px!important;gap:6px!important;justify-content:center;border-radius:15px!important;
+    font-size:13.5px!important;white-space:nowrap
+  }
+  .timeline-sidebar-footer .timeline-footer-add-plan{display:inline-flex!important}
+  .timeline-sidebar-footer svg{width:19px;height:19px;flex:0 0 auto}
+  @media(max-width:350px){
+    .timeline-sidebar-footer{gap:6px;padding-left:10px;padding-right:10px}
+    .timeline-sidebar-footer .sidebar-new-compact,.timeline-sidebar-footer .timeline-plan-button{padding-left:6px!important;padding-right:6px!important;font-size:12px!important}
+    .timeline-sidebar-footer svg{width:17px;height:17px}
+  }
 </style>
 </head>
 <body>
@@ -2814,7 +2831,6 @@ button:active:focus-visible{transform:none!important;transition:none!important}
         <div class="timeline-title-block"><h2 id="timelineDrawerTitle">Timeline</h2><p>Chats, plans and activity</p></div>
         <button id="timelineCloseDrawer" class="timeline-header-button timeline-dismiss-button" type="button" aria-label="Close timeline"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
       </header>
-      <div class="timeline-plan-row"><button id="timelineAddPlan" class="timeline-plan-button" type="button" aria-label="Add task, work or meeting"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M4 12h16"/></svg><span>Add to plan</span></button></div>
       <label class="timeline-search-wrap" for="conversationSearch"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg><input id="conversationSearch" class="conversation-search" type="search" autocomplete="off" placeholder="Search everything…" aria-label="Search timeline entries"/></label>
       <div class="conversation-filters" role="group" aria-label="Timeline filters">
         <button class="conversation-filter active" type="button" data-conversation-filter="all" aria-pressed="true">All</button>
@@ -2827,6 +2843,10 @@ button:active:focus-visible{transform:none!important;transition:none!important}
       <p id="conversationCount" class="conversation-count" aria-live="polite">Loading your timeline…</p>
     </div>
     <div id="conversationList" class="conversation-list timeline-list" role="list" aria-label="Your activity timeline"></div>
+    <div class="timeline-sidebar-footer" role="group" aria-label="Timeline actions">
+      <button id="timelineNewChat" class="sidebar-new-compact timeline-footer-new-chat" type="button" aria-label="Start a new chat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M4 12h16"/></svg><span>New chat</span></button>
+      <button id="timelineAddPlan" class="timeline-plan-button timeline-footer-add-plan" type="button" aria-label="Add to plan"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M4 12h16"/></svg><span>Add to plan</span></button>
+    </div>
     <div id="timelineEventMenu" class="timeline-event-menu hidden" role="menu" aria-label="Timeline item options"></div>
   </section>
 
@@ -4394,6 +4414,7 @@ document.querySelectorAll('[data-owner-module]').forEach(button=>button.onclick=
 $('historyButton').onclick=openAppDrawer;
 $('closeAppDrawer').onclick=closeAppDrawer;
 $('sidebarNewChat').onclick=()=>personalAiDemoMode?showToast('Sample preview only — no conversation is created'):createConversation().catch(error=>showToast(error.message));
+$('timelineNewChat').onclick=$('sidebarNewChat').onclick;
 $('sidebarSearchToggle').onclick=()=>{
  const open=$('sidebarSearchPanel').classList.contains('hidden');
  if(!open){closeSidebarSearch();return}
