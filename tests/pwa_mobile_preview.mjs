@@ -7,6 +7,10 @@ const now = new Date();
 const atToday = (hour, minute = 0) =>
   new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute).toISOString();
 const atDayOffset = (days,hour=10) => new Date(now.getFullYear(),now.getMonth(),now.getDate()+days,hour).toISOString();
+const assertSharedComposerBottomInset=(bottom,viewport,label)=>{
+  const gap=viewport-bottom;
+  assert.ok(gap>=23&&gap<=25,`${label} must keep the shared 24px bottom inset: ${gap}px`);
+};
 
 const conversations = [
   { id: "c1", title: "Project Planning", preview: "Continue planning the project", updated_at: atToday(18,33) },
@@ -313,8 +317,7 @@ try {
   }));
   assert.equal(focusedEmptyHomeComposer.expanded,false,"empty Home composer must not become a large two-row box merely because it receives focus");
   assert.ok(focusedEmptyHomeComposer.height>=52&&focusedEmptyHomeComposer.height<=56,"focused empty Home composer must stay slim");
-  const focusedComposerBottomGap=focusedEmptyHomeComposer.viewport-focusedEmptyHomeComposer.bottom;
-  assert.ok(focusedComposerBottomGap>=23&&focusedComposerBottomGap<=25,"focused empty Home composer must keep the shared 24px bottom inset: "+focusedComposerBottomGap);
+  assertSharedComposerBottomInset(focusedEmptyHomeComposer.bottom,focusedEmptyHomeComposer.viewport,"focused empty Home composer");
   await page.locator("#historyButton").focus();
   assert.equal(await page.locator("#sendButton").isVisible(), false, "idle Home composer must show microphone, not inactive send");
   assert.equal(await page.locator("#micButton").isVisible(), true, "idle Home composer microphone must remain available");
@@ -349,7 +352,7 @@ try {
     assert.ok(section.left>=-1 && section.right<=homeState.innerWidth+1, "Home section must remain inside the viewport");
   }
   assert.ok(Math.abs(homeState.quick.left-homeState.recent.left)<=2 && Math.abs(homeState.quick.left-homeState.today.left)<=2 && Math.abs(homeState.quick.left-homeState.calendar.left)<=2, "major Home sections must share one precise outer grid");
-  assert.ok(homeState.composer.bottom<=homeState.innerHeight+1&&homeState.composer.bottom>=homeState.innerHeight-1,"Home composer must stay fixed flush to the viewport bottom");
+  assertSharedComposerBottomInset(homeState.composer.bottom,homeState.innerHeight,"Home composer");
   const fixedChromeBefore=await page.evaluate(()=>({
     header:document.querySelector(".topbar").getBoundingClientRect(),
     composer:document.querySelector("#composer").getBoundingClientRect(),
@@ -462,7 +465,7 @@ try {
   }));
   assert.ok(approvedEmptyLayout.greeting.top>=approvedEmptyLayout.header.bottom+6,"approved Home capture must keep the greeting clear of the floating Home controls");
   assert.ok(approvedEmptyLayout.composer.bottom<=approvedEmptyLayout.viewport+1,"approved empty-Today Home composition must keep the composer visible in the primary iPhone viewport");
-  assert.ok(approvedEmptyLayout.composer.bottom>=approvedEmptyLayout.viewport-1,"approved Home composer must sit flush against the bottom edge with no external gap");
+  assertSharedComposerBottomInset(approvedEmptyLayout.composer.bottom,approvedEmptyLayout.viewport,"approved Home composer");
   assert.ok(approvedEmptyLayout.scrollWidth<=approvedEmptyLayout.viewportWidth,"approved empty-Today Home must not overflow horizontally");
   assert.ok(approvedEmptyLayout.calendar.scrollWidth<=approvedEmptyLayout.calendar.clientWidth+2,"calendar disconnected status must remain fully readable at the primary iPhone width");
   await page.screenshot({ path: "artifacts/personal-ai-home-today-empty-390x844.png", fullPage: true });
@@ -983,7 +986,7 @@ try {
     assert.ok(layout.core.width > 0 && layout.core.height > 0, "sphere missing at " + width + "x" + height);
     assert.ok(layout.sphereInk > 90, "mini sphere animation did not repaint after chat at " + width + "x" + height);
     assert.ok(layout.composer.bottom <= layout.viewportHeight + 1, "composer clipped at " + width + "x" + height);
-    assert.ok(layout.composer.bottom >= layout.viewportHeight - 1, "Home composer must remain flush to the bottom at " + width + "x" + height);
+    assertSharedComposerBottomInset(layout.composer.bottom,layout.viewportHeight,"Home composer at "+width+"x"+height);
     const fixedPositions=await page.evaluate(()=>({
       header:getComputedStyle(document.querySelector(".topbar")).position,
       composer:getComputedStyle(document.querySelector("#composer")).position
@@ -1101,7 +1104,7 @@ try {
       quick:[...document.querySelectorAll(".quick-action")].map(node=>node.getBoundingClientRect()),
     }));
     assert.ok(wide.doc<=wide.inner,"wide Home must not horizontally overflow at "+width+"x"+height);
-    assert.ok(wide.composer.bottom>=height-1&&wide.composer.bottom<=height+1,"wide Home composer must stay flush to the viewport bottom at "+width+"x"+height);
+    assertSharedComposerBottomInset(wide.composer.bottom,height,"wide Home composer at "+width+"x"+height);
     const wideFixed=await page.evaluate(()=>({
       header:getComputedStyle(document.querySelector(".topbar")).position,
       composer:getComputedStyle(document.querySelector("#composer")).position
@@ -1254,7 +1257,7 @@ try {
   assert.equal(emptyFocused.expanded,false,"focus alone must not enlarge the shared SMS composer");
   assert.equal(emptyFocused.position,"fixed","shared SMS composer must be fixed to the viewport");
   assert.ok(emptyFocused.composer.height>=52&&emptyFocused.composer.height<=56,"focused empty shared composer must keep the compact pill height");
-  assert.ok(emptyFocused.composer.bottom>=emptyFocused.viewportHeight-1&&emptyFocused.composer.bottom<=emptyFocused.viewportHeight+1,"shared composer must remain flush to the viewport bottom");
+  assertSharedComposerBottomInset(emptyFocused.composer.bottom,emptyFocused.viewportHeight,"shared focused composer");
   await page.fill("#message", "Hello from browser QA");
   assert.ok(await page.locator("#composer").evaluate(node => node.classList.contains("has-text")), "text input must show send state");
   assert.equal(await page.locator("#composer").evaluate(node => node.classList.contains("is-expanded")),false,"single-line text must keep the same compact SMS box");
@@ -1352,7 +1355,7 @@ try {
   }));
   assert.ok(landscape.scrollWidth <= landscape.innerWidth, "landscape must not scroll horizontally");
   assert.ok(landscape.composerBottom <= landscape.innerHeight + 1, "landscape composer must stay in viewport");
-  assert.ok(landscape.composerBottom >= landscape.innerHeight - 1, "landscape Home composer must stay flush to the bottom edge");
+  assertSharedComposerBottomInset(landscape.composerBottom,landscape.innerHeight,"landscape Home composer");
   assert.equal(await page.locator(".topbar").evaluate(node=>getComputedStyle(node).position),"fixed","landscape Home topbar must remain fixed");
   assert.equal(await page.locator("#composer").evaluate(node=>getComputedStyle(node).position),"fixed","landscape Home composer must remain fixed");
   assert.ok(landscape.headerLeft >= 0 && landscape.headerRight <= landscape.innerWidth + 1, "landscape header must fit");
