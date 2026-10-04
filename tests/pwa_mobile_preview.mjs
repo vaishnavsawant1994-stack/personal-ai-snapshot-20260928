@@ -1042,7 +1042,7 @@ try {
   }
 
   // Tablet and desktop must keep the approved Home composition centered rather than stretching edge-to-edge.
-  const wideViewports=[[768,1024],[820,1180],[1024,900],[1280,900],[1440,1000]];
+  const wideViewports=[[768,1024],[820,1180],[1024,768],[1024,900],[1280,900],[1366,768],[1440,1000],[1920,1080]];
   for(const [width,height] of wideViewports){
     await page.setViewportSize({width,height});
     await page.evaluate(()=>enterHomeLanding());
@@ -1337,6 +1337,28 @@ try {
   assert.ok(await locked.locator("#ownerPassword").isVisible(), "owner password form must open");
   await locked.screenshot({ path: "artifacts/personal-ai-login-390x844.png", fullPage: true });
   await locked.close();
+
+  // Verify the global reduced-motion contract and a 200%-zoom-equivalent CSS viewport.
+  // Playwright cannot change browser chrome zoom; the reduced CSS viewport exercises its reflow outcome.
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const reducedMotion = await page.evaluate(() => ({
+    requested: matchMedia("(prefers-reduced-motion: reduce)").matches,
+    scrollBehavior: getComputedStyle(document.documentElement).scrollBehavior,
+  }));
+  assert.equal(reducedMotion.requested, true, "reduced-motion preference must reach the application");
+  assert.equal(reducedMotion.scrollBehavior, "auto", "reduced-motion mode must disable smooth page scrolling");
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.setViewportSize({ width: 640, height: 720 });
+  await page.evaluate(() => enterHomeLanding());
+  const zoomEquivalent = await page.evaluate(() => ({
+    viewport: innerWidth,
+    document: document.documentElement.scrollWidth,
+    composer: document.querySelector("#composer").getBoundingClientRect(),
+  }));
+  assert.ok(zoomEquivalent.document <= zoomEquivalent.viewport, "200%-zoom-equivalent layout must not overflow horizontally");
+  assert.ok(zoomEquivalent.composer.left >= -1 && zoomEquivalent.composer.right <= zoomEquivalent.viewport + 1,
+    "composer must remain inside the zoom-equivalent viewport");
+  await page.setViewportSize({ width: 390, height: 844 });
 
   assert.deepEqual(pageErrors, [], "page must render without uncaught JavaScript errors");
   console.log("Right unified timeline passed chats, meetings, work, reminders, workflow, done and authorized audit filters, chronological ordering, search, completion, Back, New chat, Plan and eight viewports.");
