@@ -3,15 +3,19 @@
 <!-- repository-profile:start -->
 ## Repository profile
 
-**Purpose:** Dated recovery/continuity snapshot of the Personal AI codebase, covering desktop, server, mobile/PWA, memory, knowledge, models, agents, tools, devices, automation, security, recovery, voice, and packaging foundations.
+**Purpose:** Operational continuation repository for the single-owner Personal AI product. This repository also preserves a dated recovery snapshot and documents the historical import boundary.
 
 **Core contents:** Python/PyQt6 desktop application, FastAPI control surface, model routing, SQLite-backed product data, memory and knowledge systems, governed tools/autonomy, companion/PWA areas, device pairing, audit/events, tests, qualification material, and deployment/packaging directories.
 
-**Canonical-source warning:** The repository name explicitly identifies a 28 September 2026 snapshot. This account also contains an empty `personal-ai-placeholder-empty` repository, but no repository named `personal-ai`. Do not assume this snapshot is the canonical continuation point until source provenance, complete Git history, branches/tags, CI evidence, and the owner decision are recorded.
+**Operational source of truth (2026-10-04):** This repository is the canonical repository for new development and deployments. Railway production follows `main`; the accepted stable deployment baseline is `2e74e8a45cd9543b7578bb879df39a90d407737e`. The active preview candidate is tracked separately under `ui/approved-pages-implementation-20261003`. This is an operational decision; it does not claim that the imported historical Git lineage is complete.
+
+**Historical provenance:** Import commits identify `sawantvaishnav1994-ai/personal-ai` at `f289a3b` and `fec51eb` as source points, including an upstream PR that was not merged at import time. The original source could not be resolved through the available GitHub connection during the 2026-10-04 review, so its later disposition and complete ancestry remain unverified. Keep the import commits and this note until the original source can be independently confirmed.
+
+**Product model:** The current release is treated as a single-owner installation. Its owner-scoped authentication and SQLite data model are a better fit for this model than for a public multi-user service. Do not advertise tenant isolation or public multi-user support until those boundaries are implemented and tested.
 
 **Security note:** This repository is public. Keep secrets, owner keys, production credentials, personal data, and private deployment configuration out of Git history.
 
-**Recommended next milestone:** Establish the canonical Personal AI repository and exact accepted checkpoint, then mark this snapshot read-only or archive it after continuity is proven.
+**Release evidence:** See [docs/RELEASE_READINESS_2026-10-04.md](docs/RELEASE_READINESS_2026-10-04.md) for verified deployments, branch protection, backup status, CI scope, device gates, and performance limits.
 <!-- repository-profile:end -->
 
 Independent personal AI assistant codebase designed from scratch.
@@ -48,14 +52,14 @@ Independent personal AI assistant codebase designed from scratch.
 - Per-device scopes, device listing and revocation
 - Replaceable cloud/self-hosted model routing
 
-Operational details: [`docs/OWNER_PRODUCT_OPERATIONS.md`](docs/OWNER_PRODUCT_OPERATIONS.md).
+Operational details: [docs/OWNER_PRODUCT_OPERATIONS.md](docs/OWNER_PRODUCT_OPERATIONS.md).
 
 ## Run
 
 ```bash
 python -m venv .venv
 # Windows
-.venv\Scripts\activate
+.venv\\Scripts\\activate
 # macOS/Linux
 source .venv/bin/activate
 
