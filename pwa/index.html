@@ -2309,6 +2309,157 @@ button:active:focus-visible{transform:none!important;transition:none!important}
     @media(prefers-reduced-motion:reduce){.managed-dialog-form,.managed-dialog-close,.managed-dialog-actions button,.creation-type-tabs button{transition:none!important}.managed-dialog,.managed-dialog *{scroll-behavior:auto!important}}
 
 </style>
+<style id="home-consistent-ui-system">
+  /* One responsive type, surface, and spacing system across every PWA screen.
+     Home stays the visual reference; page-specific layouts and controls remain intact. */
+  :root {
+    --ui-page-title: clamp(1.45rem, 4vw, 1.78rem);
+    --ui-section-title: clamp(1.05rem, 2.6vw, 1.22rem);
+    --ui-card-title: 0.94rem;
+    --ui-body: 0.9rem;
+    --ui-supporting: 0.82rem;
+    --ui-meta: max(0.75rem, 12px);
+    --ui-card-radius: 17px;
+    --ui-card-border: rgba(135, 170, 228, 0.16);
+    --ui-card-fill: linear-gradient(145deg, rgba(13, 26, 46, 0.88), rgba(6, 13, 25, 0.82));
+    --ui-section-gap: clamp(16px, 2.2vw, 24px);
+  }
+
+  :where(.module-panel, .section-page, .settings-hub, .owner-page, .today-screen,
+         .conversation-drawer, .app-drawer, .timeline-drawer) {
+    font-size: var(--ui-body);
+    line-height: 1.55;
+    color: var(--text-primary, var(--text));
+  }
+
+  :where(.section-page-heading h1, .settings-hub h1, .owner-page h1,
+         .today-screen-title, .conversation-manager-head h2,
+         .timeline-title-block h2, .module-head h2) {
+    font-size: var(--ui-page-title);
+    line-height: 1.16;
+    letter-spacing: -0.025em;
+    font-weight: 650;
+    text-wrap: balance;
+  }
+
+  :where(.home-section-heading, .today-section-head, .section-group-heading,
+         .module-section-heading, .settings-hub-group h2, .settings-model-heading,
+         .section-page h2, .module-panel h3) {
+    font-size: var(--ui-section-title);
+    line-height: 1.3;
+    letter-spacing: -0.015em;
+    font-weight: 620;
+    text-wrap: balance;
+  }
+
+  :where(.section-page-heading p, .settings-hub-description, .module-head p,
+         .section-chunk, .today-summary-copy p, .settings-card p) {
+    font-size: var(--ui-supporting);
+    line-height: 1.55;
+    color: var(--text-secondary, var(--muted));
+  }
+
+  :where(.data-card strong, .section-record-title, .section-action-copy strong,
+         .settings-hub-card strong, .settings-card h3, .today-summary-copy strong,
+         .activity-title, .provider-name, .device-record strong, .workflow-record strong) {
+    font-size: var(--ui-card-title);
+    line-height: 1.35;
+    font-weight: 620;
+  }
+
+  :where(.section-record-time, .section-record-preview, .section-tag, .data-meta,
+         .data-meta span, .activity-record .activity-title, .activity-record .section-record-preview,
+         .activity-record .section-record-time, .activity-record .section-tag,
+         .settings-value, .settings-model-meta, .section-detail-meta, .today-date) {
+    font-size: var(--ui-meta);
+    line-height: 1.45;
+  }
+
+  :where(.data-card, .section-record, .section-action-card, .settings-card,
+         .settings-hub-card, .today-card, .today-summary-card, .activity-record,
+         .provider-card, .device-record, .workflow-record, .memory-record,
+         .knowledge-record, .approval-panel) {
+    border-color: var(--ui-card-border);
+    border-radius: var(--ui-card-radius);
+    background: var(--ui-card-fill);
+    box-shadow: inset 0 1px rgba(255, 255, 255, 0.02);
+  }
+
+  :where(.section-page, .settings-hub, .owner-page, .today-screen) {
+    gap: var(--ui-section-gap);
+  }
+
+  :where(.section-page-header, .today-screen-head, .settings-hub-header) {
+    margin-bottom: 2px;
+  }
+
+  :where(.module-toolbar button, .module-toolbar label, .ui-button,
+         .section-inline-action, .section-see-all, .today-add-action,
+         .home-section-link, .section-round, .drawer-close, .conversation-close,
+         .conversation-add, .history-button) {
+    min-height: 42px;
+    border-radius: 13px;
+    font-size: 0.84rem;
+    font-weight: 580;
+  }
+
+  :where(.section-search, .module-search, .conversation-search,
+         .managed-dialog input, .managed-dialog select, .managed-dialog textarea,
+         .section-page input:not([type="checkbox"]):not([type="radio"]),
+         .section-page select, .section-page textarea) {
+    min-height: 44px;
+    border-radius: 13px;
+    font-size: max(0.9rem, 16px);
+    line-height: 1.45;
+  }
+
+  :where(.module-grid, .settings-hub-group, .provider-grid, .activity-stat-grid) {
+    min-width: 0;
+  }
+
+  :where(.section-page, .module-panel, .settings-hub, .owner-page,
+         .today-screen, .conversation-drawer, .app-drawer, .timeline-drawer) * {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  :where(.section-empty, .empty-module, .today-empty, .sidebar-chat-empty) {
+    border-radius: var(--ui-card-radius);
+    line-height: 1.55;
+  }
+
+  @media (max-width: 600px) {
+    :root { --ui-section-gap: 16px; }
+    :where(.section-page, .settings-hub, .owner-page, .today-screen) {
+      padding-inline: clamp(14px, 4vw, 20px);
+    }
+    :where(.module-head, .section-page-header, .today-screen-head) {
+      gap: 10px;
+    }
+    :where(.data-card, .section-record, .section-action-card, .settings-card,
+           .settings-hub-card, .today-card, .today-summary-card, .activity-record,
+           .provider-card, .device-record, .workflow-record, .memory-record,
+           .knowledge-record, .approval-panel) {
+      padding: clamp(12px, 3.5vw, 16px);
+    }
+  }
+
+  @media (max-width: 360px) {
+    :root { --ui-page-title: 1.38rem; --ui-body: 0.875rem; }
+    :where(.quick-actions, .module-grid, .settings-hub-group, .provider-grid,
+           .activity-stat-grid) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #home-consistent-ui-system *,
+    #home-consistent-ui-system *::before,
+    #home-consistent-ui-system *::after {
+      scroll-behavior: auto !important;
+    }
+  }
+</style>
 </head>
 <body>
 <main class="app-shell">
