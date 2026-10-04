@@ -181,8 +181,8 @@ try {
   await page.click("#todayScreenAdd");
   assert.equal(await page.locator("#todayDialog").isVisible(),true,"Today Add must open the movable creation dialog, including in preview mode");
   await page.click("#todayCancel");
-  await page.locator("#todayTasksList .today-task-check").first().click({force:true});
-  assert.equal(everydayItems.length,demoItemsBeforeAdd,"Today demo actions must not create or complete real records");
+  assert.equal(everydayItems.length,demoItemsBeforeAdd,"opening and closing the preview add dialog must not create real records");
+  assert.equal(await page.locator("#todayTasksList .today-task-check:disabled").count(),4,"preview sample task controls must remain disabled");
   await page.screenshot({path:"artifacts/personal-ai-today-demo-390x844.png",fullPage:true});
   await page.click("#todayScreenClose");
   await page.evaluate(()=>{todayScreenDemo=false});
