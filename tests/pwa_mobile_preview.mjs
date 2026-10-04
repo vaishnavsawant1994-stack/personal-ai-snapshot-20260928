@@ -1432,6 +1432,11 @@ try {
   assert.equal(await page.locator('#modulePanel').isVisible(),false,'section Back returns to Home');
   await page.evaluate(()=>openModule('memory'));
   await page.waitForFunction(()=>document.querySelector('.memory-record'));
+  assert.equal(await page.locator("#memoryNewChat").isVisible(),true,"Memory must keep New chat in its bottom action row");
+  assert.equal(await page.locator("#memoryAdd").isVisible(),true,"Memory must keep Add memory beside New chat");
+  const memoryFooterLayout=await page.evaluate(()=>{const chat=document.querySelector("#memoryNewChat").getBoundingClientRect(),add=document.querySelector("#memoryAdd").getBoundingClientRect();return{chatBottom:chat.bottom,addBottom:add.bottom,left:chat.left,right:add.right,width:innerWidth}});
+  assert.ok(Math.abs(memoryFooterLayout.chatBottom-memoryFooterLayout.addBottom)<=1,"Memory footer buttons must share one bottom baseline");
+  assert.ok(memoryFooterLayout.left>=-1&&memoryFooterLayout.right<=memoryFooterLayout.width+1,"Memory footer actions must stay within the iPhone viewport");
   await page.fill('#memorySearch','project');
   await page.waitForTimeout(360);
   assert.equal(await page.evaluate(()=>document.activeElement?.id),'memorySearch','Memory search retains focus after refreshed results');
