@@ -2172,6 +2172,101 @@ body:not(.home-landing):not(.focused-module) .message-entry.is-collapsed .messag
       }
     }
 
+
+    /* Whole-product finishing layer: consistent focus, controls, data, and overlays. */
+    :root {
+      --focus-ring: rgba(91, 174, 255, .78);
+      --surface-raised: rgba(16, 26, 42, .94);
+      --surface-hover: rgba(74, 117, 171, .13);
+      --line-strong: rgba(148, 177, 230, .32);
+      --motion-ui: 150ms cubic-bezier(.23, 1, .32, 1);
+      color-scheme: dark;
+    }
+    :where(button, input, textarea, select, a[href]) {
+      -webkit-tap-highlight-color: transparent;
+    }
+    :where(button, a[href], input, textarea, select, [tabindex]:not([tabindex="-1"])):focus-visible {
+      outline: 2px solid var(--focus-ring);
+      outline-offset: 3px;
+    }
+    :where(button, input, textarea, select) {
+      accent-color: #69b8ff;
+    }
+    button:not(:disabled) {
+      transition: background-color var(--motion-ui), border-color var(--motion-ui),
+        color var(--motion-ui), box-shadow var(--motion-ui), transform var(--motion-ui);
+    }
+    button:disabled, input:disabled, textarea:disabled, select:disabled {
+      cursor: not-allowed;
+      opacity: .58;
+    }
+    input, textarea, select {
+      color: var(--text-primary, var(--text));
+      caret-color: var(--blue, #69b8ff);
+      scroll-margin-block: 16px;
+    }
+    input::placeholder, textarea::placeholder {
+      color: var(--muted, #8c98ad);
+      opacity: .82;
+    }
+    @media (hover:hover) and (pointer:fine) {
+      button:not(:disabled):not([aria-current="page"]):hover {
+        border-color: var(--line-strong);
+      }
+      .settings-hub-row:hover, .owner-row:hover:not(.unavailable),
+      .conversation-item:hover, .feature:hover {
+        background-color: var(--surface-hover);
+      }
+    }
+    @media (max-width: 600px) {
+      input, textarea, select { font-size: max(16px, 1em); }
+      :where(button, a[href]) { scroll-margin-block: 12px; }
+    }
+    :where(.section-page, .module-body, .settings-hub, .owner-page) {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+    :where(.section-page h1, .section-page h2, .settings-hub h1, .owner-page h1) {
+      text-wrap: balance;
+    }
+    :where(table) {
+      border-collapse: separate;
+      border-spacing: 0;
+      color: inherit;
+    }
+    :where(th) {
+      color: var(--muted, #8c98ad);
+      font-size: .76rem;
+      font-weight: 600;
+      letter-spacing: .04em;
+      text-align: left;
+    }
+    :where(td, th) {
+      border-bottom: 1px solid rgba(148,177,230,.12);
+      padding: 11px 12px;
+      vertical-align: middle;
+    }
+    :where(tr:last-child > td) { border-bottom: 0; }
+    :where([role="dialog"], dialog, .modal, .sheet, .context-menu, .menu-popover) {
+      border-color: var(--line-strong);
+      box-shadow: 0 24px 72px rgba(0,0,0,.46);
+    }
+    :where([role="dialog"], dialog, .modal, .sheet) {
+      border-radius: 20px;
+    }
+    :where([aria-live="polite"], [role="status"]) {
+      overflow-wrap: anywhere;
+    }
+    ::selection { background: rgba(78, 148, 235, .38); color: #fff; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        scroll-behavior: auto !important;
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+      }
+    }
+
 </style>
 </head>
 <body>
