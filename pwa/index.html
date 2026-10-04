@@ -2848,7 +2848,7 @@ function todayLoadError(error){
  const retry=document.createElement('button');retry.type='button';retry.textContent='Retry';retry.onclick=()=>refreshToday().catch(todayLoadError);
  p.append(document.createElement('br'),retry);panel.append(p);
 }
-let creationRecord=null,creationTrigger=null,creationBaseline='',creationPointer=null;
+let creationRecord=null,creationTrigger=null,creationBaseline='',creationPointer=null,creationDirty=false;
 function creationValue(){return JSON.stringify({kind:$('todayCategory').value,title:$('todayTitle').value,content:$('todayContent').value,date:$('todayScheduledDate').value,time:$('todayTime').value})}
 function clampManagedDialog(dialog,reset=false){
  if(!dialog?.open)return;
@@ -2861,7 +2861,7 @@ function clampManagedDialog(dialog,reset=false){
 }
 function openCreationDialog(kind='task',record=null){
  const dialog=$('todayDialog');if(dialog.open)return;
- const start=['task','meeting','work','note','reminder'].includes(kind)?kind:'task';creationRecord=record||null;
+ const start=['task','meeting','work','note','reminder'].includes(kind)?kind:'task';creationRecord=record||null;creationDirty=false;
  $('todayCategory').value=start;$('todayTitle').value=record?.subject||record?.title||'';$('todayContent').value=record?.content||record?.description||'';$('todayScheduledDate').value=todayKey(new Date());$('todayTime').value='';$('todayFormError').textContent='';
  $('todayTypeTabs').classList.toggle('hidden',Boolean(record));document.querySelectorAll('[data-today-kind]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.todayKind===start)));
  syncCreationFields();$('todayDialogTitle').textContent=record?'Edit note':start==='note'?'Remember':'Add to Today';$('todaySave').textContent=record?'Save changes':'Save';
@@ -2871,7 +2871,7 @@ function openCreationDialog(kind='task',record=null){
 function syncCreationFields(){const note=$('todayCategory').value==='note';$('todayContentWrap').classList.toggle('hidden',!note);$('todayScheduleFields').classList.toggle('hidden',note);$('todayScheduledDate').required=!note;$('todayTime').required=$('todayCategory').value==='meeting';$('todayTitle').maxLength=note?240:160;$('todayTitle').placeholder=note?'Name this note…':$('todayCategory').value==='meeting'?'What is the meeting?':'What needs to be done?';$('todayDialogDescription').textContent=note?'Save a note to Personal AI Memory.':'Create a task, meeting, plan item or reminder.';$('todayClose').setAttribute('aria-label',`Close ${note?'note':'creation'} dialog`)}
 async function closeTodayForm(force=false){
  const dialog=$('todayDialog');if(!dialog.open)return;
- if(!force&&creationBaseline!==creationValue()&&!await requestConfirmation(creationRecord?'Discard your unsaved note changes? Your edits will be lost.':'Discard this unsaved item? Your entered details will be lost.'))return;
+ if(!force&&creationDirty&&creationBaseline!==creationValue()&&!await requestConfirmation(creationRecord?'Discard your unsaved note changes? Your edits will be lost.':'Discard this unsaved item? Your entered details will be lost.'))return;
  dialog.close();creationRecord=null
 }
 function beginDialogDrag(dialog,event){
@@ -2884,9 +2884,9 @@ function beginDialogDrag(dialog,event){
  handle.addEventListener('pointermove',move);handle.addEventListener('pointerup',finish);handle.addEventListener('pointercancel',finish);event.preventDefault()
 }
 $('todayAdd').onclick=()=>openCreationDialog('task');$('todayCancel').onclick=()=>closeTodayForm();$('todayClose').onclick=()=>closeTodayForm();
-$('todayDialog').addEventListener('cancel',event=>{event.preventDefault();closeTodayForm()});$('todayDialog').addEventListener('click',event=>{if(event.target===$('todayDialog'))closeTodayForm()});$('todayDialog').addEventListener('pointerdown',event=>beginDialogDrag($('todayDialog'),event));$('todayDialog').addEventListener('close',()=>{creationTrigger?.setAttribute('aria-expanded','false');creationTrigger?.focus?.({preventScroll:true});creationTrigger=null;creationRecord=null});
+$('todayDialog').addEventListener('cancel',event=>{event.preventDefault();closeTodayForm()});$('todayDialog').addEventListener('click',event=>{if(event.target===$('todayDialog'))closeTodayForm()});$('todayDialog').addEventListener('pointerdown',event=>beginDialogDrag($('todayDialog'),event));$('todayDialog').addEventListener('close',()=>{creationTrigger?.setAttribute('aria-expanded','false');creationTrigger?.focus?.({preventScroll:true});creationTrigger=null;creationRecord=null;creationDirty=false;creationBaseline=''});
 $('todayCategory').onchange=()=>{syncCreationFields();clampManagedDialog($('todayDialog'))};document.querySelectorAll('[data-today-kind]').forEach(button=>button.onclick=()=>{$('todayCategory').value=button.dataset.todayKind;document.querySelectorAll('[data-today-kind]').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));syncCreationFields();$('todayFormError').textContent=''});
-['todayTitle','todayContent','todayScheduledDate','todayTime'].forEach(id=>$(id).addEventListener('input',()=>{$('todayFormError').textContent=''}));
+['todayTitle','todayContent','todayScheduledDate','todayTime'].forEach(id=>$(id).addEventListener('input',()=>{creationDirty=true;$('todayFormError').textContent=''}));
 $('todayForm').onsubmit=async event=>{
  event.preventDefault();const title=$('todayTitle').value.trim(),category=$('todayCategory').value,time=$('todayTime').value,content=$('todayContent').value.trim(),date=$('todayScheduledDate').value;
  if(!title){$('todayFormError').textContent=category==='note'?'Enter a note title.':'Enter a title for this plan item.';$('todayTitle').focus();return}
