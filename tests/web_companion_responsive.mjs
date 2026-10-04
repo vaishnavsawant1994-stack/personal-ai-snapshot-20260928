@@ -39,7 +39,7 @@ try {
     assert.ok(metrics.composer.left >= -1 && metrics.composer.right <= width + 1, `Composer escaped viewport at ${width}`);
     assert.ok(metrics.send.width >= 44 && metrics.send.height >= 44, `Send touch target under 44px at ${width}`);
     assert.ok(parseFloat(metrics.title) >= 22, `Title became too small at ${width}`);
-    if (width <= 600) assert.ok(metrics.mode.bottom <= metrics.footer.top + 1, `Home mode selector is covered by the composer at ${width}x568`);
+    if (width <= 600) assert.ok(metrics.mode.bottom <= metrics.footer.top + 1, `Home mode selector is covered by the composer at ${width}x568: ${JSON.stringify(metrics)}`);
     if ([320, 390, 768, 1440, 2560].includes(width)) {
       const name = width < 400 ? "phone" : width < 900 ? "tablet" : width < 2000 ? "desktop" : "wide";
       await page.screenshot({ path: `artifacts/web-companion-${name}-${width}.png`, fullPage: true });

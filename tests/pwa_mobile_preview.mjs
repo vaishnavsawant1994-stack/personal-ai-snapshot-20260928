@@ -313,7 +313,6 @@ try {
   assert.ok(focusedEmptyHomeComposer.height>=52&&focusedEmptyHomeComposer.height<=56,"focused empty Home composer must stay slim");
   assert.ok(focusedEmptyHomeComposer.bottom>=focusedEmptyHomeComposer.viewport-1&&focusedEmptyHomeComposer.bottom<=focusedEmptyHomeComposer.viewport+1,"focused empty Home composer must stay fixed to the bottom");
   await page.locator("#historyButton").focus();
-  assert.equal(await page.evaluate(()=>getComputedStyle(document.activeElement).outlineStyle),'solid','keyboard focus remains visibly outlined');
   assert.equal(await page.locator("#sendButton").isVisible(), false, "idle Home composer must show microphone, not inactive send");
   assert.equal(await page.locator("#micButton").isVisible(), true, "idle Home composer microphone must remain available");
   assert.equal(await page.locator("#attachmentButton svg path").getAttribute("d"), "M12 5v14M5 12h14", "attachment icon must remain the existing compact plus");
@@ -1468,9 +1467,10 @@ try {
   const keyboardFocus = await page.evaluate(() => {
     const node = document.activeElement;
     return node !== document.body && !!node && node.id !== "historyButton" &&
-      node.getClientRects().length > 0 && node.tabIndex >= 0;
+      node.getClientRects().length > 0 && node.tabIndex >= 0 && node.matches(":focus-visible") &&
+      getComputedStyle(node).outlineStyle === "solid";
   });
-  assert.ok(keyboardFocus, "Tab must move focus to a visible keyboard-operable control");
+  assert.ok(keyboardFocus, "Tab must move focus to a visible keyboard-operable control with a focus ring");
 
   assert.deepEqual(pageErrors, [], "page must render without uncaught JavaScript errors");
   console.log("Responsive PWA qualification passed Home, chat, mobile keyboard, timeline, conversations, content pages, reduced motion and keyboard focus; "+(responsiveModules.length*responsiveModuleWidths.length)+" module/viewport combinations and "+sweepWidths.size+" intermediate Home widths from 320px through 2560px.");
