@@ -220,7 +220,7 @@ try {
   const demoConversationTitle=page.locator('#conversationList .timeline-entry[data-category="conversation"] .timeline-title').first();
   await demoConversationTitle.evaluate(button=>button.click());
   assert.equal(await page.evaluate(()=>currentConversationId),demoConversationBeforeOpen,"Timeline demo conversation rows must not navigate to a real record");
-  await page.click("#timelineCloseDrawer");
+  await page.evaluate(()=>closeDrawer(false));
   await page.evaluate(async()=>{personalAiDemoMode=false;await refreshConversationsDrawer('')});
   await page.waitForFunction(()=>document.querySelectorAll(".conversations-row").length===3);
 
