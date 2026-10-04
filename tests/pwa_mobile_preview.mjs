@@ -192,6 +192,15 @@ try {
   assert.equal(await page.locator("#todayMeetingsList .today-row").count(),2,"Today demo must show two sample meetings");
   assert.equal(await page.locator("#todayPlansList .today-row").count(),1,"Today demo must show one sample plan");
   assert.equal(await page.locator("#todayDemoNotice").isVisible(),true,"sample data must be clearly labeled as preview-only");
+  assert.equal(await page.locator("#todayScreenNewChat").isVisible(),true,"Today must keep New chat available in its bottom action row");
+  const todayFooterLayout=await page.evaluate(()=>{const chat=document.querySelector("#todayScreenNewChat").getBoundingClientRect(),add=document.querySelector("#todayScreenAdd").getBoundingClientRect();return{chatBottom:chat.bottom,addBottom:add.bottom,viewport:innerHeight,left:chat.left,right:add.right,width:innerWidth}});
+  assert.ok(Math.abs(todayFooterLayout.chatBottom-todayFooterLayout.addBottom)<=1,"Today footer buttons must share one bottom baseline");
+  assert.ok(todayFooterLayout.left>=-1&&todayFooterLayout.right<=todayFooterLayout.width+1,"Today footer buttons must stay within the mobile viewport");
+  assertSharedComposerBottomInset(todayFooterLayout.chatBottom,todayFooterLayout.viewport,"Today footer actions");
+  const todayDemoConversationCount=conversationCreateCount;
+  await page.click("#todayScreenNewChat");
+  assert.equal(conversationCreateCount,todayDemoConversationCount,"Today demo New chat must not create a real conversation");
+  await page.evaluate(()=>document.querySelector("#toast")?.classList.add("hidden"));
   assert.equal(await page.locator("#todayTasksList .today-chip.priority-high").textContent(),"High");
   assert.equal(await page.locator("#todayTasksList .today-chip.priority-medium").textContent(),"Medium");
   assert.equal(await page.locator("#todayTasksList .today-chip.priority-low").textContent(),"Low");
