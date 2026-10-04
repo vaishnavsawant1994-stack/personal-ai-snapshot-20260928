@@ -185,8 +185,7 @@ try {
   await page.click("#todayCancel");
   assert.equal(await page.locator("#todayDialog").isVisible(),false,"cancel must close an untouched creation dialog without an unnecessary discard prompt");
   await page.screenshot({path:"artifacts/personal-ai-today-demo-390x844.png",fullPage:true});
-  await page.click("#todayScreenClose");
-  await page.evaluate(()=>{todayScreenDemo=false});
+  await page.evaluate(()=>{closeTodayScreen();todayScreenDemo=false});
 
   // All three approved surfaces share one explicitly enabled, non-persistent preview dataset.
   await page.evaluate(async()=>{personalAiDemoMode=true;await openConversationsDrawer()});
