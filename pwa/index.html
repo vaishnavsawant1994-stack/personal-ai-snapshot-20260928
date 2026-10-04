@@ -1103,8 +1103,8 @@
       width:min(100%,var(--home-max));height:54px;min-height:54px;max-height:54px;
       margin:8px auto 0;padding:4px 6px;grid-template-columns:44px minmax(0,1fr) 44px;
       border-radius:32px;border:1px solid rgba(120,160,220,.18);
-      background:rgba(23,31,45,.9);-webkit-backdrop-filter:blur(20px) saturate(115%);backdrop-filter:blur(20px) saturate(115%);
-      box-shadow:0 12px 30px rgba(0,0,0,.23),inset 0 1px rgba(255,255,255,.03);
+      background:transparent;-webkit-backdrop-filter:none;backdrop-filter:none;
+      box-shadow:none;
     }
     body.home-landing #composer .attach-button,
     body.home-landing #composer #micButton,
@@ -1230,12 +1230,12 @@
       z-index:45!important;
       left:max(var(--home-fixed-x),env(safe-area-inset-left))!important;
       right:max(var(--home-fixed-x),env(safe-area-inset-right))!important;
-      bottom:0!important;
+      bottom:calc(0px - env(safe-area-inset-bottom))!important;
       width:auto!important;
       max-width:var(--home-max)!important;
       margin:0 auto!important;
       align-self:auto!important;
-      padding-bottom:4px!important;
+      padding-bottom:0!important;
     }
     body.home-landing #composer:not(.is-expanded){
       height:var(--home-fixed-composer-h)!important;
@@ -1243,7 +1243,7 @@
       max-height:var(--home-fixed-composer-h)!important;
     }
     body.home-landing #composer.is-expanded{
-      bottom:0!important;
+      bottom:calc(0px - env(safe-area-inset-bottom))!important;
       height:auto!important;
       min-height:110px!important;
       max-height:min(50dvh,240px)!important;
@@ -1353,7 +1353,7 @@
       z-index:45!important;
       left:max(var(--shared-chrome-x),env(safe-area-inset-left))!important;
       right:max(var(--shared-chrome-x),env(safe-area-inset-right))!important;
-      bottom:0!important;
+      bottom:calc(0px - env(safe-area-inset-bottom))!important;
       width:auto!important;
       max-width:var(--shared-chrome-max)!important;
       height:var(--shared-composer-h)!important;
@@ -1368,10 +1368,10 @@
       align-content:center!important;
       border-radius:32px!important;
       border:1px solid rgba(120,160,220,.18)!important;
-      background:rgba(23,31,45,.9)!important;
-      -webkit-backdrop-filter:blur(20px) saturate(115%)!important;
-      backdrop-filter:blur(20px) saturate(115%)!important;
-      box-shadow:0 12px 30px rgba(0,0,0,.23),inset 0 1px rgba(255,255,255,.03)!important;
+      background:transparent!important;
+      -webkit-backdrop-filter:none!important;
+      backdrop-filter:none!important;
+      box-shadow:none!important;
     }
     #composer textarea#message{
       grid-column:2!important;grid-row:1!important;
@@ -2902,7 +2902,7 @@ const $=id=>document.getElementById(id),synth=window.speechSynthesis;
 let appStatus=null,accessOptions={},recognition=null,recognitionStarting=false,ownerAuthenticated=false,sessionActive=false,handsFree=false,speaking=false,turnInFlight=false,voicePrimed=false,currentUtterance=null,restartTimer=null,stateName='idle',pendingApproval=null,currentConversationId=null,currentConversationTitle='Current conversation',conversationEvents=[],conversationFilter='all',conversationCache=[],searchTimer=null,toastTimer=null,conversationSyncTimer=null,activeModule='home',lastFocusedElement=null,uiPreferences={continuous_voice:true,voice_rate:1,quiet_hours:true};
 const stateCopy={idle:['Active','Tap the microphone once and speak naturally.'],active:['Active','Vishnu is ready.'],listening:['Listening','Speak naturally.'],understanding:['Understanding','I heard you.'],thinking:['Thinking','Reasoning with your permitted context.'],'memory-retrieval':['Memory Retrieval','Finding relevant personal context.'],'knowledge-retrieval':['Knowledge Retrieval','Checking approved knowledge sources.'],responding:['Responding','Speaking now — tap the microphone to interrupt.'],approval:['Needs Approval','Your approval is required before continuing.'],error:['Needs Attention','Something interrupted this turn.'],background:['Background','Continuing permitted work quietly.']};
 function setState(name,detail){stateName=name;const copy=stateCopy[name]||[name,''];$('stateLabel').textContent=copy[0];$('status').textContent=detail||copy[1];document.body.dataset.state=name;$('micButton').classList.toggle('active',handsFree&&!speaking);$('micButton').classList.toggle('speaking',speaking);$('micButton').setAttribute('aria-label',speaking?'Interrupt and listen':(handsFree?'Stop hands-free conversation':'Start hands-free conversation'))}
-function apiErrorMessage(detail,status){if(typeof detail==='string'&&detail.trim())return detail.trim();if(Array.isArray(detail)){const messages=detail.map(item=>{if(typeof item==='string')return item;if(!item||typeof item!=='object')return '';const location=Array.isArray(item.loc)?item.loc.filter(part=>typeof part==='string'||typeof part==='number').join('.'):'';const message=typeof item.msg==='string'?item.msg:typeof item.message==='string'?item.message:'';return [location,message].filter(Boolean).join(': ')}).filter(Boolean);if(messages.length)return messages.join('; ')}if(detail&&typeof detail==='object'){for(const key of ['message','error','detail','reason']){const value=detail[key];if(typeof value==='string'&&value.trim())return value.trim()}if(typeof detail.code==='string'&&detail.code.trim())return detail.code.trim()}return 'Request failed ('+status+')'}
+function apiErrorMessage(detail,status){const raw=typeof detail==='string'?detail:(Array.isArray(detail)?detail.map(item=>typeof item==='string'?item:(item&&typeof item==='object'?[Array.isArray(item.loc)?item.loc.join('.'): '',item.msg||item.message||''].filter(Boolean).join(': '):'')).join('; '):'');if(status===422&&/valid dictionary or object to extract fields from/i.test(raw))return 'Vishnu couldn’t process this request. Please try again.';if(typeof detail==='string'&&detail.trim())return detail.trim();if(Array.isArray(detail)){const messages=detail.map(item=>{if(typeof item==='string')return item;if(!item||typeof item!=='object')return '';const location=Array.isArray(item.loc)?item.loc.filter(part=>typeof part==='string'||typeof part==='number').join('.'):'';const message=typeof item.msg==='string'?item.msg:typeof item.message==='string'?item.message:'';return [location,message].filter(Boolean).join(': ')}).filter(Boolean);if(messages.length)return messages.join('; ')}if(detail&&typeof detail==='object'){for(const key of ['message','error','detail','reason']){const value=detail[key];if(typeof value==='string'&&value.trim())return value.trim()}if(typeof detail.code==='string'&&detail.code.trim())return detail.code.trim()}return 'Request failed ('+status+')'}
 async function api(path,options={}){const response=await fetch('/iphone/api'+path,{credentials:'same-origin',headers:{'Content-Type':'application/json',...(options.headers||{})},...options});let data={};try{data=await response.json()}catch{}if(!response.ok){const detail=data.detail??data.error,error=new Error(apiErrorMessage(detail,response.status));error.code=detail&&typeof detail==='object'&&!Array.isArray(detail)?detail.code||'':'';error.status=response.status;throw error}return data}
 function fromBase64Url(value){const padding='='.repeat((4-value.length%4)%4),binary=atob(value.replace(/-/g,'+').replace(/_/g,'/')+padding),bytes=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);return bytes.buffer}
 function toBase64Url(value){const bytes=new Uint8Array(value);let binary='';bytes.forEach(byte=>binary+=String.fromCharCode(byte));return btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
