@@ -62,7 +62,8 @@ try {
   const checkLayout = async (width, height) => {
     await page.setViewportSize({ width, height });
     await page.waitForTimeout(500);
-    if (width === 320) await page.screenshot({ path: "artifacts/personal-ai-iphone-320x568.png" });
+    const screenshotNames = new Map([[320, "personal-ai-phone-small-320x568.png"], [390, "personal-ai-phone-standard-390x844.png"], [768, "personal-ai-tablet-portrait-768x1024.png"], [1024, "personal-ai-tablet-landscape-1024x768.png"], [1366, "personal-ai-desktop-1366x768.png"], [1920, "personal-ai-wide-desktop-1920x1080.png"]]);
+    if (screenshotNames.has(width)) await page.screenshot({ path: `artifacts/${screenshotNames.get(width)}` });
     const data = await page.evaluate(() => {
       const rect = selector => {
         const r = document.querySelector(selector).getBoundingClientRect();
@@ -97,13 +98,44 @@ try {
     assert.ok(data.messages.height > 0, `message viewport missing at ${width}x${height}`);
     assert.ok(data.canvasInk > 200, `neural mesh did not repaint after viewport change to ${width}x${height}`);
     assert.ok(data.finalMessageBottom <= data.messages.bottom + 1, `latest message is clipped at ${width}x${height}`);
-    assert.ok(data.composer.bottom < data.nav.top, `composer overlaps nav at ${width}x${height}`);
+    assert.ok(data.composer.bottom <= height + 1, `composer is clipped at ${width}x${height}`);
+    if (width <= 900) {
+      assert.ok(data.composer.bottom < data.nav.top, `composer overlaps bottom navigation at ${width}x${height}`);
+    } else {
+      assert.ok(data.nav.bottom < data.composer.top, `desktop navigation overlaps composer at ${width}x${height}`);
+    }
   };
   await checkLayout(320, 568);
   await checkLayout(390, 844);
   await checkLayout(430, 932);
+  await checkLayout(768, 1024);
+  await checkLayout(1024, 768);
+  await checkLayout(1366, 768);
+  await checkLayout(1920, 1080);
+
+  // 200% browser zoom leaves roughly half the CSS viewport. Verify the compact
+  // phone layout at that effective size without pretending this is a native zoom test.
+  await page.setViewportSize({ width: 195, height: 422 });
+  const zoomLayout = await page.evaluate(() => ({
+    width: document.documentElement.scrollWidth,
+    viewport: document.documentElement.clientWidth,
+    composerVisible: document.querySelector("#composer").getBoundingClientRect().height > 0,
+  }));
+  assert.ok(zoomLayout.width <= zoomLayout.viewport, "horizontal overflow at a 200%-zoom-equivalent viewport");
+  assert.ok(zoomLayout.composerVisible, "composer missing at a 200%-zoom-equivalent viewport");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const reducedMotionSeconds = await page.locator(".core-glow").evaluate(el => parseFloat(getComputedStyle(el).animationDuration));
+  assert.ok(reducedMotionSeconds <= 0.00001, `reduced motion animation is not suppressed: ${reducedMotionSeconds}s`);
+  await page.keyboard.press("Tab");
+  const keyboardFocus = await page.evaluate(() => {
+    const el = document.activeElement;
+    return el !== document.body && !!el && el.getClientRects().length > 0 && el.tabIndex >= 0;
+  });
+  assert.ok(keyboardFocus, "Tab should move focus to a visible keyboard-operable control");
   assert.deepEqual(pageErrors, [], "page must render without uncaught JavaScript errors");
-  console.log("PWA mobile layout passed at 320x568, 390x844, and 430x932.");
+  console.log("PWA responsive layout passed for phone, tablet portrait/landscape, desktop, wide desktop, 200%-zoom-equivalent viewport, keyboard focus, and reduced motion.");
 } finally {
   await browser.close();
 }
