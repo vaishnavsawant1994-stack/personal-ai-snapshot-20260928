@@ -11,7 +11,7 @@
   <title>Personal AI</title>
   <style>
     :root{color-scheme:dark;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Inter",sans-serif;--bg:#03060b;--panel:rgba(10,17,29,.68);--line:rgba(148,177,230,.2);--text:#f4f7fd;--muted:#8c98ad;--blue:#69b8ff;--violet:#9b84ff;--cyan:#60e8ff;--danger:#ff718d}
-    *{box-sizing:border-box}html{background:var(--bg);scroll-behavior:smooth}body{margin:0;min-height:100dvh;color:var(--text);background:radial-gradient(ellipse at 50% 28%,rgba(44,82,147,.17),transparent 43%),radial-gradient(ellipse at 76% 18%,rgba(87,58,160,.09),transparent 30%),#03060b;overflow-x:hidden}button,input{font:inherit}button{color:inherit}.hidden{display:none!important}
+    *{box-sizing:border-box}html{background:var(--bg);scroll-behavior:smooth}body{margin:0;min-height:100dvh;color:var(--text);background:radial-gradient(ellipse at 50% 28%,rgba(44,82,147,.17),transparent 43%),radial-gradient(ellipse at 76% 18%,rgba(87,58,160,.09),transparent 30%),#03060b}button,input{font:inherit}button{color:inherit}.hidden{display:none!important}
     .app-shell{min-height:100dvh;width:min(100%,1580px);margin:auto;padding:max(18px,env(safe-area-inset-top)) clamp(18px,3vw,48px) max(24px,env(safe-area-inset-bottom));display:grid;grid-template-rows:auto 1fr auto;gap:14px}
     .topbar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;min-height:52px}.brand-wrap{display:flex;align-items:center;gap:11px}.history-button{width:38px;height:38px;border:1px solid var(--line);border-radius:12px;background:rgba(12,20,33,.7);display:grid;place-items:center;cursor:pointer}.history-button svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7}.brand{display:flex;flex-direction:column;gap:3px}.brand strong{font-size:1rem;letter-spacing:.34em;font-weight:520}.brand span{color:var(--muted);font-size:.72rem;letter-spacing:.04em}
     .nav{display:flex;align-items:center;gap:6px;padding:5px;border:1px solid rgba(135,167,222,.1);border-radius:18px;background:rgba(8,14,24,.46);backdrop-filter:blur(18px)}
@@ -2316,9 +2316,9 @@ button:active:focus-visible{transform:none!important;transition:none!important}
     --ui-page-title: clamp(1.45rem, 4vw, 1.78rem);
     --ui-section-title: clamp(1.05rem, 2.6vw, 1.22rem);
     --ui-card-title: 0.94rem;
-    --ui-body: 0.9rem;
-    --ui-supporting: 0.82rem;
-    --ui-meta: max(0.75rem, 12px);
+    --ui-body: max(0.9375rem, 15px);
+    --ui-supporting: max(0.875rem, 14px);
+    --ui-meta: max(0.8125rem, 13px);
     --ui-card-radius: 17px;
     --ui-card-border: rgba(135, 170, 228, 0.16);
     --ui-card-fill: linear-gradient(145deg, rgba(13, 26, 46, 0.88), rgba(6, 13, 25, 0.82));
@@ -2459,6 +2459,87 @@ button:active:focus-visible{transform:none!important;transition:none!important}
       transition-duration: 0.01ms !important;
     }
   }
+</style>
+<style id="responsive-reflow-finishing">
+  /* Keep page-level overflow visible so layout defects are measured and fixed,
+     while every content surface owns its own intentional scrolling. */
+  html, body { min-width: 0; }
+  .app-shell, .app-shell > *, .home, .presence, .module-panel,
+  .module-body, .section-page, .settings-content, .conversation-drawer,
+  .app-drawer, .timeline-drawer { min-width: 0; }
+  @media (max-width: 900px) {
+    .app-shell {
+      padding-inline-start: max(14px, env(safe-area-inset-left));
+      padding-inline-end: max(14px, env(safe-area-inset-right));
+    }
+  }
+
+  /* Record titles and supporting text may take the space they need. */
+  :is(.quick-copy span, .today-copy strong, .conversation-manager-heading p,
+         .conversation-item-copy strong, .conversation-item-copy span,
+         .timeline-copy strong, .timeline-copy small, .data-card strong,
+         .section-record-title, .section-record-preview, .activity-title,
+         .message-entry .message, .message, .transcript, .reply,
+         .section-page-heading h1, .section-page-heading p, .module-head h2,
+         .module-head p, .settings-row strong, .settings-row small,
+         .settings-value, .today-screen-title, .today-summary-copy strong,
+         .today-summary-copy p, .timeline-title, .timeline-preview,
+         .timeline-title-block h2, .timeline-title-block p) {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    white-space: normal;
+  }
+  :is(.quick-copy span, .today-copy strong, .conversation-item-copy strong,
+         .conversation-item-copy span, .timeline-copy strong, .timeline-copy small,
+         .data-card strong, .section-record-title, .section-record-preview,
+         .activity-title) { overflow: visible; }
+
+  .ui-button, .section-inline-action, .section-see-all, .today-add-action,
+  .home-section-link, .managed-dialog-actions button {
+    min-height: 44px;
+    font-size: max(0.875rem, 14px);
+    line-height: 1.35;
+  }
+
+  button, input, select, textarea { max-width: 100%; }
+  button { min-width: 0; }
+  input, select, textarea { min-width: 0; }
+  :where(.conversation-drawer, .app-drawer, .timeline-drawer,
+         .owner-menu, .more-sheet, .chat-action-menu, .managed-dialog) {
+    max-width: calc(100vw - 16px);
+    max-height: calc(100dvh - max(12px, env(safe-area-inset-top)) - max(12px, env(safe-area-inset-bottom)));
+    overscroll-behavior: contain;
+  }
+  :where(.owner-menu, .more-sheet, .chat-action-menu, .managed-dialog) {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  @media (max-height: 520px) {
+    :where(.owner-menu, .more-sheet, .chat-action-menu, .managed-dialog) {
+      max-height: calc(100dvh - 12px);
+    }
+  }
+  @media (max-width: 360px) {
+    :root { --ui-body: max(0.875rem, 14px); --ui-meta: max(0.8125rem, 13px); }
+  }
+  /* The graph keeps legible labels inside its own labelled scroll region. */
+  .graph-view {
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x pan-y;
+  }
+  .graph-view svg { width: 900px; min-width: 900px; max-width: none; }
+  .tree-branch {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    margin-inline-start: clamp(3px, 1vw, 10px);
+    padding-inline-start: clamp(4px, 1vw, 10px);
+  }
+  .tree-branch > .data-card { width: 100%; min-width: 0; }
 </style>
 </head>
 <body>
@@ -3909,7 +3990,7 @@ async function stopEvidence(){handsFree=false;stopRecognition();if(synth)synth.c
 const modules={home:['Home','Speak or type naturally. Conversation grows from the Personal AI Core.',''],memory:['Memory','Ambient Memory, Memory Graph, Memory Tree and Memory Detail remain separate and owner-controlled.',()=>((appStatus?appStatus.memory_count:0)+' memories')],knowledge:['Knowledge','Approved documents and sources remain distinct from personal memory, with provenance retained.','Documents'],activities:['Activities','A clear audit of what Personal AI has done or is doing.','Audited'],workflows:['Workflows','Governed, resumable work with checkpoints, approvals and cancellation.','Persistent'],tools:['Apps & Tools','Capabilities and approved integrations that sit behind Personal AI.','Controlled'],devices:['Trusted Devices','Manage each trusted surface, its permissions and revocation.','Secure'],dashboard:['Dashboard','System overview kept separate from the calm Home environment.','Overview'],settings:['Settings','Control Personal AI, voice, models, privacy, devices, data and security.','Owner'],owner:['Personal AI Owner','Manage your account, profile, plan, preferences and ownership settings.','Owner'],system:['System Status','Runtime, model, tools and connected-service health.','Live']};
 function memoryCard(item){return `<article class="data-card"><strong>${escapeHtml(item.subject||item.type||'Memory')}</strong><p>${escapeHtml(item.content||'')}</p><div class="data-meta"><span>${escapeHtml(item.type||'note')}</span><span>${escapeHtml(item.source||'unknown source')}</span><span>${Math.round(Number(item.confidence||0)*100)}% confidence</span><span>${escapeHtml(item.sensitivity||'normal')}</span></div><div class="data-actions"><button data-memory-detail="${item.id}">Inspect</button><button data-memory-edit="${item.id}">Correct</button><button class="danger" data-memory-delete="${item.id}">Delete</button></div></article>`}
 function bindMemoryActions(items){const byId=Object.fromEntries(items.map(item=>[item.id,item]));document.querySelectorAll('[data-memory-detail]').forEach(button=>button.onclick=async()=>{const item=await api('/memory/'+button.dataset.memoryDetail);$('moduleBody').innerHTML=`<div class="module-toolbar"><button id="memoryBack">← Memory</button></div>${memoryCard(item)}<article class="data-card"><strong>Retrieval explanation</strong><p>Salience ${escapeHtml(item.salience_score)} · decay ${escapeHtml(item.decay_factor)} · used ${escapeHtml(item.use_count||0)} times</p><div class="data-meta"><span>Created ${escapeHtml(item.created_at)}</span><span>Updated ${escapeHtml(item.updated_at)}</span><span>${(item.conflicts||[]).length} conflicts</span><span>${((item.relationships||{}).edges||[]).length} relationships</span></div></article>`;$('memoryBack').onclick=()=>loadMemory('list')});document.querySelectorAll('[data-memory-edit]').forEach(button=>button.onclick=()=>openCreationDialog('note',byId[button.dataset.memoryEdit]));document.querySelectorAll('[data-memory-delete]').forEach(button=>button.onclick=async()=>{if(!await requestConfirmation('Permanently delete this memory?'))return;await api('/memory/'+button.dataset.memoryDelete+'?confirm=true',{method:'DELETE'});await loadMemory('list')})}
-function drawMemoryGraph(graph){const nodes=(graph.nodes||[]).slice(0,60),edges=(graph.edges||[]).slice(0,120),pos={},w=900,h=300;nodes.forEach((node,index)=>{const angle=index*2.39996,r=34+Math.sqrt(index)*38;pos[node.id]=[w/2+Math.cos(angle)*Math.min(r,390),h/2+Math.sin(angle)*Math.min(r,120)]});let svg='';edges.forEach(edge=>{const a=pos[edge.source_id],b=pos[edge.target_id];if(a&&b)svg+=`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}"/>`});nodes.forEach((node,index)=>{const p=pos[node.id];svg+=`<circle cx="${p[0]}" cy="${p[1]}" r="${index<5?5:3}"/><text x="${p[0]+8}" y="${p[1]+3}">${escapeHtml(String(node.subject||node.type).slice(0,18))}</text>`});return `<div class="graph-view"><svg viewBox="0 0 ${w} ${h}">${svg||'<text x="450" y="150" text-anchor="middle">No memory relationships yet</text>'}</svg></div>`}
+function drawMemoryGraph(graph){const nodes=(graph.nodes||[]).slice(0,60),edges=(graph.edges||[]).slice(0,120),pos={},w=900,h=300;nodes.forEach((node,index)=>{const angle=index*2.39996,r=34+Math.sqrt(index)*38;pos[node.id]=[w/2+Math.cos(angle)*Math.min(r,390),h/2+Math.sin(angle)*Math.min(r,120)]});let svg='';edges.forEach(edge=>{const a=pos[edge.source_id],b=pos[edge.target_id];if(a&&b)svg+=`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}"/>`});nodes.forEach((node,index)=>{const p=pos[node.id];svg+=`<circle cx="${p[0]}" cy="${p[1]}" r="${index<5?5:3}"/><text x="${p[0]+8}" y="${p[1]+3}">${escapeHtml(String(node.subject||node.type).slice(0,18))}</text>`});return `<div class="graph-view" role="region" tabindex="0" aria-label="Memory graph with ${nodes.length} items and ${edges.length} connections. Scroll horizontally to explore."><svg role="img" aria-label="Memory relationship diagram" viewBox="0 0 ${w} ${h}">${svg||'<text x="450" y="150" text-anchor="middle">No memory relationships yet</text>'}</svg></div>`}
 function drawMemoryTree(items){const branch=nodes=>nodes.map(node=>`<div class="tree-branch"><div class="data-card"><strong>${escapeHtml(node.subject||node.type)}</strong><p>${escapeHtml(node.content||'')}</p></div>${branch(node.children||[])}</div>`).join('');return branch(items)||'<div class="empty-module">No hierarchical memories yet.</div>'}
 async function addMemory(){openCreationDialog('note')}
 async function loadMemory(view='list',query=''){const body=$('moduleBody');body.innerHTML='<div class="empty-module">Loading memory…</div>';const toolbar=`<div class="module-toolbar"><input id="memorySearch" class="module-search" placeholder="Search memory" value="${escapeHtml(query)}"><button id="memoryList">Ambient</button><button id="memoryGraph">Graph</button><button id="memoryTree">Tree</button><button id="memoryAdd">＋ Remember</button><button id="memoryExport">Export</button></div>`;if(view==='graph'){const graph=await api('/memory/graph');body.innerHTML=toolbar+drawMemoryGraph(graph)}else if(view==='tree'){const tree=await api('/memory/tree');body.innerHTML=toolbar+drawMemoryTree(tree.roots||[])}else{const data=await api('/memory?q='+encodeURIComponent(query));body.innerHTML=toolbar+`<div class="module-grid">${data.memories.map(memoryCard).join('')||'<div class="empty-module">No matching memories.</div>'}</div>`;bindMemoryActions(data.memories)}$('memoryList').onclick=()=>loadMemory('list',$('memorySearch').value);$('memoryGraph').onclick=()=>loadMemory('graph');$('memoryTree').onclick=()=>loadMemory('tree');$('memoryAdd').onclick=addMemory;$('memoryExport').onclick=async()=>downloadJson('personal-ai-memory.json',await api('/memory/export'));$('memorySearch').onchange=()=>loadMemory('list',$('memorySearch').value)}

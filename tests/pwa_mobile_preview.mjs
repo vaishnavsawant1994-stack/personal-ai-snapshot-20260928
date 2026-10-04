@@ -75,6 +75,10 @@ try {
     } else if (path === "/memory" && method === "POST") {
       const input=JSON.parse(request.postData()||"{}");createdMemories.push(input);
       return route.fulfill({status:201,contentType:"application/json",body:JSON.stringify({memory:{id:"created-memory-"+createdMemories.length,...input}})});
+    } else if (path === "/memory/graph" && method === "GET") {
+      body={nodes:[{id:"memory-qa",subject:"Project context",type:"note"},{id:"memory-related",subject:"Responsive review details",type:"note"}],edges:[{source_id:"memory-qa",target_id:"memory-related"}]};
+    } else if (path === "/memory/tree" && method === "GET") {
+      body={roots:[{id:"memory-qa",subject:"Project context",content:"Browser qualification fixture with source evidence",children:[{id:"memory-child",subject:"Responsive review details that need to wrap safely on a narrow viewport",content:"Long tree details stay readable without widening the whole screen.",children:[]}]}]};
     } else if (path === "/memory" && method === "GET") {
       const query=(url.searchParams.get("q")||"").toLowerCase();
       const memories=[{id:"memory-qa",subject:"Project context",type:"note",content:"Browser qualification fixture with source evidence",source:"owner",tags_json:'["QA"]',created_at:atToday(8),confidence:1}];
@@ -905,8 +909,9 @@ try {
   await page.screenshot({ path: "artifacts/personal-ai-chat-after-refresh-390x844.png", fullPage: true });
 
   const viewports = [
-    [320, 568], [360, 780], [375, 812], [390, 844], [393, 852], [402, 874], [414, 896], [430, 932],
-    [768, 1024], [1024, 768], [1366, 768], [1920, 1080],
+    [320, 568], [360, 780], [375, 812], [390, 844],
+    [393, 852], [402, 874], [414, 896], [430, 932], [600, 900],
+    [768, 1024], [820, 1180], [1024, 768],
   ];
   const responsiveScreenshots = new Map([
     [320, "personal-ai-phone-small-320x568.png"],
@@ -1054,7 +1059,7 @@ try {
   }
 
   // Tablet and desktop must keep the approved Home composition centered rather than stretching edge-to-edge.
-  const wideViewports=[[768,1024],[820,1180],[1024,768],[1024,900],[1280,900],[1366,768],[1440,1000],[1920,1080]];
+  const wideViewports=[[768,1024],[820,1180],[1024,768],[1024,900],[1280,900],[1366,768],[1440,1000],[1920,1080],[2560,1440]];
   for(const [width,height] of wideViewports){
     await page.setViewportSize({width,height});
     await page.evaluate(()=>enterHomeLanding());
@@ -1095,8 +1100,89 @@ try {
     if(width===1440)await page.screenshot({path:"artifacts/personal-ai-timeline-approved-desktop-1440x1000.png",fullPage:true});
     await page.click("#timelineCloseDrawer");
   }
+
+  // Sweep intermediate widths as well as the named device checkpoints. This
+  // catches breakpoint gaps without tying the layout to specific device sizes.
+  const sweepWidths=new Set([320,360,375,390,430,600,768,820,900,1024,1280,1440,1920,2560]);
+  for(let width=320;width<=2560;width+=32)sweepWidths.add(width);
+  for(const width of [...sweepWidths].sort((a,b)=>a-b)){
+    await page.setViewportSize({width,height:844});
+    await page.evaluate(()=>enterHomeLanding());
+    const sweep=await page.evaluate(()=>{
+      const box=selector=>{const r=document.querySelector(selector).getBoundingClientRect();return {left:r.left,right:r.right,width:r.width,height:r.height,bottom:r.bottom}};
+      return {viewport:innerWidth,document:document.documentElement.scrollWidth,composer:box('#composer'),home:box('.home-intro'),header:box('.topbar'),quick:box('.quick-actions')};
+    });
+    assert.ok(sweep.document<=width,"intermediate width introduced page overflow at "+width+"px: "+JSON.stringify(sweep));
+    for(const name of ["composer","home","header","quick"]){
+      assert.ok(sweep[name].width>0&&sweep[name].left>=-1&&sweep[name].right<=width+1,
+        name+" moved off-screen at intermediate width "+width+"px: "+JSON.stringify(sweep[name]));
+    }
+    assert.ok(sweep.composer.bottom<=844+1,"composer moved below the screen at intermediate width "+width+"px");
+  }
+  for(const [width,height] of [[320,480],[390,480],[390,1100],[844,390]]){
+    await page.setViewportSize({width,height});
+    await page.evaluate(()=>enterHomeLanding());
+    const shortOrTall=await page.evaluate(()=>({
+      viewport:{width:innerWidth,height:innerHeight},
+      documentWidth:document.documentElement.scrollWidth,
+      composer:document.querySelector('#composer').getBoundingClientRect(),
+      quick:document.querySelector('.quick-actions').getBoundingClientRect(),
+    }));
+    assert.ok(shortOrTall.documentWidth<=width,"short, tall or landscape viewport must not create horizontal page overflow: "+JSON.stringify(shortOrTall));
+    assert.ok(shortOrTall.composer.left>=-1&&shortOrTall.composer.right<=width+1&&shortOrTall.composer.bottom<=height+1,
+      "composer must remain in view in short, tall and landscape layouts: "+JSON.stringify(shortOrTall));
+    assert.ok(shortOrTall.quick.bottom<=shortOrTall.composer.top+1,
+      "Home actions must not be covered by the composer in short, tall and landscape layouts: "+JSON.stringify(shortOrTall));
+  }
+  const responsiveModuleWidths=[320,360,375,390,430,600,768,820,1024,1280,1440,1920,2560];
+  const responsiveModules=["memory","knowledge","activities","tools","workflows","devices","dashboard","settings","owner","system"];
+  for(const width of responsiveModuleWidths){
+    await page.setViewportSize({width,height:844});
+    for(const moduleName of responsiveModules){
+      await page.evaluate(name=>openModule(name),moduleName);
+      const moduleLayout=await page.evaluate(()=>{
+        const panel=document.querySelector('#modulePanel').getBoundingClientRect();
+        const content=document.querySelector('#moduleBody').getBoundingClientRect();
+        return {viewport:innerWidth,document:document.documentElement.scrollWidth,
+          panel:{left:panel.left,right:panel.right,width:panel.width,height:panel.height},
+          content:{left:content.left,right:content.right,width:content.width,height:content.height},
+          focused:document.body.classList.contains('focused-module')};
+      });
+      assert.ok(moduleLayout.document<=width,
+        moduleName+" page introduced document overflow at "+width+"px: "+JSON.stringify(moduleLayout));
+      assert.ok(moduleLayout.panel.width>0&&moduleLayout.panel.left>=-1&&moduleLayout.panel.right<=width+1,
+        moduleName+" panel moved beyond the viewport at "+width+"px: "+JSON.stringify(moduleLayout));
+      assert.ok(moduleLayout.content.left>=-1&&moduleLayout.content.right<=width+1,
+        moduleName+" content moved beyond the viewport at "+width+"px: "+JSON.stringify(moduleLayout));
+      assert.equal(moduleLayout.focused,true,moduleName+" should use the focused product page layout");
+    }
+  }
+  for(const width of [320,390,768,1440]){
+    await page.setViewportSize({width,height:844});
+    await page.evaluate(()=>openModule('memory'));
+    await page.locator('#memoryList').click();
+    assert.equal(await page.locator('.section-page-heading h1').textContent(),'Ambient Memory',"Ambient Memory must open as its own readable screen");
+    await page.locator('#memoryGraph').click();
+    const graphLayout=await page.locator('.graph-view').evaluate(node=>({
+      rect:node.getBoundingClientRect(),documentWidth:document.documentElement.scrollWidth,
+      clientWidth:node.clientWidth,scrollWidth:node.scrollWidth,overflowX:getComputedStyle(node).overflowX,
+      role:node.getAttribute('role'),label:node.getAttribute('aria-label'),tabIndex:node.tabIndex,
+      svgWidth:node.querySelector('svg').getBoundingClientRect().width,
+    }));
+    assert.ok(graphLayout.documentWidth<=width,"Memory Graph must keep intentional horizontal scrolling inside its own surface at "+width+"px: "+JSON.stringify(graphLayout));
+    assert.ok(graphLayout.rect.left>=-1&&graphLayout.rect.right<=width+1,"Memory Graph scroll surface must stay in the viewport at "+width+"px: "+JSON.stringify(graphLayout));
+    assert.equal(graphLayout.overflowX,'auto',"Memory Graph must expose a horizontal scroll region at "+width+"px");
+    assert.ok(graphLayout.scrollWidth>graphLayout.clientWidth,"Memory Graph labels must retain readable drawing width at "+width+"px");
+    assert.equal(graphLayout.role,'region');assert.ok(graphLayout.label);assert.equal(graphLayout.tabIndex,0);
+    assert.ok(graphLayout.svgWidth>=900,"Memory Graph labels must not be scaled down to fit a phone at "+width+"px");
+    await page.locator('#memoryTree').click();
+    const treeLayout=await page.evaluate(()=>({documentWidth:document.documentElement.scrollWidth,
+      branches:[...document.querySelectorAll('.tree-branch')].map(node=>{const rect=node.getBoundingClientRect();return {left:rect.left,right:rect.right,width:rect.width}})}));
+    assert.ok(treeLayout.documentWidth<=width,"Memory Tree must not widen the page at "+width+"px: "+JSON.stringify(treeLayout));
+    assert.ok(treeLayout.branches.every(node=>node.left>=-1&&node.right<=width+1),"Memory Tree branches must remain on-screen at "+width+"px: "+JSON.stringify(treeLayout));
+  }
   await page.setViewportSize({width:390,height:844});
-  await page.evaluate(()=>enterHomeLanding());
+  await page.evaluate(()=>openModule('home'));
 
   // Keyboard and creation controls use the existing application bindings.
   await page.setViewportSize({ width: 390, height: 844 });
@@ -1352,6 +1438,18 @@ try {
   assert.ok(zoomEquivalent.composer.left >= -1 && zoomEquivalent.composer.right <= zoomEquivalent.viewport + 1,
     "composer must remain inside the zoom-equivalent viewport: " + JSON.stringify(zoomEquivalent));
   assert.ok(zoomEquivalent.composer.height > 0, "composer must remain visible at the 200%-zoom-equivalent viewport: " + JSON.stringify(zoomEquivalent));
+  // A 320 CSS-pixel viewport is the standard 400%-reflow equivalent for a
+  // 1280px desktop viewport; browser chrome zoom itself is not controllable here.
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.evaluate(() => enterHomeLanding());
+  const fourHundredPercentReflow=await page.evaluate(()=>({
+    viewport:innerWidth,document:document.documentElement.scrollWidth,
+    composer:document.querySelector('#composer').getBoundingClientRect(),
+    quick:document.querySelector('.quick-actions').getBoundingClientRect(),
+  }));
+  assert.ok(fourHundredPercentReflow.document<=320,"400%-equivalent reflow must not create page overflow: "+JSON.stringify(fourHundredPercentReflow));
+  assert.ok(fourHundredPercentReflow.composer.left>=-1&&fourHundredPercentReflow.composer.right<=321,"composer must remain visible in 400%-equivalent reflow");
+  assert.ok(fourHundredPercentReflow.quick.left>=-1&&fourHundredPercentReflow.quick.right<=321,"Home actions must remain visible in 400%-equivalent reflow");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator("#historyButton").focus();
   await page.keyboard.press("Tab");
@@ -1363,7 +1461,7 @@ try {
   assert.ok(keyboardFocus, "Tab must move focus to a visible keyboard-operable control");
 
   assert.deepEqual(pageErrors, [], "page must render without uncaught JavaScript errors");
-  console.log("Right unified timeline passed chats, meetings, work, reminders, workflow, done and authorized audit filters, chronological ordering, search, completion, Back, New chat, Plan and eight viewports.");
+  console.log("Responsive PWA qualification passed Home, chat, mobile keyboard, timeline, conversations, content pages, reduced motion and keyboard focus; "+(responsiveModules.length*responsiveModuleWidths.length)+" module/viewport combinations and "+sweepWidths.size+" intermediate Home widths from 320px through 2560px.");
 
   // Signing out clears previously loaded private rows, and the drawer must not
   // leave an unauthorized request stuck in its loading state.
@@ -1407,4 +1505,3 @@ try {
 } finally {
   await browser.close();
 }
-
