@@ -407,7 +407,7 @@ try {
   assert.equal(createdMemories[0].content,"Saved through the Personal AI creation dialog.");
   failNextTaskComplete=true;
   await page.locator("#todayTimeline .today-check").first().click();
-  await page.waitForFunction(() => document.querySelector("#toast")?.classList.contains("show"));
+  await page.waitForFunction(() => document.querySelector("#toast")?.textContent === "body.task_id: Task could not be completed");
   assert.equal(await page.locator("#toast").textContent(),"body.task_id: Task could not be completed","structured API validation errors must be shown as readable text");
   assert.ok(!(await page.locator("#toast").textContent()).includes("[object Object]"),"toast must never expose JavaScript object coercion");
   assert.equal(await page.locator("#todayTimeline .today-item").count(),3,"a failed completion must leave the item pending");
