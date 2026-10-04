@@ -70,6 +70,6 @@ button:disabled,input:disabled,select:disabled,textarea:disabled{opacity:.58;cur
   .shell{padding-top:max(.65rem,env(safe-area-inset-top))}
   nav{margin-block:.75rem}
   h2{margin-top:1rem}
-  .core{height:clamp(6rem,20vh,7rem)}
+  .core{height:clamp(6rem,18vh,6.5rem)}
 }
 @media(prefers-reduced-motion:reduce){.core:before,.core:after,.core i{animation:none!important}}
