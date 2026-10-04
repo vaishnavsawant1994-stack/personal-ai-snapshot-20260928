@@ -2179,6 +2179,18 @@ button:active:focus-visible{transform:none!important;transition:none!important}
   @media(max-height:520px){:where([role="dialog"],dialog,.modal,.sheet,.context-menu,.menu-popover){max-height:calc(100dvh - .75rem)}}
   @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 </style>
+
+<style id="vishnu-shared-bottom-chrome">
+  body{--shared-composer-bottom:24px;--shared-composer-h:54px}
+  #composer,body.home-landing #composer,body.home-landing #composer.is-expanded{bottom:var(--shared-composer-bottom)!important}
+  body.keyboard-open #composer,body.keyboard-open #composer.is-expanded{bottom:max(var(--shared-composer-bottom),calc(100dvh - var(--keyboard-visible-height,100dvh) + var(--shared-composer-bottom)))!important}
+  .nav{bottom:var(--shared-composer-bottom)!important}
+  .app-drawer .sidebar-bottom{padding-bottom:var(--shared-composer-bottom)!important}
+  .conversations-drawer-mode,body .conversation-drawer[data-mode="conversations"] .conversation-list,body .conversation-drawer[data-mode="timeline"] .conversation-list{padding-bottom:var(--shared-composer-bottom)!important}
+  .owner-menu{bottom:var(--shared-composer-bottom)!important}
+  .section-bottom-action{bottom:var(--shared-composer-bottom)!important}
+  .toast,.more-sheet{bottom:calc(var(--shared-composer-bottom) + var(--shared-composer-h) + 12px)!important}
+</style>
 </head>
 <body>
 <main class="app-shell">
