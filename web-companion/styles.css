@@ -13,3 +13,4 @@ table{border-collapse:separate;border-spacing:0;color:inherit}th{color:#a8b5c0;f
 :where([role="dialog"],dialog,.modal,.sheet){border-color:#344858;border-radius:18px;box-shadow:0 24px 64px rgba(0,0,0,.5)}
 ::selection{background:rgba(75,151,226,.38);color:#fff}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+button:active:focus-visible{transform:none!important;transition:none!important}
