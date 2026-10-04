@@ -18,7 +18,7 @@ def test_semantic_typography_and_spacing_tokens_exist_on_each_product_surface():
         assert f"--pa-type-{name}" in web
     for token in ("pageTitle", "sectionTitle", "body", "supporting", "control", "metadata"):
         assert token in android
-    assert "enum Type" in ios and ".body" in ios and ".caption" in ios
+    assert "enum Typography" in ios and ".body" in ios and ".caption" in ios
     assert "TYPE =" in desktop and "SPACE =" in desktop
 
 

@@ -24,7 +24,7 @@ enum PersonalAITheme {
         static let x10: CGFloat = 40
     }
 
-    enum Type {
+    enum Typography {
         static let display: Font = .largeTitle
         static let pageTitle: Font = .title3
         static let sectionTitle: Font = .headline
