@@ -7,6 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <link rel="manifest" href="/iphone/manifest.webmanifest" />
+  <link rel="stylesheet" href="/iphone/projects-workspace.css" />
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <title>Vishnu</title>
   <style>
@@ -2822,6 +2823,7 @@ button:active:focus-visible{transform:none!important;transition:none!important}
     <nav class="sidebar-main-nav" aria-label="Vishnu sections">
       <div class="sidebar-section-label">Workspace</div>
       <button  class="sidebar-nav-row active" type="button" data-app-module="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10H3zM9 20v-7h6v7"/></svg><span>Home</span></button>
+      <button class="sidebar-nav-row" type="button" data-app-module="projects"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5m8-5v5M7 13h4m-4 3h7"/></svg><span>Projects</span></button>
       <button id="sidebarToday" class="sidebar-nav-row" type="button" data-app-module="today"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M7 2v5M17 2v5M3 10h18M8 15h3"/></svg><span>Today</span></button>
       <button id="appConversations" class="sidebar-nav-row" type="button" data-app-module="conversations"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v12H9l-5 3z"/></svg><span>Conversations</span></button>
       <button  class="sidebar-nav-row" type="button" data-app-module="memory"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4c-3-3-8 0-7 4-3 2-1 6 2 6-2 4 3 7 5 4M12 4c3-3 8 0 7 4 3 2 1 6-2 6 2 4-3 7-5 4M12 3v18M8 11h8"/></svg><span>Memory</span></button>
@@ -4532,5 +4534,6 @@ function drawCore(){if(!width||!height)return;tick++;ctx.clearRect(0,0,width,hei
 function updateConversationSync(){if(conversationSyncTimer){clearInterval(conversationSyncTimer);conversationSyncTimer=null}if(document.visibilityState==='visible')conversationSyncTimer=setInterval(syncConversation,5000)}
 $('messageStream').addEventListener('scroll',()=>{const stream=$('messageStream');conversationPinnedToBottom=stream.scrollHeight-stream.clientHeight-stream.scrollTop<32},{passive:true});window.addEventListener('resize',resizeCanvas);if('ResizeObserver'in window)new ResizeObserver(resizeCanvas).observe(canvas.parentElement);document.addEventListener('visibilitychange',updateConversationSync);window.addEventListener('pagehide',()=>{if(conversationSyncTimer){clearInterval(conversationSyncTimer);conversationSyncTimer=null}});resizeCanvas();if(synth){synth.getVoices();synth.onvoiceschanged=()=>synth.getVoices()}if('serviceWorker'in navigator)navigator.serviceWorker.register('/iphone/sw.js').catch(()=>{});check().finally(()=>requestAnimationFrame(resizeCanvas));updateConversationSync();
 </script>
+<script src="/iphone/projects-workspace.js"></script>
 </body>
 </html>

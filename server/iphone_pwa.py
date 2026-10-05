@@ -302,6 +302,14 @@ def iphone_pwa_router(runtime, settings, *, include_legacy_runtime_routes: bool 
     def service_worker():
         return Response((web_dir / 'sw.js').read_text(encoding='utf-8'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
 
+    @router.get('/projects-workspace.js', include_in_schema=False)
+    def projects_workspace_script():
+        return Response((web_dir / 'projects-workspace.js').read_text(encoding='utf-8'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+    @router.get('/projects-workspace.css', include_in_schema=False)
+    def projects_workspace_styles():
+        return Response((web_dir / 'projects-workspace.css').read_text(encoding='utf-8'), media_type='text/css', headers={'Cache-Control': 'no-cache'})
+
     @router.get('/api/status')
     def status(
         response: Response,
