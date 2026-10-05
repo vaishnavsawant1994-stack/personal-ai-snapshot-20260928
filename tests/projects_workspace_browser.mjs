@@ -109,11 +109,16 @@ try {
       const body = document.querySelector('#moduleBody').getBoundingClientRect();
       const wizard = document.querySelector('.project-wizard-page').getBoundingClientRect();
       const actions = document.querySelector('.project-wizard-actions').getBoundingClientRect();
-      return { viewport: innerWidth, panelWidth: panel.width, panelHeight: panel.height, bodyHeight: body.height, wizardWidth: wizard.width, wizardHeight: wizard.height, actionsBottom: actions.bottom, bodyWidth: document.body.scrollWidth };
+      const fields = [...document.querySelectorAll('.project-wizard-form input:not([type="file"]), .project-wizard-form textarea, .project-wizard-form select')].map(field => { const rect = field.getBoundingClientRect(); return { left: rect.left, right: rect.right, width: rect.width }; });
+      return { viewport: innerWidth, panelWidth: panel.width, panelHeight: panel.height, bodyHeight: body.height, wizardWidth: wizard.width, wizardHeight: wizard.height, actionsBottom: actions.bottom, bodyWidth: document.body.scrollWidth, fields, verticalScrollbar: getComputedStyle(document.querySelector('.project-wizard-layout')).scrollbarWidth };
     });
     assert.ok(wizardSurface.wizardWidth >= wizardSurface.panelWidth - 3, `Project setup should fill its page surface: ${JSON.stringify(wizardSurface)}`);
     assert.ok(wizardSurface.wizardHeight >= wizardSurface.bodyHeight - 20, `Project setup should fill the available page content: ${JSON.stringify(wizardSurface)}`);
     assert.ok(wizardSurface.bodyWidth <= wizardSurface.viewport + 1, `Project setup should not overflow horizontally: ${JSON.stringify(wizardSurface)}`);
+    if (viewport.isMobile) {
+      assert.ok(wizardSurface.fields.every(field => field.left >= -1 && field.right <= wizardSurface.viewport + 1), `Mobile project fields must fit the viewport: ${JSON.stringify(wizardSurface)}`);
+      assert.equal(wizardSurface.verticalScrollbar, 'none', 'Mobile wizard scrolling should not show a scrollbar');
+    }
     await page.locator('.project-wizard-page input[name="name"]').fill(`Responsive workspace ${viewport.width}`);
     await page.locator('.project-wizard-page textarea[name="goal"]').fill('Ship the project workspace and verify owner-controlled data.');
     await page.locator('[data-wizard-next]').click();
