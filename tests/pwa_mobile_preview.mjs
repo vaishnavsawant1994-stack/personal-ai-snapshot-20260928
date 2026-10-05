@@ -78,6 +78,11 @@ try {
       body = { items: everydayItems.filter(item => !['completed','cancelled','dismissed'].includes(item.status)) };
     } else if (path === "/everyday/timeline" && method === "GET") {
       body = { items: everydayItems };
+    } else if (path.startsWith("/everyday/items/") && method === "GET") {
+      const id=decodeURIComponent(path.split("/").at(-1));
+      const item=everydayItems.find(value=>value.id===id);
+      if(!item)return route.fulfill({status:404,contentType:"application/json",body:JSON.stringify({detail:"Everyday item not found"})});
+      body={item};
     } else if (path === "/memory" && method === "POST") {
       const input=JSON.parse(request.postData()||"{}");createdMemories.push(input);
       return route.fulfill({status:201,contentType:"application/json",body:JSON.stringify({memory:{id:"created-memory-"+createdMemories.length,...input}})});
@@ -765,14 +770,18 @@ try {
   assert.deepEqual(await page.locator(".timeline-title").allTextContents(),["Afternoon planning review","Team planning meeting"]);
   await page.locator('.timeline-entry[data-category="meeting"] .timeline-title').last().click();
   assert.equal(await page.locator('#timelineRecordTitle').innerText(),"Team planning meeting","meeting rows must open their saved details in the Timeline detail view");
+  assert.match(new URL(page.url()).hash,/^#meeting\//,"meeting details must have an addressable in-app detail route");
   assert.ok((await page.locator('#timelineRecordContent').innerText()).includes("Scheduled"),"meeting details must show their saved scheduled time");
   await page.locator('#timelineRecordClose').click();
+  await page.waitForFunction(()=>location.hash==='');
   await page.screenshot({path:"artifacts/personal-ai-timeline-filter-meetings-390x844.png",fullPage:true});
   await page.locator('[data-conversation-filter="task"]').click();
   assert.ok((await page.locator(".timeline-title").allTextContents()).includes("Finish daily review"),"Tasks filter must isolate actual task events");
   await page.locator('.timeline-entry[data-category="task"] .timeline-title').first().click();
   assert.equal(await page.locator('#timelineRecordTitle').innerText(),"Finish daily review","task rows must open their saved details in the Timeline detail view");
+  assert.match(new URL(page.url()).hash,/^#task\//,"task details must have an addressable in-app detail route");
   await page.locator('#timelineRecordClose').click();
+  await page.waitForFunction(()=>location.hash==='');
   await page.screenshot({path:"artifacts/personal-ai-timeline-filter-tasks-390x844.png",fullPage:true});
   await page.locator('[data-conversation-filter="conversation"]').click();
   assert.deepEqual(await page.locator(".timeline-title").allTextContents(),conversations.map(x=>x.title));

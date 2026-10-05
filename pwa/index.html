@@ -4023,8 +4023,14 @@ function timelineTypeLabel(category){
 function timelineStatusLabel(status){
  return ({done:'Completed',pending:'Upcoming',overdue:'Overdue',cancelled:'Cancelled',recorded:'Updated',running:'Running',error:'Error'})[status]||titleCaseToken(status)
 }
-function openTimelineRecordDetails(item){
+function timelineRecordRoute(){
+ const match=String(location.hash||'').match(/^#(task|meeting)\/([^/?#]+)$/);if(!match)return null;
+ try{return {kind:match[1],id:decodeURIComponent(match[2])}}catch{return null}
+}
+function openTimelineRecordDetails(item,{syncRoute=true}={}){
  const dialog=$('timelineRecordDialog'),source=item?.source||{};if(!dialog||!item)return;
+ const routeKind=item.category==='meeting'?'meeting':['task','work'].includes(item.category)?'task':null;
+ if(syncRoute&&routeKind&&source.id){const hash='#'+routeKind+'/'+encodeURIComponent(source.id);if(location.hash!==hash)history.pushState({vishnuTimelineRecordPush:true},'',hash)}
  $('timelineRecordType').textContent=timelineTypeLabel(item.category);
  $('timelineRecordTitle').textContent=item.title||'Timeline item';
  const content=$('timelineRecordContent');content.replaceChildren();
@@ -4040,6 +4046,25 @@ function openTimelineRecordDetails(item){
  if(fields.childElementCount)content.append(fields);
  if(!dialog.open)dialog.showModal();
  $('timelineRecordClose').focus({preventScroll:true});
+}
+async function openTimelineRecordRoute(route=timelineRecordRoute()){
+ if(!route)return;
+ try{
+  const result=await api('/everyday/items/'+encodeURIComponent(route.id)),source=result.item;
+  if(!source)throw new Error('This saved item is no longer available.');
+  const category=timelineCategory(source),kind=category==='meeting'?'meeting':['task','work'].includes(category)?'task':null;
+  if(kind!==route.kind)throw new Error('This saved item is not a '+route.kind+'.');
+  const raw=source.due_at||source.updated_at||source.created_at,date=timelineDate(raw,typeof raw==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(raw))||new Date();
+  const done=source.status==='completed',status=done?'done':source.due_at&&date.getTime()<Date.now()?'overdue':'pending';
+  openTimelineRecordDetails({category,title:source.title||'Saved item',preview:source.description||source.summary||'',date,recentAt:timelineDate(source.updated_at||source.created_at)||date,status,source},{syncRoute:false});
+ }catch(error){history.replaceState(history.state,'',location.pathname+location.search);showToast(error.message||'Unable to load this saved item.')}
+}
+function closeTimelineRecordDetails(){
+ if(timelineRecordRoute()){
+  if(history.state?.vishnuTimelineRecordPush){history.back();return}
+  history.replaceState(history.state,'',location.pathname+location.search)
+ }
+ if($('timelineRecordDialog').open)$('timelineRecordDialog').close()
 }
 function timelineIconSvg(item){
  const category=item.category;
@@ -4386,7 +4411,7 @@ function renderGoogleLogin(){const host=$('googleLogin');if(!accessOptions.googl
 async function handleGoogleCredential(result){try{if(!result||!result.credential)throw new Error('Google did not return a sign-in credential.');await api('/access/google/login',{method:'POST',body:JSON.stringify({credential:result.credential,name:'Google owner browser'})});$('enrollStatus').textContent='';await check()}catch(error){accessError(error)}}
 window.handleGoogleCredential=handleGoogleCredential;
 async function loadAccessOptions(){try{accessOptions=await api('/access/options')}catch{accessOptions={}}const passkeySupported=Boolean(window.PublicKeyCredential&&navigator.credentials&&accessOptions.passkey_available);$('passkeyLogin').disabled=!passkeySupported;$('passkeyLogin').textContent=passkeySupported?'Continue with Face ID':'Face ID not set up';$('passwordChoice').classList.toggle('hidden',!accessOptions.password_available);renderGoogleLogin();return accessOptions}
-async function check(){$('greeting').textContent=greeting();try{appStatus=await api('/status');try{uiPreferences=await api('/preferences')}catch{}ownerAuthenticated=true;sessionActive=Boolean(appStatus.active_qualification);$('enrollPanel').classList.add('hidden');$('voicePanel').classList.remove('hidden');$('features').classList.remove('hidden');$('modulePanel').classList.remove('open');activeModule='home';$('devicePill').textContent='Trusted device';$('ownerMenuStatus').textContent=modelStateLabel(appStatus.model);$('voiceAlert').textContent='';if(appStatus.conversation)applyConversation(appStatus.conversation);renderConversationList(appStatus.conversations||[]);refreshToday().catch(todayLoadError);updateHomeGreeting();updateDrawerConnection('Connected',true);enterHomeLanding();if(!$('conversationDrawer').classList.contains('hidden'))refreshUnifiedTimeline($('conversationSearch').value).catch(()=>{});return appStatus}catch(error){if(error.status===401){resetSignedOutTimeline();await loadAccessOptions();$('enrollPanel').classList.remove('hidden');$('voicePanel').classList.add('hidden');$('features').classList.add('hidden');$('modulePanel').classList.remove('open');activeModule='home';$('devicePill').textContent='Locked';$('ownerMenuStatus').textContent='Owner verification required';updateDrawerConnection('Locked',false)}else{$('enrollPanel').classList.add('hidden');$('voicePanel').classList.remove('hidden');$('features').classList.remove('hidden');$('modulePanel').classList.remove('open');activeModule='home';$('devicePill').textContent='Reconnecting';$('ownerMenuStatus').textContent='Vishnu reconnecting';updateDrawerConnection('Reconnecting',false);$('voiceAlert').textContent='Vishnu is reconnecting. Your trusted login and conversations remain saved.';updateHomeGreeting();enterHomeLanding();setState('background','Waiting for the secure connection…')}syncChatMenuAvailability();return null}}
+async function check(){$('greeting').textContent=greeting();try{appStatus=await api('/status');try{uiPreferences=await api('/preferences')}catch{}ownerAuthenticated=true;sessionActive=Boolean(appStatus.active_qualification);$('enrollPanel').classList.add('hidden');$('voicePanel').classList.remove('hidden');$('features').classList.remove('hidden');$('modulePanel').classList.remove('open');activeModule='home';$('devicePill').textContent='Trusted device';$('ownerMenuStatus').textContent=modelStateLabel(appStatus.model);$('voiceAlert').textContent='';if(appStatus.conversation)applyConversation(appStatus.conversation);renderConversationList(appStatus.conversations||[]);refreshToday().catch(todayLoadError);updateHomeGreeting();updateDrawerConnection('Connected',true);enterHomeLanding();if(!$('conversationDrawer').classList.contains('hidden'))refreshUnifiedTimeline($('conversationSearch').value).catch(()=>{});const detailRoute=timelineRecordRoute();if(detailRoute)openTimelineRecordRoute(detailRoute);return appStatus}catch(error){if(error.status===401){resetSignedOutTimeline();await loadAccessOptions();$('enrollPanel').classList.remove('hidden');$('voicePanel').classList.add('hidden');$('features').classList.add('hidden');$('modulePanel').classList.remove('open');activeModule='home';$('devicePill').textContent='Locked';$('ownerMenuStatus').textContent='Owner verification required';updateDrawerConnection('Locked',false)}else{$('enrollPanel').classList.add('hidden');$('voicePanel').classList.remove('hidden');$('features').classList.remove('hidden');$('modulePanel').classList.remove('open');activeModule='home';$('devicePill').textContent='Reconnecting';$('ownerMenuStatus').textContent='Vishnu reconnecting';updateDrawerConnection('Reconnecting',false);$('voiceAlert').textContent='Vishnu is reconnecting. Your trusted login and conversations remain saved.';updateHomeGreeting();enterHomeLanding();setState('background','Waiting for the secure connection…')}syncChatMenuAvailability();return null}}
 function accessError(error){$('enrollStatus').textContent=error.message||'Unable to unlock Vishnu.'}
 $('passwordChoice').onclick=()=>{$('passwordForm').classList.toggle('hidden');$('troubleOptions').classList.add('hidden');$('ownerPassword').focus()};
 $('troubleChoice').onclick=()=>{$('troubleOptions').classList.toggle('hidden');$('passwordForm').classList.add('hidden')};
@@ -4817,8 +4842,10 @@ $('sidebarSeeAll').onclick=openConversationsDrawer;
 $('closeDrawer').onclick=()=>closeDrawer(false);
 $('timelineBackDrawer').onclick=()=>closeDrawer();
 $('timelineCloseDrawer').onclick=()=>closeDrawer(false);
-$('timelineRecordClose').onclick=()=>$('timelineRecordDialog').close();
-$('timelineRecordDialog').addEventListener('click',event=>{if(event.target===$('timelineRecordDialog'))$('timelineRecordDialog').close()});
+$('timelineRecordClose').onclick=closeTimelineRecordDetails;
+$('timelineRecordDialog').addEventListener('cancel',event=>{event.preventDefault();closeTimelineRecordDetails()});
+$('timelineRecordDialog').addEventListener('click',event=>{if(event.target===$('timelineRecordDialog'))closeTimelineRecordDetails()});
+window.addEventListener('popstate',()=>{const route=timelineRecordRoute();if(route)openTimelineRecordRoute(route);else if($('timelineRecordDialog').open)$('timelineRecordDialog').close()});
 $('drawerOverlay').onclick=closeAllDrawers;
 $('newConversation').onclick=()=>{if(personalAiDemoMode){showToast('Sample preview only — no conversation is created');return}$('conversationManagerSearch').value='';conversationsDrawerResults=[];createConversation().catch(error=>showToast(error.message))};
 $('timelineAddPlan').onclick=()=>{closeAllDrawers();openCreationDialog('work')};

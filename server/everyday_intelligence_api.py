@@ -68,6 +68,19 @@ def everyday_intelligence_router(runtime):
         authenticate(pa_device, pa_token)
         return {'items': everyday.items(status='all', limit=limit)}
 
+    @router.get('/items/{item_id}')
+    def get_today_item(
+        item_id: str,
+        pa_device: str | None = Cookie(default=None),
+        pa_token: str | None = Cookie(default=None),
+    ):
+        """Return one saved task/meeting for its addressable PWA detail route."""
+        authenticate(pa_device, pa_token)
+        item = everyday.get(item_id)
+        if not item:
+            raise HTTPException(404, 'Everyday item not found')
+        return {'item': item}
+
     @router.post('/items', status_code=201)
     def add_today_item(
         body: TodayItemBody,
