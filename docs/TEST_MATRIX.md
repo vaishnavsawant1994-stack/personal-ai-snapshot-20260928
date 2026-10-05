@@ -1,4 +1,4 @@
-# Personal AI — Test Matrix
+# Vishnu — Test Matrix
 
 Baseline date: 2026-09-16
 

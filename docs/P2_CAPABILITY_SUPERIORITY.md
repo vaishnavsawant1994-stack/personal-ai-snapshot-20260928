@@ -1,11 +1,11 @@
-# Personal AI — P2 Capability Superiority
+# Vishnu — P2 Capability Superiority
 
 Status: FROZEN DEVELOPMENT DIRECTION
 Baseline: Home V1 remains frozen. No Home redesign is allowed unless a verified usability defect requires it.
 
 ## Program objective
 
-Turn Personal AI from a polished assistant shell into a continuously useful personal intelligence while preserving the approved Home V1 experience, permission model, audit trail and clean-room codebase.
+Turn Vishnu from a polished assistant shell into a continuously useful personal intelligence while preserving the approved Home V1 experience, permission model, audit trail and clean-room codebase.
 
 ## Milestones
 

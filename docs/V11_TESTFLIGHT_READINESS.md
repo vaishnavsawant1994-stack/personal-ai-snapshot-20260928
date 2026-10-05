@@ -1,6 +1,6 @@
 # V11 — TestFlight / real-iPhone distribution readiness
 
-V11 prepares Personal AI Companion for secure cloud-built TestFlight distribution while preserving all physical evidence gates.
+V11 prepares Vishnu Companion for secure cloud-built TestFlight distribution while preserving all physical evidence gates.
 
 ## Code-side completion
 

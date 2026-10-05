@@ -5,7 +5,7 @@ from pathlib import Path
 REQUIRED={
     'v9_exact_head_ci':'Exact V9 candidate passed normal CI',
     'ios_simulator':'iOS simulator build/tests passed',
-    'ios_physical_pairing':'Real iPhone paired with Personal AI and authenticated device channel passed',
+    'ios_physical_pairing':'Real iPhone paired with Vishnu and authenticated device channel passed',
     'ios_command_roundtrip':'Real iPhone returned correlated command results',
     'ios_revocation':'Revoked iPhone credential was rejected on reconnect',
     'apns_delivery':'Real APNs notification reached the configured iPhone',

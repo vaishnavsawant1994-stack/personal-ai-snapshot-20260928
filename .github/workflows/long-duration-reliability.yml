@@ -41,5 +41,5 @@ jobs:
         shell: bash
         run: |
           SECONDS_TO_RUN=$((SOAK_HOURS * 3600))
-          echo "Running Personal AI soak for ${SOAK_HOURS} hour(s) / ${SECONDS_TO_RUN} seconds"
+          echo "Running Vishnu soak for ${SOAK_HOURS} hour(s) / ${SECONDS_TO_RUN} seconds"
           python tests/soak_runtime.py --seconds "${SECONDS_TO_RUN}"

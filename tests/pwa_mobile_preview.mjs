@@ -7,6 +7,10 @@ const now = new Date();
 const atToday = (hour, minute = 0) =>
   new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute).toISOString();
 const atDayOffset = (days,hour=10) => new Date(now.getFullYear(),now.getMonth(),now.getDate()+days,hour).toISOString();
+const assertSharedComposerBottomInset=(bottom,viewport,label)=>{
+  const gap=viewport-bottom;
+  assert.ok(gap>=23&&gap<=25,`${label} must keep the shared 24px bottom inset: ${gap}px`);
+};
 
 const conversations = [
   { id: "c1", title: "Project Planning", preview: "Continue planning the project", updated_at: atToday(18,33) },
@@ -140,7 +144,9 @@ try {
       newConversation={thread:{id:"new",title:"New conversation",created_at:createdAt,updated_at:createdAt},events:[]};
       body = { conversation: { ...newConversation.thread }, events: [] };
     } else if (path === "/voice/turn" && method === "POST") {
+      assert.match(request.headers()["content-type"] || "", /^application\/json(?:;|$)/i, "voice turns must preserve the JSON content type when adding transport headers");
       const input = JSON.parse(request.postData() || "{}");
+      assert.match(input.request_id || "", /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i, "voice turns must carry a canonical logical request ID");
       const text = input.transcript;
       turnConversationIds.push(input.conversation_id);
       const userAt=new Date(turnClock+=60000).toISOString(),assistantAt=new Date(turnClock+=60000).toISOString();
@@ -188,6 +194,15 @@ try {
   assert.equal(await page.locator("#todayMeetingsList .today-row").count(),2,"Today demo must show two sample meetings");
   assert.equal(await page.locator("#todayPlansList .today-row").count(),1,"Today demo must show one sample plan");
   assert.equal(await page.locator("#todayDemoNotice").isVisible(),true,"sample data must be clearly labeled as preview-only");
+  assert.equal(await page.locator("#todayScreenNewChat").isVisible(),true,"Today must keep New chat available in its bottom action row");
+  const todayFooterLayout=await page.evaluate(()=>{const chat=document.querySelector("#todayScreenNewChat").getBoundingClientRect(),add=document.querySelector("#todayScreenAdd").getBoundingClientRect();return{chatBottom:chat.bottom,addBottom:add.bottom,viewport:innerHeight,left:chat.left,right:add.right,width:innerWidth}});
+  assert.ok(Math.abs(todayFooterLayout.chatBottom-todayFooterLayout.addBottom)<=1,"Today footer buttons must share one bottom baseline");
+  assert.ok(todayFooterLayout.left>=-1&&todayFooterLayout.right<=todayFooterLayout.width+1,"Today footer buttons must stay within the mobile viewport");
+  assertSharedComposerBottomInset(todayFooterLayout.chatBottom,todayFooterLayout.viewport,"Today footer actions");
+  const todayDemoConversationCount=conversationCreateCount;
+  await page.click("#todayScreenNewChat");
+  assert.equal(conversationCreateCount,todayDemoConversationCount,"Today demo New chat must not create a real conversation");
+  await page.evaluate(()=>document.querySelector("#toast")?.classList.add("hidden"));
   assert.equal(await page.locator("#todayTasksList .today-chip.priority-high").textContent(),"High");
   assert.equal(await page.locator("#todayTasksList .today-chip.priority-medium").textContent(),"Medium");
   assert.equal(await page.locator("#todayTasksList .today-chip.priority-low").textContent(),"Low");
@@ -313,13 +328,13 @@ try {
   }));
   assert.equal(focusedEmptyHomeComposer.expanded,false,"empty Home composer must not become a large two-row box merely because it receives focus");
   assert.ok(focusedEmptyHomeComposer.height>=52&&focusedEmptyHomeComposer.height<=56,"focused empty Home composer must stay slim");
-  assert.ok(focusedEmptyHomeComposer.bottom>=focusedEmptyHomeComposer.viewport-1&&focusedEmptyHomeComposer.bottom<=focusedEmptyHomeComposer.viewport+1,"focused empty Home composer must stay fixed to the bottom");
+  assertSharedComposerBottomInset(focusedEmptyHomeComposer.bottom,focusedEmptyHomeComposer.viewport,"focused empty Home composer");
   await page.locator("#historyButton").focus();
   assert.equal(await page.locator("#sendButton").isVisible(), false, "idle Home composer must show microphone, not inactive send");
   assert.equal(await page.locator("#micButton").isVisible(), true, "idle Home composer microphone must remain available");
   assert.equal(await page.locator("#attachmentButton svg path").getAttribute("d"), "M12 5v14M5 12h14", "attachment icon must remain the existing compact plus");
   assert.equal(await page.locator("#attachmentButton").getAttribute("aria-label"), "Add a document", "attachment control must preserve its accessible behavior");
-  assert.equal(homeState.headerSphere, true, "the ORIGINAL animated Personal AI sphere must remain in the Home header");
+  assert.equal(homeState.headerSphere, true, "the ORIGINAL animated Vishnu sphere must remain in the Home header");
   assert.equal(homeState.headerActivePresent, false, "Home must not render ACTIVE or any status label beneath the sphere");
   assert.equal(homeState.headerGreenDot, false, "old header status dot must stay removed");
   assert.equal(homeState.headerVisual.backgroundColor, "rgba(0, 0, 0, 0)", "Home top row must sit directly on the page background");
@@ -332,7 +347,7 @@ try {
   assert.ok(homeState.menuButton.width >= 44 && homeState.menuButton.height >= 44, "Home header controls must preserve accessible touch targets");
   assert.ok(homeState.core.width >= 46 && homeState.core.width <= 58, "Home sphere must use the approved compact scale");
   assert.equal(homeState.toolsSubtitle.text, "Apps & workflows", "Tools subtitle must render fully");
-  assert.equal(new Set(homeState.quickIconColors).size,1,"all four Home quick-action icons must use one Personal AI blue treatment");
+  assert.equal(new Set(homeState.quickIconColors).size,1,"all four Home quick-action icons must use one Vishnu blue treatment");
   assert.equal(new Set(homeState.quickIconBackgrounds).size,1,"all four Home quick-action icon tiles must use one consistent blue glass surface");
   assert.ok(homeState.toolsSubtitle.scrollWidth <= homeState.toolsSubtitle.clientWidth+2, "Tools subtitle must not be clipped with an ellipsis");
   assert.deepEqual(homeState.recentTitles, conversations.map(item=>item.title), "Home Recent must use REAL canonical conversation data");
@@ -348,7 +363,7 @@ try {
     assert.ok(section.left>=-1 && section.right<=homeState.innerWidth+1, "Home section must remain inside the viewport");
   }
   assert.ok(Math.abs(homeState.quick.left-homeState.recent.left)<=2 && Math.abs(homeState.quick.left-homeState.today.left)<=2 && Math.abs(homeState.quick.left-homeState.calendar.left)<=2, "major Home sections must share one precise outer grid");
-  assert.ok(homeState.composer.bottom<=homeState.innerHeight+1&&homeState.composer.bottom>=homeState.innerHeight-1,"Home composer must stay fixed flush to the viewport bottom");
+  assertSharedComposerBottomInset(homeState.composer.bottom,homeState.innerHeight,"Home composer");
   const fixedChromeBefore=await page.evaluate(()=>({
     header:document.querySelector(".topbar").getBoundingClientRect(),
     composer:document.querySelector("#composer").getBoundingClientRect(),
@@ -422,10 +437,10 @@ try {
   await page.click("#todayAdd");await page.click('[data-today-kind="note"]');
   assert.equal(await page.locator("#todayContentWrap").isVisible(),true,"Note selection must reveal the note content field");
   assert.equal(await page.locator("#todayScheduledDate").isVisible(),false,"Notes do not require a task date");
-  await page.fill("#todayTitle","Popup note smoke test");await page.fill("#todayContent","Saved through the Personal AI creation dialog.");await page.click("#todaySave");
+  await page.fill("#todayTitle","Popup note smoke test");await page.fill("#todayContent","Saved through the Vishnu creation dialog.");await page.click("#todaySave");
   assert.equal(createdMemories.length,1,"saving a note must call the memory creation API once");
   assert.equal(createdMemories[0].subject,"Popup note smoke test");
-  assert.equal(createdMemories[0].content,"Saved through the Personal AI creation dialog.");
+  assert.equal(createdMemories[0].content,"Saved through the Vishnu creation dialog.");
   failNextTaskComplete=true;
   await page.locator("#todayTimeline .today-check").first().click();
   await page.waitForFunction(() => document.querySelector("#toast")?.textContent === "body.task_id: Task could not be completed");
@@ -461,7 +476,7 @@ try {
   }));
   assert.ok(approvedEmptyLayout.greeting.top>=approvedEmptyLayout.header.bottom+6,"approved Home capture must keep the greeting clear of the floating Home controls");
   assert.ok(approvedEmptyLayout.composer.bottom<=approvedEmptyLayout.viewport+1,"approved empty-Today Home composition must keep the composer visible in the primary iPhone viewport");
-  assert.ok(approvedEmptyLayout.composer.bottom>=approvedEmptyLayout.viewport-1,"approved Home composer must sit flush against the bottom edge with no external gap");
+  assertSharedComposerBottomInset(approvedEmptyLayout.composer.bottom,approvedEmptyLayout.viewport,"approved Home composer");
   assert.ok(approvedEmptyLayout.scrollWidth<=approvedEmptyLayout.viewportWidth,"approved empty-Today Home must not overflow horizontally");
   assert.ok(approvedEmptyLayout.calendar.scrollWidth<=approvedEmptyLayout.calendar.clientWidth+2,"calendar disconnected status must remain fully readable at the primary iPhone width");
   await page.screenshot({ path: "artifacts/personal-ai-home-today-empty-390x844.png", fullPage: true });
@@ -490,7 +505,7 @@ try {
   }
   await page.screenshot({ path: "artifacts/personal-ai-sidebar-account-390x844.png", fullPage: true });
   await page.click("#appOwnerControls");
-  await page.waitForFunction(() => document.querySelector("#modulePanel")?.classList.contains("open") && document.querySelector("#moduleTitle")?.textContent === "Personal AI Owner" && document.querySelector("#moduleBody")?.innerText.includes("Personal AI Owner"));
+  await page.waitForFunction(() => document.querySelector("#modulePanel")?.classList.contains("open") && document.querySelector("#moduleTitle")?.textContent === "Vishnu Owner" && document.querySelector("#moduleBody")?.innerText.includes("Vishnu Owner"));
   const ownerPageText = (await page.locator("#moduleBody").innerText()).toLowerCase();
   for (const item of ["account & plan", "profile & preferences", "security & access", "data & privacy", "sign out"]) {
     assert.ok(ownerPageText.includes(item), "Owner page missing " + item);
@@ -607,6 +622,8 @@ try {
     title:document.querySelector("#conversationsDrawerTitle").getBoundingClientRect(),
     close:document.querySelector("#closeDrawer").getBoundingClientRect(),
     newChat:document.querySelector("#newConversation").getBoundingClientRect(),
+    newChatStyle:{sidebarButton:document.querySelector("#newConversation").classList.contains("sidebar-new-compact"),bottomButton:document.querySelector("#newConversation").classList.contains("conversations-bottom-new-chat")},
+    conversationList:document.querySelector("#conversationManagerList").getBoundingClientRect(),
     search:document.querySelector("#conversationManagerSearch").closest(".conversations-search-wrap").getBoundingClientRect(),
     groups:[...document.querySelectorAll(".conversations-group-title")].map(node=>node.textContent.trim()),
     titles:[...document.querySelectorAll(".conversations-row-copy strong")].map(node=>node.textContent.trim()),
@@ -619,7 +636,12 @@ try {
   assert.ok(conversationsState.rect.width>=330&&conversationsState.rect.width<=370,"390px Conversations drawer must preserve the approved ~88% mobile width");
   assert.ok(conversationsState.rect.right<=conversationsState.viewport-20,"Conversations drawer must leave a visible strip of the underlying app");
   assert.ok(conversationsState.close.width>=44&&conversationsState.close.height>=44,"close control must preserve touch target");
-  assert.ok(conversationsState.newChat.height>=54&&conversationsState.newChat.height<=60,"New chat CTA must match approved compact geometry");
+  assert.ok(conversationsState.newChat.height>=46&&conversationsState.newChat.height<=50,"bottom New chat action must match the left sidebar control height");
+  assert.equal(conversationsState.newChatStyle.sidebarButton,true,"Conversations New chat must reuse left sidebar button styling");
+  assert.equal(conversationsState.newChatStyle.bottomButton,true,"Conversations must use the bottom-pinned New chat action");
+  assert.ok(conversationsState.conversationList.bottom<=conversationsState.newChat.top,"conversation list must scroll above the bottom New chat button");
+  assert.ok(conversationsState.newChat.bottom<=conversationsState.rect.bottom&&conversationsState.newChat.bottom>=conversationsState.rect.bottom-90,"New chat must stay at the bottom of the iPhone drawer");
+  assert.ok(conversationsState.newChat.left>=conversationsState.rect.left&&conversationsState.newChat.right<=conversationsState.rect.right,"bottom New chat button must fit within the drawer");
   assert.ok(conversationsState.search.height>=48&&conversationsState.search.height<=54,"search field must match approved compact geometry");
   assert.deepEqual(conversationsState.groups,["Today","Yesterday","Previous 7 days"],"real local conversation dates must drive approved group headings");
   assert.deepEqual(conversationsState.titles,conversations.map(item=>item.title),"drawer titles must use real canonical conversations");
@@ -722,7 +744,7 @@ try {
   assert.ok(timelineState.statuses.includes("Completed")&&timelineState.statuses.includes("Updated"),"Timeline must render human-readable semantic status chips");
   assert.ok((await page.locator('.timeline-entry[data-status="done"]').count())>=2);
   assert.ok(await page.locator("#timelineAddPlan").isVisible(),"right Timeline must keep existing planning functionality");
-  assert.deepEqual(await page.evaluate(()=>auditTimelinePresentation({label:"Model",kind:"model",action:"selected"})),{title:"Model selected",preview:"Personal AI model selection updated"},"generic Model selected audit events must be humanized without fabricating hidden data");
+  assert.deepEqual(await page.evaluate(()=>auditTimelinePresentation({label:"Model",kind:"model",action:"selected"})),{title:"Model selected",preview:"Vishnu model selection updated"},"generic Model selected audit events must be humanized without fabricating hidden data");
   await page.screenshot({path:"artifacts/personal-ai-timeline-approved-all-390x844.png",fullPage:true});
   const yesterdayHeading=page.locator(".timeline-day",{hasText:"Yesterday"}).first();
   assert.ok(await yesterdayHeading.count(),"Timeline fixture must expose a Yesterday section for date-group qualification");
@@ -787,7 +809,7 @@ try {
 
   await page.evaluate(()=>{
     window.__timelineVisualBackup={title:conversationCache[0].title,preview:conversationCache[0].preview};
-    conversationCache[0].title='A very long Personal AI conversation title that must truncate cleanly inside the approved premium Timeline card';
+    conversationCache[0].title='A very long Vishnu conversation title that must truncate cleanly inside the approved premium Timeline card';
     conversationCache[0].preview='This is an intentionally long real-data-style preview used only by the browser acceptance fixture to verify single-line truncation without changing production content.';
     renderUnifiedTimeline();
   });
@@ -914,7 +936,7 @@ try {
   await page.evaluate(()=>{
     conversationEvents.push({
       event_id:"visual-long-response",kind:"assistant_message",created_at:new Date().toISOString(),
-      payload:{text:"## Detailed plan\n\nThis is a deliberately long Personal AI response used to verify that open assistant content stays readable and wide without being forced into a phone-chat bubble.\n\n- Preserve the original neural sphere\n- Keep the composer visible above the safe area\n- Keep actions close to the response\n\n```text\nLong content remains inside the same response block.\nNo token-sized bubbles are created.\n```\n\n| Check | Result |\n| --- | --- |\n| Wrapping | Correct |\n| Overflow | None |"}
+      payload:{text:"## Detailed plan\n\nThis is a deliberately long Vishnu response used to verify that open assistant content stays readable and wide without being forced into a phone-chat bubble.\n\n- Preserve the original neural sphere\n- Keep the composer visible above the safe area\n- Keep actions close to the response\n\n```text\nLong content remains inside the same response block.\nNo token-sized bubbles are created.\n```\n\n| Check | Result |\n| --- | --- |\n| Wrapping | Correct |\n| Overflow | None |"}
     });renderMessages();
   });
   await page.waitForFunction(expected=>document.querySelectorAll(".message-entry.assistant").length===expected,assistantCountBeforeLongResponse+1);
@@ -982,7 +1004,7 @@ try {
     assert.ok(layout.core.width > 0 && layout.core.height > 0, "sphere missing at " + width + "x" + height);
     assert.ok(layout.sphereInk > 90, "mini sphere animation did not repaint after chat at " + width + "x" + height);
     assert.ok(layout.composer.bottom <= layout.viewportHeight + 1, "composer clipped at " + width + "x" + height);
-    assert.ok(layout.composer.bottom >= layout.viewportHeight - 1, "Home composer must remain flush to the bottom at " + width + "x" + height);
+    assertSharedComposerBottomInset(layout.composer.bottom,layout.viewportHeight,"Home composer at "+width+"x"+height);
     const fixedPositions=await page.evaluate(()=>({
       header:getComputedStyle(document.querySelector(".topbar")).position,
       composer:getComputedStyle(document.querySelector("#composer")).position
@@ -1100,7 +1122,7 @@ try {
       quick:[...document.querySelectorAll(".quick-action")].map(node=>node.getBoundingClientRect()),
     }));
     assert.ok(wide.doc<=wide.inner,"wide Home must not horizontally overflow at "+width+"x"+height);
-    assert.ok(wide.composer.bottom>=height-1&&wide.composer.bottom<=height+1,"wide Home composer must stay flush to the viewport bottom at "+width+"x"+height);
+    assertSharedComposerBottomInset(wide.composer.bottom,height,"wide Home composer at "+width+"x"+height);
     const wideFixed=await page.evaluate(()=>({
       header:getComputedStyle(document.querySelector(".topbar")).position,
       composer:getComputedStyle(document.querySelector("#composer")).position
@@ -1253,7 +1275,7 @@ try {
   assert.equal(emptyFocused.expanded,false,"focus alone must not enlarge the shared SMS composer");
   assert.equal(emptyFocused.position,"fixed","shared SMS composer must be fixed to the viewport");
   assert.ok(emptyFocused.composer.height>=52&&emptyFocused.composer.height<=56,"focused empty shared composer must keep the compact pill height");
-  assert.ok(emptyFocused.composer.bottom>=emptyFocused.viewportHeight-1&&emptyFocused.composer.bottom<=emptyFocused.viewportHeight+1,"shared composer must remain flush to the viewport bottom");
+  assertSharedComposerBottomInset(emptyFocused.composer.bottom,emptyFocused.viewportHeight,"shared focused composer");
   await page.fill("#message", "Hello from browser QA");
   assert.ok(await page.locator("#composer").evaluate(node => node.classList.contains("has-text")), "text input must show send state");
   assert.equal(await page.locator("#composer").evaluate(node => node.classList.contains("is-expanded")),false,"single-line text must keep the same compact SMS box");
@@ -1351,7 +1373,7 @@ try {
   }));
   assert.ok(landscape.scrollWidth <= landscape.innerWidth, "landscape must not scroll horizontally");
   assert.ok(landscape.composerBottom <= landscape.innerHeight + 1, "landscape composer must stay in viewport");
-  assert.ok(landscape.composerBottom >= landscape.innerHeight - 1, "landscape Home composer must stay flush to the bottom edge");
+  assertSharedComposerBottomInset(landscape.composerBottom,landscape.innerHeight,"landscape Home composer");
   assert.equal(await page.locator(".topbar").evaluate(node=>getComputedStyle(node).position),"fixed","landscape Home topbar must remain fixed");
   assert.equal(await page.locator("#composer").evaluate(node=>getComputedStyle(node).position),"fixed","landscape Home composer must remain fixed");
   assert.ok(landscape.headerLeft >= 0 && landscape.headerRight <= landscape.innerWidth + 1, "landscape header must fit");
@@ -1419,6 +1441,11 @@ try {
   assert.equal(await page.locator('#modulePanel').isVisible(),false,'section Back returns to Home');
   await page.evaluate(()=>openModule('memory'));
   await page.waitForFunction(()=>document.querySelector('.memory-record'));
+  assert.equal(await page.locator("#memoryNewChat").isVisible(),true,"Memory must keep New chat in its bottom action row");
+  assert.equal(await page.locator("#memoryAdd").isVisible(),true,"Memory must keep Add memory beside New chat");
+  const memoryFooterLayout=await page.evaluate(()=>{const chat=document.querySelector("#memoryNewChat").getBoundingClientRect(),add=document.querySelector("#memoryAdd").getBoundingClientRect();return{chatBottom:chat.bottom,addBottom:add.bottom,left:chat.left,right:add.right,width:innerWidth}});
+  assert.ok(Math.abs(memoryFooterLayout.chatBottom-memoryFooterLayout.addBottom)<=1,"Memory footer buttons must share one bottom baseline");
+  assert.ok(memoryFooterLayout.left>=-1&&memoryFooterLayout.right<=memoryFooterLayout.width+1,"Memory footer actions must stay within the iPhone viewport");
   await page.fill('#memorySearch','project');
   await page.waitForTimeout(360);
   assert.equal(await page.evaluate(()=>document.activeElement?.id),'memorySearch','Memory search retains focus after refreshed results');
@@ -1504,7 +1531,7 @@ try {
   assert.match(await page.locator("#conversationList").innerText(),/Sign in to view timeline\s+Your chats, plans and activity will appear here after authentication\./);
   assert.doesNotMatch(await page.locator("#conversationList").innerText(),/Project Planning|Team planning meeting|Finish daily review/,
     "signed-out timeline must not retain authenticated conversation or activity rows");
-  assert.doesNotMatch(await page.locator("#conversationList").innerText(),/Loading your timeline|Loading real Personal AI activity/,
+  assert.doesNotMatch(await page.locator("#conversationList").innerText(),/Loading your timeline|Loading real Vishnu activity/,
     "signed-out timeline must not spin indefinitely");
   await page.screenshot({path:"artifacts/personal-ai-signed-out-timeline-390x844.png",fullPage:true});
 

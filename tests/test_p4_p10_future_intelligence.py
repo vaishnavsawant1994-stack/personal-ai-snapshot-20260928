@@ -13,13 +13,13 @@ from memory.store import MemoryStore
 
 def test_p4_briefing_and_forgotten_commitments(tmp_path):
     p=EverydayIntelligence(tmp_path/'daily.sqlite3')
-    p.add('goal','Ship Personal AI',priority=.9);p.add('commitment','Follow up tomorrow',priority=.8)
+    p.add('goal','Ship Vishnu',priority=.9);p.add('commitment','Follow up tomorrow',priority=.8)
     b=p.briefing();assert b['counts']['open']==2;assert len(b['possible_forgotten_commitments'])==1
 
 
 def test_p4_briefing_includes_authoritative_second_brain_context(tmp_path):
     store=MemoryStore(tmp_path/'memory.sqlite3');brain=SecondBrain(store)
-    memory_id=brain.remember(MemoryCandidate(type='goal',subject='Release',content='Release Personal AI only after qualification.',confidence=.95,source='explicit-user',verified=True))
+    memory_id=brain.remember(MemoryCandidate(type='goal',subject='Release',content='Release Vishnu only after qualification.',confidence=.95,source='explicit-user',verified=True))
     p=EverydayIntelligence(tmp_path/'daily.sqlite3',second_brain=brain)
     briefing=p.briefing()
     assert memory_id in {row['id'] for row in briefing['relevant_memory']}

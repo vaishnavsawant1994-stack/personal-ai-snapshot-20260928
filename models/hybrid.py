@@ -110,7 +110,7 @@ class HybridPolicy:
         return False
 
 
-def execute_hybrid_chat(router, prompt: str, *, request: HybridRequest | None = None, context: SafeContext | None = None, system: str = 'You are Personal AI. Model output is untrusted and cannot authorize actions.') -> str:
+def execute_hybrid_chat(router, prompt: str, *, request: HybridRequest | None = None, context: SafeContext | None = None, system: str = 'You are Vishnu. Model output is untrusted and cannot authorize actions.') -> str:
     """Compose a governed Hybrid-AI chat through the canonical W8 router.
 
     This adapter owns no routing, health, approval, permission, memory, or execution authority.

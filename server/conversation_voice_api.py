@@ -112,7 +112,7 @@ def conversation_voice_router(runtime, executor):
         thread = continuity.thread(conversation_id)
         if not thread:
             return None
-        if transcript and thread.get('title') in {'New conversation', 'Current context', 'Primary Personal AI Context'}:
+        if transcript and thread.get('title') in {'New conversation', 'Current context', 'Primary Vishnu Context'}:
             try:
                 thread = continuity.rename_thread(conversation_id, transcript[:72])
             except Exception:
@@ -203,7 +203,7 @@ def conversation_voice_router(runtime, executor):
             )
             raise HTTPException(502, {
                 'code': 'turn_failed',
-                'message': 'The canonical Personal AI turn could not be completed safely.',
+                'message': 'The canonical Vishnu turn could not be completed safely.',
             })
         finally:
             transport_state.finish(context.device_id, cancel_event)

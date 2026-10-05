@@ -14,7 +14,7 @@ Home V1 and P2 remain frozen. Existing P3 qualification infrastructure remains a
 
 The native iOS companion already provides SwiftUI, Keychain-protected device credentials, secure HTTPS/WSS transport by default, authenticated device WebSocket connectivity, reconnect behavior, APNs registration foundations, background refresh, and AVAudioSession microphone/voice-chat activation.
 
-However, the native companion currently assumes a Personal AI computer/server is already running and requires a computer-created pairing token/code. Its voice implementation currently activates the audio session and microphone permission but does not implement a complete iPhone conversational voice transport into the Personal AI runtime.
+However, the native companion currently assumes a Vishnu computer/server is already running and requires a computer-created pairing token/code. Its voice implementation currently activates the audio session and microphone permission but does not implement a complete iPhone conversational voice transport into the Vishnu runtime.
 
 TestFlight automation exists, but real TestFlight distribution requires Apple Developer Program/App Store Connect signing material. No signing secret may be committed to the repository.
 
@@ -22,14 +22,14 @@ TestFlight automation exists, but real TestFlight distribution requires Apple De
 
 ### Phase A — iPhone-first cloud/PWA qualification client
 
-Build a secure owner-facing PWA that runs from Safari/Home Screen and talks to the existing Personal AI cloud runtime.
+Build a secure owner-facing PWA that runs from Safari/Home Screen and talks to the existing Vishnu cloud runtime.
 
 Required capabilities:
 
 1. Secure owner enrollment without requiring a desktop pairing ceremony.
 2. Session/device identity suitable for real-device evidence attribution.
 3. iPhone microphone capture using browser-supported media APIs.
-4. Full conversational voice request/response path to the existing Personal AI runtime.
+4. Full conversational voice request/response path to the existing Vishnu runtime.
 5. Explicit start/stop and interruption controls for P3.1 trials.
 6. Qualification event timestamps sufficient for latency and barge-in evidence.
 7. Evidence submission/export into the existing P3 qualification ledger without letting the client self-award qualification states.
@@ -59,7 +59,7 @@ After Phase A yields usable physical evidence, extend the existing native compan
 
 ## Immediate implementation sequence
 
-1. Reuse `server/cloud_app.py` and the existing Personal AI runtime/API rather than creating a second backend.
+1. Reuse `server/cloud_app.py` and the existing Vishnu runtime/API rather than creating a second backend.
 2. Add owner-enrollment/session endpoints with short-lived bootstrap credentials and revocation.
 3. Add authenticated mobile/PWA conversation transport.
 4. Add browser microphone capture and conversational voice state machine.

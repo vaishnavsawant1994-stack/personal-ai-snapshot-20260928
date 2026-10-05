@@ -47,7 +47,7 @@ class MemoryPanel(QDialog):
     def _explanation_html(row):
         explanation=row.get('retrieval_explanation')
         if not explanation:
-            return '<h3>No retrieval claim</h3><p>This memory is being inspected directly. Run a search to see why Personal AI selected it for a real retrieval query.</p>'
+            return '<h3>No retrieval claim</h3><p>This memory is being inspected directly. Run a search to see why Vishnu selected it for a real retrieval query.</p>'
         items=[
             ('Memory ID',explanation.get('memory_id')),('Subject / type',f"{explanation.get('subject','')} / {explanation.get('type','')}"),
             ('Source',explanation.get('source')),('Source time',explanation.get('source_timestamp')),('Confidence',explanation.get('confidence')),
@@ -59,7 +59,7 @@ class MemoryPanel(QDialog):
             ('Evidence',json.dumps(explanation.get('evidence_references') or [],ensure_ascii=False)),
         ]
         rows=''.join(f"<tr><td style='color:#81939d;padding:4px 12px 4px 0'>{html.escape(str(label))}</td><td>{html.escape('' if value is None else str(value))}</td></tr>" for label,value in items)
-        return f'<h3>Why Personal AI retrieved this memory</h3><table>{rows}</table>'
+        return f'<h3>Why Vishnu retrieved this memory</h3><table>{rows}</table>'
 
     def show_selected_explanation(self):
         item=None

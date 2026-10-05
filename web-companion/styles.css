@@ -77,3 +77,10 @@ button:disabled,input:disabled,select:disabled,textarea:disabled{opacity:.58;cur
   .core{height:clamp(4.5rem,14vh,5rem)}
 }
 @media(prefers-reduced-motion:reduce){.core:before,.core:after,.core i{animation:none!important}}
+
+/* Shared bottom-edge spacing for the companion composer. Keep its send field, footline and the PWA dock aligned across safe-area and focus changes. */
+:root{--shared-composer-bottom:24px}
+.shell{padding-bottom:calc(120px + var(--shared-composer-bottom))!important}
+footer{bottom:0!important;padding-bottom:var(--shared-composer-bottom)!important;display:flex;flex-direction:column;align-items:center}
+footer .footline{order:0;margin:0 auto 7px;padding-bottom:0!important}
+footer form{order:1}

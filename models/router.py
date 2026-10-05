@@ -219,7 +219,7 @@ class ModelRouter:
                 self._record('model.error', provider=provider.id, capability=capability, error_code=exc.code)
         raise last_error or ModelUnavailable(provider=self.primary)
 
-    def chat(self, prompt: str, *, system: str = 'You are a helpful personal AI assistant.', history: list[dict] | None = None, temperature: float = .3, sensitivity: str = 'internal') -> str:
+    def chat(self, prompt: str, *, system: str = 'You are a helpful Vishnu assistant.', history: list[dict] | None = None, temperature: float = .3, sensitivity: str = 'internal') -> str:
         messages = [{'role': 'system', 'content': system}, *(history or []), {'role': 'user', 'content': prompt}]
         return self._run('chat', lambda provider: self._chat_call(provider, messages, temperature), sensitivity=sensitivity)
 

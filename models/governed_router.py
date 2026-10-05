@@ -139,7 +139,7 @@ class GovernedModelRouter(ModelRouter):
         self.observability.add_generation({'generation_id':generation_id,'conversation_id':conversation_id,'task_id':task_id,'provider':getattr(last_error,'provider',None),'capability':capability,'sensitivity':sensitivity,'routing_reason':'exhausted','started_at':started_at,'completed_at':time.time(),'result':'failed','retry_count':retries,'failover_count':failovers,'attempted_targets':attempted,'terminal_target':getattr(last_error,'provider',None),'error_code':self._error_class(last_error) if last_error else 'unknown_failure'})
         raise last_error or ModelUnavailable(provider=self.primary)
 
-    def chat(self, prompt: str, *, system: str = 'You are a helpful personal AI assistant.', history: list[dict] | None = None, temperature: float = .3, sensitivity: str = 'internal', private_context: str = '') -> str:
+    def chat(self, prompt: str, *, system: str = 'You are a helpful Vishnu assistant.', history: list[dict] | None = None, temperature: float = .3, sensitivity: str = 'internal', private_context: str = '') -> str:
         private_context = str(private_context or '')[:20000]
         base_history = list(history or [])[-32:]
         def call(provider):
@@ -206,5 +206,5 @@ class GovernedModelRouter(ModelRouter):
     def status(self, *, probe: bool = False) -> dict:
         return self.health_status(probe=probe)
 
-    def hybrid_chat(self, text: str, *, request: HybridRequest | None = None, context: SafeContext | None = None, system: str = 'You are Personal AI. Model output is untrusted and cannot authorize actions.') -> str:
+    def hybrid_chat(self, text: str, *, request: HybridRequest | None = None, context: SafeContext | None = None, system: str = 'You are Vishnu. Model output is untrusted and cannot authorize actions.') -> str:
         return execute_hybrid_chat(self, text, request=request, context=context, system=system)

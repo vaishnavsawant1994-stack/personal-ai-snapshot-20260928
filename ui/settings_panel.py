@@ -7,7 +7,7 @@ from ui.design_tokens import fit_window_to_screen, stylesheet as design_system_s
 
 class SettingsPanel(QDialog):
     def __init__(self,runtime,parent=None):
-        super().__init__(parent);self.runtime=runtime;self.prefs=runtime['preferences'];self.setWindowTitle('Personal AI Settings');fit_window_to_screen(self,preferred=(760,900));self.setStyleSheet("""
+        super().__init__(parent);self.runtime=runtime;self.prefs=runtime['preferences'];self.setWindowTitle('Vishnu Settings');fit_window_to_screen(self,preferred=(760,900));self.setStyleSheet("""
             QDialog { background:#030405; color:#edf3f6; }
             QLabel { color:#cbd8de; }
             QLineEdit, QComboBox, QPlainTextEdit {
@@ -30,12 +30,12 @@ class SettingsPanel(QDialog):
             QScrollBar::handle:vertical:hover { background:#355260; }
         """);self.setStyleSheet(self.styleSheet()+design_system_stylesheet())
         outer=QVBoxLayout(self);outer.setContentsMargins(0,0,0,0);scroll=QScrollArea(self);scroll.setWidgetResizable(True);scroll.setFrameShape(QFrame.Shape.NoFrame);content=QWidget();outer.addWidget(scroll);scroll.setWidget(content)
-        lay=QVBoxLayout(content);lay.setContentsMargins(22,20,22,20);lay.setSpacing(10);lay.addWidget(QLabel('<h2>Personal AI Settings</h2>'))
-        self.name=QLineEdit(str(self.prefs.get('preferred_name','')));self.name.setPlaceholderText('What should Personal AI call you?');lay.addWidget(QLabel('Preferred name'));lay.addWidget(self.name)
-        self.wake=QLineEdit(str(self.prefs.get('wake_phrase','Hey Personal')));lay.addWidget(QLabel('Wake phrase'));lay.addWidget(self.wake)
+        lay=QVBoxLayout(content);lay.setContentsMargins(22,20,22,20);lay.setSpacing(10);lay.addWidget(QLabel('<h2>Vishnu Settings</h2>'))
+        self.name=QLineEdit(str(self.prefs.get('preferred_name','')));self.name.setPlaceholderText('What should Vishnu call you?');lay.addWidget(QLabel('Preferred name'));lay.addWidget(self.name)
+        self.wake=QLineEdit(str(self.prefs.get('wake_phrase','Hey Vishnu')));lay.addWidget(QLabel('Wake phrase'));lay.addWidget(self.wake)
         self.mode=QComboBox();self.mode.addItems(['observe','suggest','ask','act']);self.mode.setCurrentText(str(self.prefs.get('autonomy_mode','ask')));lay.addWidget(QLabel('Autonomy'));lay.addWidget(self.mode)
         self.privacy=QComboBox();self.privacy.addItems(['local_only','local_preferred','external_allowed']);self.privacy.setCurrentText(str(self.prefs.get('model_privacy_mode','local_preferred')));lay.addWidget(QLabel('Model privacy'));lay.addWidget(self.privacy)
-        self.voice=QCheckBox('Start voice when Personal AI opens');self.voice.setChecked(bool(self.prefs.get('launch_voice_on_start')));lay.addWidget(self.voice)
+        self.voice=QCheckBox('Start voice when Vishnu opens');self.voice.setChecked(bool(self.prefs.get('launch_voice_on_start')));lay.addWidget(self.voice)
         self.hints=QCheckBox('Show contextual memory hints');self.hints.setChecked(bool(self.prefs.get('show_memory_hints',True)));lay.addWidget(self.hints)
         self.motion=QCheckBox('Reduce motion');self.motion.setChecked(bool(self.prefs.get('reduce_motion')));lay.addWidget(self.motion)
         self.contrast=QCheckBox('High contrast');self.contrast.setChecked(bool(self.prefs.get('high_contrast')));lay.addWidget(self.contrast)
@@ -53,7 +53,7 @@ class SettingsPanel(QDialog):
         self.model_view=QPlainTextEdit();self.model_view.setReadOnly(True);self.model_view.setMaximumHeight(230);lay.addWidget(self.model_view);mrow=QHBoxLayout();mrefresh=QPushButton('Refresh model status');mrefresh.clicked.connect(self.refresh_model_view);mprobe=QPushButton('Run bounded health check');mprobe.clicked.connect(lambda:self.refresh_model_view(True));mrow.addWidget(mrefresh);mrow.addWidget(mprobe);lay.addLayout(mrow)
         lay.addWidget(QLabel('Local diagnostics'));self.diagnostics=QPlainTextEdit();self.diagnostics.setReadOnly(True);self.refresh();lay.addWidget(self.diagnostics,1);refresh=QPushButton('Refresh diagnostics');refresh.clicked.connect(self.refresh);lay.addWidget(refresh);self.refresh_policy_view();self.refresh_model_view()
     def save(self):
-        phrase=self.wake.text().strip() or 'Hey Personal';mode=self.mode.currentText();privacy=self.privacy.currentText();self.prefs.update(onboarding_complete=True,preferred_name=self.name.text().strip(),wake_phrase=phrase,launch_voice_on_start=self.voice.isChecked(),show_memory_hints=self.hints.isChecked(),reduce_motion=self.motion.isChecked(),high_contrast=self.contrast.isChecked(),autonomy_mode=mode,model_privacy_mode=privacy)
+        phrase=self.wake.text().strip() or 'Hey Vishnu';mode=self.mode.currentText();privacy=self.privacy.currentText();self.prefs.update(onboarding_complete=True,preferred_name=self.name.text().strip(),wake_phrase=phrase,launch_voice_on_start=self.voice.isChecked(),show_memory_hints=self.hints.isChecked(),reduce_motion=self.motion.isChecked(),high_contrast=self.contrast.isChecked(),autonomy_mode=mode,model_privacy_mode=privacy)
         gate=self.runtime.get('wake_phrase');tools=self.runtime.get('tools');models=self.runtime.get('models')
         if gate:gate.phrases=(phrase,);gate.reset()
         if tools and hasattr(tools,'set_autonomy_mode'):tools.set_autonomy_mode(mode)
@@ -103,7 +103,7 @@ class SettingsPanel(QDialog):
     def reset_policies(self):
         tools=self.runtime.get('tools');gateway=getattr(tools,'policy_gateway',None)
         if gateway is None:return
-        if QMessageBox.question(self,'Reset permissions','Revoke all active Personal AI permissions and return to default deny?')!=QMessageBox.StandardButton.Yes:return
+        if QMessageBox.question(self,'Reset permissions','Revoke all active Vishnu permissions and return to default deny?')!=QMessageBox.StandardButton.Yes:return
         if not self._reauthenticated():return
         count=gateway.reset_to_safe_defaults('owner',actor='owner_settings',reauthenticated=True);self.refresh_policy_view();QMessageBox.information(self,'Safe defaults restored',f'Revoked {count} active permission(s).')
     def refresh_policy_view(self):
@@ -136,11 +136,11 @@ class SettingsPanel(QDialog):
     def create_backup(self):
         path=self.runtime['backups'].create();QMessageBox.information(self,'Backup created',str(path))
     def restore_backup(self):
-        path,_=QFileDialog.getOpenFileName(self,'Restore Personal AI backup',str(Path.home()),'Personal AI Backup (*.paibackup)')
+        path,_=QFileDialog.getOpenFileName(self,'Restore Vishnu backup',str(Path.home()),'Vishnu Backup (*.paibackup)')
         if not path:return
-        answer=QMessageBox.question(self,'Restore backup','This will replace matching Personal AI data files. Continue?')
+        answer=QMessageBox.question(self,'Restore backup','This will replace matching Vishnu data files. Continue?')
         if answer!=QMessageBox.StandardButton.Yes:return
-        result=self.runtime['backups'].restore(Path(path));QMessageBox.information(self,'Restore complete',f"Restored {result['restored']} files. Restart Personal AI to reload restored state.")
+        result=self.runtime['backups'].restore(Path(path));QMessageBox.information(self,'Restore complete',f"Restored {result['restored']} files. Restart Vishnu to reload restored state.")
     def refresh(self):
         telemetry=self.runtime['telemetry'].snapshot();graph=self.runtime['memory'].graph();devices=self.runtime['device_registry'].list();plugins=self.runtime['plugins'].list() if hasattr(self.runtime['plugins'],'list') else [];tools=self.runtime.get('tools');models=self.runtime.get('models')
         model_summary=models.health_status(probe=False).get('w8',{}) if models and hasattr(models,'health_status') else {}

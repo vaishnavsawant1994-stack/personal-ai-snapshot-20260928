@@ -1,4 +1,4 @@
-# Personal AI — Missing / Partial / Stub Matrix
+# Vishnu — Missing / Partial / Stub Matrix
 
 Baseline date: 2026-09-16
 

@@ -52,7 +52,7 @@ def test_memory_search_graph_and_audit_survive_reopen(tmp_path):
     reopened=MemoryStore(path);assert any(x['id']==a for x in reopened.graph()['nodes']) and len(reopened.graph()['edges'])==1
 
 def test_wake_phrase_opens_short_command_window():
-    events=EventBus();seen=[];events.subscribe('voice.wake',lambda e:seen.append(e));gate=WakePhraseGate(events,window_seconds=5);first=gate.accept('Hey Personal, open my workspace',now=10);second=gate.accept('and show memory',now=12);third=gate.accept('do something',now=20);assert first['triggered'] and first['command']=='open my workspace';assert second['awake'] and second['command']=='and show memory';assert not third['awake'];assert seen[0]['phrase']=='hey personal'
+    events=EventBus();seen=[];events.subscribe('voice.wake',lambda e:seen.append(e));gate=WakePhraseGate(events,window_seconds=5);first=gate.accept('Hey Vishnu, open my workspace',now=10);second=gate.accept('and show memory',now=12);third=gate.accept('do something',now=20);assert first['triggered'] and first['command']=='open my workspace';assert second['awake'] and second['command']=='and show memory';assert not third['awake'];assert seen[0]['phrase']=='hey vishnu'
 
 def test_plugin_registry_rejects_insecure_remote_endpoint(tmp_path):
     root=tmp_path/'plugins';root.mkdir();(root/'bad.json').write_text('{"id":"bad","endpoint":"http://example.com"}',encoding='utf-8');registry=PluginManifestRegistry(root)
@@ -62,7 +62,7 @@ def test_plugin_registry_rejects_insecure_remote_endpoint(tmp_path):
 def test_document_outputs_are_confined_to_workspace(tmp_path):
     settings=SimpleNamespace(autonomy_mode='act',data_dir=tmp_path);registry=ToolRegistry(settings);documents.register(registry,settings);tool=registry.get('create_docx')
     with pytest.raises(ValueError):tool.handler({'path':str(tmp_path.parent/'escape.docx'),'paragraphs':['no']})
-    result=tool.handler({'path':'reports/test.docx','title':'Personal AI','paragraphs':['ok']});assert Path(result['path']).exists();assert (tmp_path/'workspace') in Path(result['path']).parents
+    result=tool.handler({'path':'reports/test.docx','title':'Vishnu','paragraphs':['ok']});assert Path(result['path']).exists();assert (tmp_path/'workspace') in Path(result['path']).parents
 
 def test_signed_updater_can_restore_previous_installation(tmp_path):
     private=Ed25519PrivateKey.generate();public=private.public_key().public_bytes(serialization.Encoding.Raw,serialization.PublicFormat.Raw);import base64

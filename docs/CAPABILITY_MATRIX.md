@@ -1,4 +1,4 @@
-# Personal AI — Capability Matrix
+# Vishnu — Capability Matrix
 
 Baseline date: 2026-09-16
 
@@ -19,7 +19,7 @@ Statuses distinguish automated repository evidence from live service, real local
 | P5 Second Brain / Life Graph | IMPLEMENTED / INTEGRATED / AUTOMATED VALIDATED FOR RETRIEVAL-REMINDER TRANCHE | bounded retrieval, temporal/current truth, deletion/retention/context budget | larger real corpus/media/physical proof separate | `14f0d5dbe532d5edf7ec910270d0d9114f5f9d8b` |
 | P6 Autonomous Operations | IMPLEMENTED / INTEGRATED / AUTOMATED VALIDATED | governed delegation composes through existing AgentExecutor/AutomationEngine/W7 | autonomous/live/physical/production qualification separate | implementation `e674ee80b66ba6c6dbe734ef1825df6a56c19d3f`; PR #27 |
 | P7 Multimodal Understanding | IMPLEMENTED / INTEGRATED / AUTOMATED VALIDATED / REPOSITORY-AUTOMATED SCOPE COMPLETE | implementation and evidence exact-head gates 6/6; hardened canonical WorldUnderstanding | real camera/mic/location/wearable/live/production separate | implementation `c0498146a0753b24da611e392181970b227a63d4`; evidence `5f13ff2a994e2d257ba1c8d4d4f6cdd6a32d481e`; PR #28 |
-| P8 Personal AI Everywhere | IMPLEMENTED / INTEGRATED / AUTOMATED VALIDATED / REPOSITORY-AUTOMATED SCOPE COMPLETE | governed cross-device continuity; implementation and evidence exact-head gates 6/6 | real iPhone/Android/desktop cross-device and live/production separate | implementation `041584c50e2e2df8e74aa67843eebd2c2e0e058c`; evidence `bd36011cc71d57110e60843019e52bc6b1963a61`; PR #30 |
+| P8 Vishnu Everywhere | IMPLEMENTED / INTEGRATED / AUTOMATED VALIDATED / REPOSITORY-AUTOMATED SCOPE COMPLETE | governed cross-device continuity; implementation and evidence exact-head gates 6/6 | real iPhone/Android/desktop cross-device and live/production separate | implementation `041584c50e2e2df8e74aa67843eebd2c2e0e058c`; evidence `bd36011cc71d57110e60843019e52bc6b1963a61`; PR #30 |
 | P9 Hybrid AI | IMPLEMENTED / INTEGRATED / AUTOMATED VALIDATED / REPOSITORY-AUTOMATED SCOPE COMPLETE | canonical W8 router + deterministic privacy/capability/owner policy; implementation and evidence exact-head gates 6/6 | real local/external provider/live/production remain separate | implementation `bfb9b574e2dfbd2e0026ab1affbe74ba9a17e7eb`; evidence `0e1081751a7efafc9c9f35a2afb9c6d431875b92`; PR #31 |
 | P10 Advanced Autonomous Intelligence | IMPLEMENTED / INTEGRATED / IMPLEMENTATION-HEAD AUTOMATED VALIDATED | 54 P10 focused/adversarial/A-X/durability tests; 1238 full; encrypted recovery 15; implementation workflows 6/6; P6/W7/P7/P8/P9/W8 authorities reused | documentation/evidence exact-head gate; physical/live/provider/production proof separate | frozen implementation `4544df7a68d447871e17c3c2dc221efc12722abb`; PR #32 |
 | Computer operator overall | AUTOMATED SCOPE CANDIDATE COMPLETE | W7.1-W7.6 automated authorities integrated | physical/production qualification remain | preserve frozen W7 |

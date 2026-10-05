@@ -13,7 +13,7 @@ def now():
 
 
 class ContinuityService:
-    """Shared conversation/context ledger for Personal AI across trusted devices."""
+    """Shared conversation/context ledger for Vishnu across trusted devices."""
 
     def __init__(self, path: Path, *, events=None, second_brain=None):
         self.path = Path(path)

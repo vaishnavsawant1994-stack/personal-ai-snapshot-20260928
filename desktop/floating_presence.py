@@ -88,7 +88,7 @@ except ImportError:  # package/static qualification can still import the control
 
 
 class FloatingPresence(QWidget):
-    """Minimal always-on-top projection over the canonical Personal AI runtime."""
+    """Minimal always-on-top projection over the canonical Vishnu runtime."""
 
     if pyqtSignal is not None:
         _runtime_state_event = pyqtSignal(object)
@@ -124,8 +124,8 @@ class FloatingPresence(QWidget):
         self._restore_position()
 
     def _build(self):
-        self.setWindowTitle('Personal AI Floating Presence')
-        self.setAccessibleName('Personal AI Floating Presence')
+        self.setWindowTitle('Vishnu Floating Presence')
+        self.setAccessibleName('Vishnu Floating Presence')
         self._apply_window_flags()
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -135,12 +135,12 @@ class FloatingPresence(QWidget):
         self.shell.setStyleSheet('QFrame#presenceShell{background:rgba(3,4,5,224);border:1px solid rgba(85,125,140,95);border-radius:22px;}QLineEdit{background:#070a0d;border:1px solid #17252d;border-radius:12px;padding:8px;color:#edf3f6;}QPushButton{background:#090d10;border:1px solid #17252d;border-radius:10px;padding:7px;color:#aab9c0;}QLabel{color:#dbe6ea;}')
         outer = QVBoxLayout(self); outer.setContentsMargins(0, 0, 0, 0); outer.addWidget(self.shell)
         layout = QVBoxLayout(self.shell); layout.setContentsMargins(8, 8, 8, 8); layout.setSpacing(6)
-        self.core = PulseWidget(); self.core.setAccessibleName('Personal AI core state'); self.core.setAccessibleDescription('Press Enter or Space to open quick controls'); self.core.setFixedSize(self.CORE_SIZE - 16, self.CORE_SIZE - 16)
+        self.core = PulseWidget(); self.core.setAccessibleName('Vishnu core state'); self.core.setAccessibleDescription('Press Enter or Space to open quick controls'); self.core.setFixedSize(self.CORE_SIZE - 16, self.CORE_SIZE - 16)
         self.core.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.core.mouseDoubleClickEvent = lambda event: self.toggle_panel(); self.core.keyPressEvent = self._core_key_press; layout.addWidget(self.core, alignment=Qt.AlignmentFlag.AlignCenter)
         self.panel = QWidget(); panel = QVBoxLayout(self.panel); panel.setContentsMargins(2, 2, 2, 2)
-        self.status = QLabel('Connecting'); self.status.setAccessibleName('Current Personal AI state'); panel.addWidget(self.status)
-        self.input = QLineEdit(); self.input.setAccessibleName('Quick message to Personal AI'); self.input.setPlaceholderText('Speak or type…'); self.input.returnPressed.connect(self.submit); panel.addWidget(self.input)
+        self.status = QLabel('Connecting'); self.status.setAccessibleName('Current Vishnu state'); panel.addWidget(self.status)
+        self.input = QLineEdit(); self.input.setAccessibleName('Quick message to Vishnu'); self.input.setPlaceholderText('Speak or type…'); self.input.returnPressed.connect(self.submit); panel.addWidget(self.input)
         actions = QHBoxLayout()
         self.voice = QPushButton('Voice'); self.voice.setAccessibleName('Toggle voice'); self.voice.clicked.connect(self.toggle_voice); actions.addWidget(self.voice)
         self.cancel = QPushButton('Cancel'); self.cancel.setAccessibleName('Cancel current work'); self.cancel.clicked.connect(self.cancel_work); actions.addWidget(self.cancel)

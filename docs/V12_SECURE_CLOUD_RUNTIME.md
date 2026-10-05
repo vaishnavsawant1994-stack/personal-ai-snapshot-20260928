@@ -1,6 +1,6 @@
-# Personal AI V12 — Secure Cloud Runtime & Web Companion
+# Vishnu V12 — Secure Cloud Runtime & Web Companion
 
-V12 introduces a fail-closed internet boundary for the Personal AI web companion without publishing privileged local credentials.
+V12 introduces a fail-closed internet boundary for the Vishnu web companion without publishing privileged local credentials.
 
 ## Security model
 

@@ -13,7 +13,7 @@ enum CompanionError: LocalizedError {
     case invalidBase, insecureTransport, notPaired, badResponse(String)
     var errorDescription:String? {
         switch self {
-        case .invalidBase:return "Enter a valid Personal AI server URL."
+        case .invalidBase:return "Enter a valid Vishnu server URL."
         case .insecureTransport:return "Secure pairing requires HTTPS. Enable insecure development mode only on a trusted test network."
         case .notPaired:return "Pair this iPhone first."
         case .badResponse(let text):return text
@@ -78,7 +78,7 @@ final class CompanionStore: ObservableObject {
         switch action{
         case "device_info":UIDevice.current.isBatteryMonitoringEnabled=true;return["ok":true,"result":["name":UIDevice.current.name,"system":"iOS","version":UIDevice.current.systemVersion,"model":UIDevice.current.model]]
         case "battery":UIDevice.current.isBatteryMonitoringEnabled=true;let level=UIDevice.current.batteryLevel;return["ok":true,"result":["percent":level<0 ? -1:Int(level*100),"state":UIDevice.current.batteryState.rawValue]]
-        case "notification":let content=UNMutableNotificationContent();content.title=params["title"] as? String ?? "Personal AI";content.body=params["body"] as? String ?? "";do{try await UNUserNotificationCenter.current().add(UNNotificationRequest(identifier:UUID().uuidString,content:content,trigger:nil));return["ok":true,"result":["delivered":true]]}catch{return["ok":false,"error":error.localizedDescription]}
+        case "notification":let content=UNMutableNotificationContent();content.title=params["title"] as? String ?? "Vishnu";content.body=params["body"] as? String ?? "";do{try await UNUserNotificationCenter.current().add(UNNotificationRequest(identifier:UUID().uuidString,content:content,trigger:nil));return["ok":true,"result":["delivered":true]]}catch{return["ok":false,"error":error.localizedDescription]}
         case "open_url","launch_app":guard let text=params["url"] as? String,let url=URL(string:text) else{return["ok":false,"error":"iOS requires a valid universal link or registered URL scheme in parameters.url"]};let opened=await UIApplication.shared.open(url);return["ok":opened,"result":["opened":opened]]
         case "voice_status":return["ok":true,"result":["active":voiceActive,"microphone_permission":voice.permissionDescription]]
         default:return["ok":false,"error":"Unsupported iOS action: \(action)"]

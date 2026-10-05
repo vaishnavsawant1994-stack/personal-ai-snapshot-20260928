@@ -1,4 +1,4 @@
-# Personal AI iPhone — TestFlight distribution
+# Vishnu iPhone — TestFlight distribution
 
 This project is prepared for real-iPhone beta distribution through Apple TestFlight without requiring the owner to keep a Mac.
 
@@ -16,7 +16,7 @@ No certificate, private key, provisioning profile, Apple password, or API token 
 Before a real TestFlight upload can succeed, the owner must have:
 
 - Active Apple Developer Program membership.
-- App Store Connect app record for **Personal AI Companion**.
+- App Store Connect app record for **Vishnu Companion**.
 - Bundle ID exactly `ai.personal.companion.ios` registered to the Apple developer team.
 - App Store distribution certificate and matching private key exported as `.p12`.
 - App Store provisioning profile for `ai.personal.companion.ios` with required capabilities, including push notifications.
@@ -44,7 +44,7 @@ The existing APNs server credentials remain separate from distribution credentia
 4. Wait for Apple to process the uploaded build.
 5. Add the owner as an internal tester where possible; otherwise configure an external TestFlight group and complete any required Beta App Review.
 6. On the iPhone, install Apple's TestFlight app and accept the invitation.
-7. Install Personal AI Companion.
+7. Install Vishnu Companion.
 8. Execute the physical evidence sequence: pairing → authenticated WebSocket → command round-trip → reconnect → device revocation → verify old credential rejected → APNs delivery.
 
 ## Fail-closed rule

@@ -66,5 +66,5 @@ class GoogleQualificationRecorder:
 
 def qualification_resource_names(stamp:int|None=None):
     stamp=int(time.time() if stamp is None else stamp)
-    base=f'Personal AI Connector Qualification {stamp}'
+    base=f'Vishnu Connector Qualification {stamp}'
     return {'drive_created':base+' Created.txt','drive_uploaded':base+' Uploaded.txt','spreadsheet':base}

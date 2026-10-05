@@ -72,8 +72,8 @@ class MainActivity : AppCompatActivity() {
             setPadding(0, 0, 0, dp(26))
         }
         val openCloud = Button(this).apply {
-            text = "Open Personal AI"
-            contentDescription = "Open the secure Personal AI cloud experience"
+            text = "Open Vishnu"
+            contentDescription = "Open the secure Vishnu cloud experience"
         }
         val continuity = TextView(this).apply {
             text = "Voice, Google sign-in, memory and conversations continue securely in your trusted browser."

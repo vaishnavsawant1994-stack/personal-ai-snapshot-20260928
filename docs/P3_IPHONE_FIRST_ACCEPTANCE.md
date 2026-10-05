@@ -10,7 +10,7 @@ A branch candidate may be called **Ready for Physical iPhone Testing** only when
 6. HTTPS enrollment fails closed when not configured or when the owner code is incorrect
 7. device credentials are not exposed to JavaScript storage
 8. protected PWA routes reject invalid/revoked devices
-9. voice turns execute through the existing Personal AI executor with cooperative cancellation
+9. voice turns execute through the existing Vishnu executor with cooperative cancellation
 10. P3.1 recorder receives transcript/reply/barge/cancel/state evidence
 11. the candidate is not described as P3.1 passed, Reliable, Production or Superior
 

@@ -12,7 +12,7 @@ Baseline date: 2026-09-16
 
 ## Architecture and authority boundaries
 
-Personal AI remains the system; models are replaceable brains. P9 adds governed Hybrid AI policy/composition without creating a second identity, memory, permission, approval, execution, recovery, model-health, failover, observability, or security authority.
+Vishnu remains the system; models are replaceable brains. P9 adds governed Hybrid AI policy/composition without creating a second identity, memory, permission, approval, execution, recovery, model-health, failover, observability, or security authority.
 
 - Model abstraction: existing `models/router.py::ModelRouter`.
 - Governed model router: existing `models/governed_router.py::GovernedModelRouter`.
