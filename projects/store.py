@@ -94,6 +94,21 @@ class ProjectStore:
                     'success_criteria': "TEXT NOT NULL DEFAULT ''",
                     'instructions': "TEXT NOT NULL DEFAULT ''",
                     'context_notes': "TEXT NOT NULL DEFAULT ''",
+                    'is_walkthrough': "INTEGER NOT NULL DEFAULT 0",
+                },
+                'project_threads': {
+                    'linked_item_type': "TEXT NOT NULL DEFAULT ''",
+                    'linked_item_id': 'TEXT',
+                    'pinned_reply_id': 'TEXT',
+                    'followed': 'INTEGER NOT NULL DEFAULT 0',
+                    'resolved_by': 'TEXT',
+                    'resolved_at': 'TEXT',
+                },
+                'project_files': {
+                    'folder_id': 'TEXT',
+                    'is_pinned': 'INTEGER NOT NULL DEFAULT 0',
+                    'source_state': "TEXT NOT NULL DEFAULT 'stored'",
+                    'deliverable_status': "TEXT NOT NULL DEFAULT ''",
                 },
                 'project_milestones': {
                     'completion_criteria': "TEXT NOT NULL DEFAULT ''",
@@ -171,6 +186,40 @@ class ProjectStore:
                     con.execute('INSERT INTO project_milestone_tasks VALUES(?,?,?)', (milestone_id, task_id, project_id))
         return self.get(project_id)
 
+    def create_walkthrough(self):
+        """Create clearly labeled, persisted learning records for the signed-in owner."""
+        with self.con() as con:
+            existing = con.execute("SELECT id FROM projects WHERE is_walkthrough=1 AND status!='archived' ORDER BY created_at DESC LIMIT 1").fetchone()
+        if existing:
+            return self.get(existing['id'])
+        target = (datetime.now(timezone.utc).date()).isoformat()
+        project = self.create(name='Walkthrough · Personal AI redesign',
+            goal='Use this sample workspace to learn how project goals, tasks, sources, and focused discussions fit together.',
+            description='Illustrative walkthrough records created on request. These examples do not represent actual work or Vishnu execution.',
+            project_type='software', success_criteria='Understand the saved project workflow and the available project sections.')
+        with self.lock, self.con() as con:
+            con.execute('UPDATE projects SET is_walkthrough=1 WHERE id=?', (project['id'],))
+        project = self.add_milestone(project['id'], title='Workspace review', outcome='Review project setup, context, and the saved work plan.',
+                                     target_date=target, completion_criteria='Review each walkthrough section and understand what is persisted.')
+        milestone_id = project['milestones'][0]['id']
+        project = self.add_task(project['id'], title='Review the project overview', description='Inspect the goal, status summary, and project context.', owner='owner', milestone_id=milestone_id)
+        overview_task_id = project['tasks'][0]['id']
+        project = self.add_task(project['id'], title='Check the source indexing state', description='Compare a supported text source with an uploaded file that is stored only.', owner='owner', milestone_id=milestone_id)
+        source_task_id = next(task['id'] for task in project['tasks'] if task['title']=='Check the source indexing state')
+        project = self.update_task(project['id'], overview_task_id, {'status':'done'})
+        project = self.update_task(project['id'], source_task_id, {'status':'needs_review'})
+        project = self.add_upload(project['id'], title='walkthrough-brief.md', media_type='text/markdown',
+            content=b'# Walkthrough brief\n\nThis is illustrative sample context created to demonstrate the Personal AI project workspace. It is not a real customer document.\n\n## Goal\nLearn how a goal, task, milestone, source file, and discussion connect.\n')
+        file_id = next(file['id'] for file in project['files'] if file['title']=='walkthrough-brief.md')
+        thread = self.add_thread(project['id'], title='Sample decision · keep project context scoped',
+            content='Walkthrough example: project files and task context belong to this workspace.',
+            linked_item_type='project_brief', linked_item_id=project['id'])['threads'][0]
+        reply = thread['replies'][0]
+        self.update_thread(project['id'], thread['id'], {'pinned_reply_id':reply['id'], 'followed':True})
+        self.add_thread(project['id'], title='Review source support', content='Walkthrough example: Markdown can be supplied as project text context.',
+            linked_item_type='file', linked_item_id=file_id)
+        return self.get(project['id'])
+
     def get(self, project_id, *, include_archived=False):
         with self.con() as con:
             project = self._dict(con.execute('''SELECT p.*,
@@ -194,6 +243,22 @@ class ProjectStore:
             for thread in project['threads']:
                 thread['replies'] = [dict(row) for row in con.execute(
                     'SELECT * FROM project_replies WHERE thread_id=? ORDER BY created_at', (thread['id'],)).fetchall()]
+                thread['followed'] = bool(thread.get('followed'))
+                thread['pinned_reply'] = next((reply for reply in thread['replies']
+                                                if reply['id'] == thread.get('pinned_reply_id')), None)
+                linked_type, linked_id = thread.get('linked_item_type'), thread.get('linked_item_id')
+                if linked_type and linked_id:
+                    source = {'project_brief': ('projects', 'id', 'name'), 'task': ('project_tasks', 'id', 'title'),
+                              'file': ('project_files', 'id', 'title'), 'milestone': ('project_milestones', 'id', 'title'),
+                              'proposal': ('project_approvals', 'id', 'title')}.get(linked_type)
+                    if source:
+                        table, key, label = source
+                        if linked_type == 'project_brief':
+                            linked = con.execute('SELECT name title FROM projects WHERE id=?', (project_id,)).fetchone()
+                        else:
+                            linked = con.execute(f'SELECT {label} title FROM {table} WHERE {key}=? AND project_id=?',
+                                                  (linked_id, project_id)).fetchone()
+                        thread['linked_item_title'] = linked['title'] if linked else ''
             for milestone in project['milestones']:
                 milestone['task_ids'] = [row['task_id'] for row in con.execute(
                     'SELECT task_id FROM project_milestone_tasks WHERE milestone_id=? ORDER BY task_id', (milestone['id'],)).fetchall()]
@@ -405,14 +470,75 @@ class ProjectStore:
                 JOIN project_file_blobs b ON b.file_id=f.id WHERE f.id=? AND f.project_id=?''', (file_id, project_id)).fetchone()
         return dict(row) if row else None
 
-    def add_thread(self, project_id, *, title, content):
+    def update_file(self, project_id, file_id, fields):
+        if 'is_pinned' not in fields:
+            return self.get(project_id)
+        pinned = int(bool(fields['is_pinned']))
+        with self.lock, self.con() as con:
+            if not con.execute('SELECT 1 FROM project_files WHERE id=? AND project_id=?', (file_id, project_id)).fetchone():
+                return None
+            con.execute('UPDATE project_files SET is_pinned=? WHERE id=? AND project_id=?', (pinned, file_id, project_id))
+            self._activity(con, project_id, 'pinned source' if pinned else 'unpinned source', 'file', file_id)
+        return self.get(project_id)
+
+    @staticmethod
+    def _validate_discussion_link(con, project_id, linked_item_type, linked_item_id):
+        if not linked_item_type and not linked_item_id:
+            return
+        tables = {'project_brief': ('projects', 'id'), 'task': ('project_tasks', 'id'),
+                  'file': ('project_files', 'id'), 'milestone': ('project_milestones', 'id'),
+                  'proposal': ('project_approvals', 'id')}
+        if linked_item_type not in tables or not linked_item_id:
+            raise ValueError('Choose a valid linked item from this project')
+        table, key = tables[linked_item_type]
+        if linked_item_type == 'project_brief':
+            valid = linked_item_id == project_id
+        else:
+            valid = con.execute(f'SELECT 1 FROM {table} WHERE {key}=? AND project_id=?',
+                                (linked_item_id, project_id)).fetchone()
+        if not valid:
+            raise ValueError('Linked item does not belong to this project')
+
+    def add_thread(self, project_id, *, title, content, linked_item_type='', linked_item_id=None):
         thread_id, stamp = str(uuid.uuid4()), _now()
         with self.lock, self.con() as con:
             if not con.execute('SELECT 1 FROM projects WHERE id=? AND status!=\'archived\'', (project_id,)).fetchone():
                 return None
-            con.execute('INSERT INTO project_threads VALUES(?,?,?,?,?,?)', (thread_id, project_id, title.strip(), 'open', stamp, stamp))
+            self._validate_discussion_link(con, project_id, linked_item_type, linked_item_id)
+            con.execute('''INSERT INTO project_threads(id,project_id,title,status,created_at,updated_at,
+                linked_item_type,linked_item_id) VALUES(?,?,?,?,?,?,?,?)''',
+                (thread_id, project_id, title.strip(), 'open', stamp, stamp, linked_item_type or '', linked_item_id))
             con.execute('INSERT INTO project_replies VALUES(?,?,?,?,?)', (str(uuid.uuid4()), thread_id, 'owner', content.strip(), stamp))
             self._activity(con, project_id, 'started discussion', 'discussion', thread_id, title.strip())
+        return self.get(project_id)
+
+    def update_thread(self, project_id, thread_id, fields):
+        allowed = {'title', 'status', 'linked_item_type', 'linked_item_id', 'pinned_reply_id', 'followed'}
+        fields = {key: (value.strip() if isinstance(value, str) else value) for key, value in fields.items() if key in allowed}
+        with self.lock, self.con() as con:
+            row = con.execute('SELECT * FROM project_threads WHERE id=? AND project_id=?', (thread_id, project_id)).fetchone()
+            if not row:
+                return None
+            if 'linked_item_type' in fields or 'linked_item_id' in fields:
+                self._validate_discussion_link(con, project_id, fields.get('linked_item_type', row['linked_item_type']),
+                                               fields.get('linked_item_id', row['linked_item_id']))
+            if 'pinned_reply_id' in fields and fields['pinned_reply_id'] and not con.execute(
+                'SELECT 1 FROM project_replies WHERE id=? AND thread_id=?', (fields['pinned_reply_id'], thread_id)).fetchone():
+                raise ValueError('Pinned decision reply must belong to this discussion')
+            if 'status' in fields and fields['status'] not in {'open', 'resolved'}:
+                raise ValueError('Discussion status must be open or resolved')
+            if 'followed' in fields:
+                fields['followed'] = int(bool(fields['followed']))
+            if 'status' in fields:
+                if fields['status'] == 'resolved':
+                    con.execute('UPDATE project_threads SET resolved_by=COALESCE(resolved_by,\'owner\'), resolved_at=COALESCE(resolved_at,?) WHERE id=?', (_now(), thread_id))
+                else:
+                    con.execute('UPDATE project_threads SET resolved_by=NULL,resolved_at=NULL WHERE id=?', (thread_id,))
+            if fields:
+                con.execute('UPDATE project_threads SET '+','.join(f'{key}=?' for key in fields)+',updated_at=? WHERE id=? AND project_id=?',
+                            (*fields.values(), _now(), thread_id, project_id))
+                self._activity(con, project_id, 'updated discussion', 'discussion', thread_id,
+                               ', '.join(fields.keys()))
         return self.get(project_id)
 
     def add_reply(self, project_id, thread_id, *, author, content):
