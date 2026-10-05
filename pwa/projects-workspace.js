@@ -236,3 +236,6 @@ function bindProjectActions(){document.querySelectorAll('[data-project-action]')
 modules.projects=['Projects','Project workspaces with dedicated plans, sources, decisions and Vishnu conversations.',()=>`${projectRows.length} projects`];
 const projectsOriginalOpenModule=openModule;
  openModule=async function(name){if(name!=='projects')return projectsOriginalOpenModule(name);await projectsOriginalOpenModule('projects');document.body.classList.add('focused-module');await loadProjectList();const route=new URL(location.href),projectId=route.searchParams.get('project');if(projectId){const section=projectTabs.some(([key])=>key===route.searchParams.get('section'))?route.searchParams.get('section'):'overview';await openProject(projectId,section)}};
+
+function restoreProjectRouteAfterAuth(){if(!new URL(location.href).searchParams.get('project'))return;let attempts=0;const restore=()=>{if(!new URL(location.href).searchParams.get('project'))return;if(typeof ownerAuthenticated!=='undefined'&&ownerAuthenticated){openModule('projects');return}if(++attempts<120)setTimeout(restore,100)};restore()}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',restoreProjectRouteAfterAuth,{once:true});else restoreProjectRouteAfterAuth();
