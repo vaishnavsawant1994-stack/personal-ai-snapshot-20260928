@@ -2,10 +2,24 @@ from __future__ import annotations
 
 import base64
 import binascii
+from datetime import date
+import re
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Cookie, HTTPException, Query, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+
+def _validate_iso_date(value):
+    if value is None or value == '':
+        return value
+    if not isinstance(value, str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', value):
+        raise ValueError('Dates must use the YYYY-MM-DD format')
+    try:
+        date.fromisoformat(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError('Dates must use the YYYY-MM-DD format') from exc
+    return value
 
 from projects.store import ProjectStore
 from security.request_context import current_trusted_request
@@ -13,9 +27,65 @@ from security.request_context import current_trusted_request
 
 class ProjectCreateBody(BaseModel):
     name: str = Field(min_length=1, max_length=120)
-    goal: str = Field(default='', max_length=2000)
+    goal: str = Field(default='', max_length=500)
     description: str = Field(default='', max_length=4000)
     target_date: str | None = Field(default=None, max_length=40)
+    project_type: str = Field(default='software', pattern='^(software|business|research|writing|personal)$')
+    success_criteria: str = Field(default='', max_length=500)
+    instructions: str = Field(default='', max_length=500)
+    context_notes: str = Field(default='', max_length=4000)
+    tasks: list['ProjectTaskDraft'] = Field(default_factory=list, max_length=30)
+    milestones: list['ProjectMilestoneDraft'] = Field(default_factory=list, max_length=15)
+
+    @field_validator('target_date')
+    @classmethod
+    def valid_target_date(cls, value):
+        return _validate_iso_date(value)
+
+    @model_validator(mode='after')
+    def validate_plan_links(self):
+        milestone_ids = [item.client_id for item in self.milestones]
+        if len(milestone_ids) != len(set(milestone_ids)):
+            raise ValueError('Milestone identifiers in the proposed plan must be unique')
+        task_ids = [item.client_id for item in self.tasks]
+        if len(task_ids) != len(set(task_ids)):
+            raise ValueError('Task identifiers in the proposed plan must be unique')
+        allowed = set(milestone_ids)
+        if any(task.milestone_client_id and task.milestone_client_id not in allowed for task in self.tasks):
+            raise ValueError('A proposed task links to a missing milestone')
+        return self
+
+
+class ProjectTaskDraft(BaseModel):
+    client_id: str = Field(min_length=1, max_length=80)
+    title: str = Field(min_length=1, max_length=180)
+    description: str = Field(default='', max_length=4000)
+    context_notes: str = Field(default='', max_length=2000)
+    priority: str = Field(default='medium', pattern='^(low|medium|high)$')
+    owner: str = Field(default='owner', pattern='^(owner|vishnu)$')
+    due_date: str | None = Field(default=None, max_length=40)
+    milestone_client_id: str | None = Field(default=None, max_length=80)
+
+    @field_validator('due_date')
+    @classmethod
+    def valid_due_date(cls, value):
+        return _validate_iso_date(value)
+
+
+class ProjectMilestoneDraft(BaseModel):
+    client_id: str = Field(min_length=1, max_length=80)
+    title: str = Field(min_length=1, max_length=180)
+    outcome: str = Field(min_length=1, max_length=2000)
+    completion_criteria: str = Field(min_length=1, max_length=2000)
+    target_date: str = Field(min_length=1, max_length=40)
+
+    @field_validator('target_date')
+    @classmethod
+    def valid_target_date(cls, value):
+        return _validate_iso_date(value)
+
+
+ProjectCreateBody.model_rebuild()
 
 
 class ProjectUpdateBody(BaseModel):
@@ -23,38 +93,77 @@ class ProjectUpdateBody(BaseModel):
     goal: str | None = Field(default=None, max_length=2000)
     description: str | None = Field(default=None, max_length=4000)
     target_date: str | None = Field(default=None, max_length=40)
+    project_type: str | None = Field(default=None, pattern='^(software|business|research|writing|personal)$')
+    success_criteria: str | None = Field(default=None, max_length=500)
+    instructions: str | None = Field(default=None, max_length=500)
+    context_notes: str | None = Field(default=None, max_length=4000)
+    status: str | None = Field(default=None, pattern='^(active|paused|completed|archived)$')
+
+    @field_validator('target_date')
+    @classmethod
+    def valid_target_date(cls, value):
+        return _validate_iso_date(value)
 
 
 class TaskCreateBody(BaseModel):
     title: str = Field(min_length=1, max_length=180)
     description: str = Field(default='', max_length=4000)
+    context_notes: str = Field(default='', max_length=2000)
     priority: str = Field(default='medium', pattern='^(low|medium|high)$')
+    status: str = Field(default='planned', pattern='^(planned|in_progress|blocked|needs_review|paused|done|failed)$')
     owner: str = Field(default='vishnu', pattern='^(owner|vishnu)$')
     due_date: str | None = Field(default=None, max_length=40)
     milestone_id: str | None = Field(default=None, max_length=80)
+    file_ids: list[str] = Field(default_factory=list, max_length=30)
+
+    @field_validator('due_date')
+    @classmethod
+    def valid_due_date(cls, value):
+        return _validate_iso_date(value)
 
 
 class TaskUpdateBody(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=180)
     description: str | None = Field(default=None, max_length=4000)
-    status: str | None = Field(default=None, pattern='^(planned|in_progress|blocked|done)$')
+    context_notes: str | None = Field(default=None, max_length=2000)
+    status: str | None = Field(default=None, pattern='^(planned|in_progress|blocked|needs_review|paused|done|failed)$')
     priority: str | None = Field(default=None, pattern='^(low|medium|high)$')
     owner: str | None = Field(default=None, pattern='^(owner|vishnu)$')
     due_date: str | None = Field(default=None, max_length=40)
     milestone_id: str | None = Field(default=None, max_length=80)
+    file_ids: list[str] | None = Field(default=None, max_length=30)
+
+    @field_validator('due_date')
+    @classmethod
+    def valid_due_date(cls, value):
+        return _validate_iso_date(value)
 
 
 class MilestoneCreateBody(BaseModel):
     title: str = Field(min_length=1, max_length=180)
-    outcome: str = Field(default='', max_length=2000)
-    target_date: str | None = Field(default=None, max_length=40)
+    outcome: str = Field(min_length=1, max_length=2000)
+    target_date: str = Field(min_length=1, max_length=40)
+    completion_criteria: str = Field(min_length=1, max_length=2000)
+    task_ids: list[str] = Field(default_factory=list, max_length=100)
+
+    @field_validator('target_date')
+    @classmethod
+    def valid_target_date(cls, value):
+        return _validate_iso_date(value)
 
 
 class MilestoneUpdateBody(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=180)
-    outcome: str | None = Field(default=None, max_length=2000)
+    outcome: str | None = Field(default=None, min_length=1, max_length=2000)
     status: str | None = Field(default=None, pattern='^(planned|in_progress|blocked|done)$')
-    target_date: str | None = Field(default=None, max_length=40)
+    target_date: str | None = Field(default=None, min_length=1, max_length=40)
+    completion_criteria: str | None = Field(default=None, min_length=1, max_length=2000)
+    task_ids: list[str] | None = Field(default=None, max_length=100)
+
+    @field_validator('target_date')
+    @classmethod
+    def valid_target_date(cls, value):
+        return _validate_iso_date(value)
 
 
 class FileLinkBody(BaseModel):
@@ -77,6 +186,20 @@ class DiscussionCreateBody(BaseModel):
 
 class DiscussionReplyBody(BaseModel):
     content: str = Field(min_length=1, max_length=4000)
+
+
+class ProjectApprovalBody(BaseModel):
+    title: str = Field(min_length=1, max_length=180)
+    summary: str = Field(min_length=1, max_length=4000)
+    impact_summary: str = Field(min_length=1, max_length=2000)
+    scope_summary: str = Field(min_length=1, max_length=2000)
+    task_ids: list[str] = Field(default_factory=list, max_length=100)
+    file_ids: list[str] = Field(default_factory=list, max_length=100)
+
+
+class ProjectApprovalDecisionBody(BaseModel):
+    decision: str = Field(pattern='^(approved|changes_requested)$')
+    comments: str = Field(default='', max_length=4000)
 
 
 def projects_router(runtime, store: ProjectStore):
@@ -102,9 +225,11 @@ def projects_router(runtime, store: ProjectStore):
 
     @router.get('')
     def list_projects(q: str = Query(default='', max_length=120),
+                      status: str = Query(default='all', pattern='^(all|active|paused|needs_review|completed|archived)$'),
+                      sort: str = Query(default='recent', pattern='^(recent|name|created)$'),
                       pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
         authenticate(pa_device, pa_token)
-        return {'projects': store.list(q)}
+        return {'projects': store.list(q, status=status, sort=sort)}
 
     @router.post('', status_code=201)
     def create_project(body: ProjectCreateBody,
@@ -113,7 +238,10 @@ def projects_router(runtime, store: ProjectStore):
         name = body.name.strip()
         if not name:
             raise HTTPException(422, 'A project name is required')
-        return {'project': store.create(name=name, goal=body.goal, description=body.description, target_date=body.target_date)}
+        draft = body.model_dump()
+        draft['tasks'] = [item.model_dump() for item in body.tasks]
+        draft['milestones'] = [item.model_dump() for item in body.milestones]
+        return {'project': store.create(**draft)}
 
     @router.get('/{project_id}')
     def get_project(project_id: str,
@@ -126,7 +254,9 @@ def projects_router(runtime, store: ProjectStore):
                        pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
         authenticate(pa_device, pa_token, write=True)
         try:
-            value = store.update(project_id, body.model_dump(exclude_unset=True, exclude_none=True))
+            fields = body.model_dump(exclude_unset=True)
+            fields = {key: value for key, value in fields.items() if value is not None or key == 'target_date'}
+            value = store.update(project_id, fields)
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
         if not value:
@@ -139,6 +269,14 @@ def projects_router(runtime, store: ProjectStore):
         authenticate(pa_device, pa_token, write=True)
         if not store.archive(project_id):
             raise HTTPException(404, 'Project not found')
+
+    @router.post('/{project_id}/restore')
+    def restore_project(project_id: str,
+                        pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        authenticate(pa_device, pa_token, write=True)
+        if not store.restore(project_id):
+            raise HTTPException(404, 'Archived project not found')
+        return {'project': project_or_404(project_id)}
 
     @router.post('/{project_id}/tasks', status_code=201)
     def add_task(project_id: str, body: TaskCreateBody,
@@ -157,7 +295,9 @@ def projects_router(runtime, store: ProjectStore):
                     pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
         authenticate(pa_device, pa_token, write=True)
         try:
-            value = store.update_task(project_id, task_id, body.model_dump(exclude_unset=True, exclude_none=True))
+            fields = body.model_dump(exclude_unset=True)
+            fields = {key: value for key, value in fields.items() if value is not None or key in {'milestone_id', 'due_date'}}
+            value = store.update_task(project_id, task_id, fields)
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
         if not value:
@@ -168,7 +308,10 @@ def projects_router(runtime, store: ProjectStore):
     def add_milestone(project_id: str, body: MilestoneCreateBody,
                       pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
         authenticate(pa_device, pa_token, write=True)
-        value = store.add_milestone(project_id, **body.model_dump())
+        try:
+            value = store.add_milestone(project_id, **body.model_dump())
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
         if not value:
             raise HTTPException(404, 'Project not found')
         return {'project': value}
@@ -180,6 +323,42 @@ def projects_router(runtime, store: ProjectStore):
         value = store.update_milestone(project_id, milestone_id, body.model_dump(exclude_unset=True, exclude_none=True))
         if not value:
             raise HTTPException(404, 'Milestone or project not found')
+        return {'project': value}
+
+    @router.post('/{project_id}/approvals', status_code=201)
+    def create_project_approval(project_id: str, body: ProjectApprovalBody,
+                                pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        authenticate(pa_device, pa_token, write=True)
+        try:
+            value = store.add_approval(project_id, **body.model_dump())
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        if not value:
+            raise HTTPException(404, 'Project not found')
+        return {'project': value}
+
+    @router.post('/{project_id}/approvals/{approval_id}/decision')
+    def decide_project_approval(project_id: str, approval_id: str, body: ProjectApprovalDecisionBody,
+                                pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        authenticate(pa_device, pa_token, write=True)
+        try:
+            value = store.decide_approval(project_id, approval_id, **body.model_dump())
+        except ValueError as exc:
+            raise HTTPException(409 if 'already' in str(exc) else 422, str(exc)) from exc
+        if not value:
+            raise HTTPException(404, 'Proposal not found')
+        return {'project': value, 'execution_started': False}
+
+    @router.post('/{project_id}/approvals/{approval_id}/resubmit')
+    def resubmit_project_approval(project_id: str, approval_id: str, body: ProjectApprovalBody,
+                                  pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        authenticate(pa_device, pa_token, write=True)
+        try:
+            value = store.revise_approval(project_id, approval_id, **body.model_dump())
+        except ValueError as exc:
+            raise HTTPException(409 if 'Only proposals' in str(exc) else 422, str(exc)) from exc
+        if not value:
+            raise HTTPException(404, 'Proposal not found')
         return {'project': value}
 
     @router.post('/{project_id}/files', status_code=201)
