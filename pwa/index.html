@@ -2309,6 +2309,7 @@ button:active:focus-visible{transform:none!important;transition:none!important}
     @media(prefers-reduced-motion:reduce){.managed-dialog-form,.managed-dialog-close,.managed-dialog-actions button,.creation-type-tabs button{transition:none!important}.managed-dialog,.managed-dialog *{scroll-behavior:auto!important}}
 
 </style>
+  <link rel="stylesheet" href="/iphone/home-chat-redesign.css" />
 </head>
 <body>
 <main class="app-shell">
@@ -2347,8 +2348,19 @@ button:active:focus-visible{transform:none!important;transition:none!important}
     <aside class="side-copy"><h1>A more<br/>capable you.</h1><div class="verbs"><span>Understand</span><span>Remember</span><span>Reason</span><span>Plan</span><span>Act with you</span></div></aside>
     <div class="presence">
       <div id="homeIntro" class="home-intro">
-        <div class="home-greeting"><h1 id="homeGreeting">Good evening</h1><p>How can I help you today?</p></div>
-        <div class="quick-actions" aria-label="Home actions">
+        <div class="home-greeting"><h1 id="homeGreeting">Good evening</h1><p id="homeSubtitle">What would you like to work on?</p></div>
+        <div id="homeSphereStage" class="home-sphere-stage"></div>
+        <div class="v-shortcuts" aria-label="Home actions">
+          <button id="vProjects" class="v-card" type="button"><span class="v-icon"><svg viewBox="0 0 24 24"><path d="M3 7h6l2 2h10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span><span><strong>Projects</strong><small>Start or resume a workspace</small></span><span class="v-chev" aria-hidden="true">›</span></button>
+          <button id="vAssign" class="v-card" type="button"><span class="v-icon"><svg viewBox="0 0 24 24"><path d="M12 3l1.6 4.2L18 9l-4.4 1.8L12 15l-1.6-4.2L6 9l4.4-1.8z"/></svg></span><span><strong>Assign work</strong><small>Give Vishnu a task</small></span><span class="v-chev" aria-hidden="true">›</span></button>
+          <button id="vToday" class="v-card" type="button"><span class="v-icon"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg></span><span><strong>Today</strong><small>Tasks and plans</small></span><span class="v-chev" aria-hidden="true">›</span></button>
+          <button id="vMemory" class="v-card" type="button"><span class="v-icon"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="7" rx="7" ry="3"/><path d="M5 7v5c0 1.7 3.1 3 7 3s7-1.3 7-3V7M5 12v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5"/></svg></span><span><strong>Memory</strong><small>Saved context</small></span><span class="v-chev" aria-hidden="true">›</span></button>
+        </div>
+        <section id="homeProjectsSection" class="v-recent" aria-labelledby="homeProjectsHeading">
+          <div class="v-recent-head"><h2 id="homeProjectsHeading">Recent projects</h2><button id="vViewAllProjects" class="v-link" type="button">View all ›</button></div>
+          <div id="homeProjectList" class="v-project-list" aria-live="polite"></div>
+        </section>
+        <div class="quick-actions" aria-label="Home actions" hidden>
           <button id="quickAsk" class="quick-action" type="button"><span class="quick-icon"><svg viewBox="0 0 24 24"><path d="M5 5.5h14v11H9l-4 3z"/></svg></span><span class="quick-copy"><strong>Chat</strong><span>Ask anything</span></span><span class="action-arrow" aria-hidden="true">›</span></button>
           <button id="quickData" class="quick-action" type="button"><span class="quick-icon"><svg viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7zM14 3v5h4M10 13h5M10 16h5"/></svg></span><span class="quick-copy"><strong>Create</strong><span>Write &amp; plan</span></span><span class="action-arrow" aria-hidden="true">›</span></button>
           <button id="quickTask" class="quick-action" type="button"><span class="quick-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="9" r="1"/><path d="m4 18 6-6 4 3 3-4 4 5"/></svg></span><span class="quick-copy"><strong>Imagine</strong><span>Visual ideas</span></span><span class="action-arrow" aria-hidden="true">›</span></button>
@@ -2382,6 +2394,10 @@ button:active:focus-visible{transform:none!important;transition:none!important}
       <div id="conversationTitle" class="conversation-title">Current conversation</div>
       <div id="messageStream" class="message-stream" aria-live="polite"></div>
       <div class="conversation"><div id="transcript" class="transcript"></div><div id="reply" class="reply"></div></div>
+            <div id="vChatDock" class="v-chat-dock">
+        <button id="vContextChip" class="v-context-chip" type="button">General chat · No project context <span aria-hidden="true">ⓘ ›</span></button>
+        <button id="vNewChat" class="v-new-chat" type="button" aria-label="New chat" title="New chat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>New chat</span></button>
+      </div>
       <form id="composer" class="composer"><button id="attachmentButton" class="attach-button" type="button" aria-label="Add a document"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button><input id="attachmentInput" class="attachment-input" type="file" accept=".txt,.md,.csv,.json,.pdf,.docx,.xlsx"/><span class="wave-mini" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span><textarea id="message" rows="1" autocomplete="off" enterkeyhint="send" aria-label="Message Personal AI" placeholder="Message Personal AI…"></textarea><button id="sendButton" class="round-button" type="submit" aria-label="Send message"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button><button id="micButton" class="round-button" type="button" aria-label="Start hands-free conversation"><svg viewBox="0 0 24 24"><rect x="8" y="3" width="8" height="12" rx="4"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8.5 21h7"/></svg></button></form>
       <div id="approvalPanel" class="approval-panel hidden"><div><strong id="approvalTitle">Approval required</strong><span id="approvalDescription"></span></div><button id="rejectApproval" type="button">Cancel</button><button id="approveApproval" class="approve" type="button">Approve once</button></div>
       <div id="sessionConflictPanel" class="approval-panel hidden"><div><strong>Old session found</strong><span>An unfinished session from another trusted browser is blocking this iPhone.</span></div><button id="cancelTakeover" type="button">Cancel</button><button id="confirmTakeover" class="approve" type="button">Continue here</button></div>
@@ -2418,6 +2434,7 @@ button:active:focus-visible{transform:none!important;transition:none!important}
     <nav class="sidebar-main-nav" aria-label="Personal AI sections">
       <div class="sidebar-section-label">Workspace</div>
       <button  class="sidebar-nav-row active" type="button" data-app-module="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10H3zM9 20v-7h6v7"/></svg><span>Home</span></button>
+      <button class="sidebar-nav-row" type="button" data-app-module="projects"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5"/></svg><span>Projects</span></button>
       <button id="sidebarToday" class="sidebar-nav-row" type="button" data-app-module="today"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M7 2v5M17 2v5M3 10h18M8 15h3"/></svg><span>Today</span></button>
       <button id="appConversations" class="sidebar-nav-row" type="button" data-app-module="conversations"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v12H9l-5 3z"/></svg><span>Conversations</span></button>
       <button  class="sidebar-nav-row" type="button" data-app-module="memory"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4c-3-3-8 0-7 4-3 2-1 6 2 6-2 4 3 7 5 4M12 4c3-3 8 0 7 4 3 2 1 6-2 6 2 4-3 7-5 4M12 3v18M8 11h8"/></svg><span>Memory</span></button>
@@ -4117,5 +4134,8 @@ function drawCore(){if(!width||!height)return;tick++;ctx.clearRect(0,0,width,hei
 function updateConversationSync(){if(conversationSyncTimer){clearInterval(conversationSyncTimer);conversationSyncTimer=null}if(document.visibilityState==='visible')conversationSyncTimer=setInterval(syncConversation,5000)}
 $('messageStream').addEventListener('scroll',()=>{const stream=$('messageStream');conversationPinnedToBottom=stream.scrollHeight-stream.clientHeight-stream.scrollTop<32},{passive:true});window.addEventListener('resize',resizeCanvas);if('ResizeObserver'in window)new ResizeObserver(resizeCanvas).observe(canvas.parentElement);document.addEventListener('visibilitychange',updateConversationSync);window.addEventListener('pagehide',()=>{if(conversationSyncTimer){clearInterval(conversationSyncTimer);conversationSyncTimer=null}});resizeCanvas();if(synth){synth.getVoices();synth.onvoiceschanged=()=>synth.getVoices()}if('serviceWorker'in navigator)navigator.serviceWorker.register('/iphone/sw.js').catch(()=>{});check().finally(()=>requestAnimationFrame(resizeCanvas));updateConversationSync();
 </script>
+<link rel="stylesheet" href="/iphone/projects-workspace.css" />
+<script src="/iphone/projects-workspace.js"></script>
+<script src="/iphone/home-chat-redesign.js"></script>
 </body>
 </html>

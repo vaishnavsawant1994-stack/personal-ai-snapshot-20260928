@@ -1,0 +1,128 @@
+/* Shared Vishnu Home and system-wide chat. Same design at every width; only the grid changes. */
+:root{
+  --v-bg:#07111c;
+  --v-card:rgba(12,28,48,.72);
+  --v-card-border:rgba(118,164,214,.22);
+  --v-text:#f4f7fb;
+  --v-muted:#9aabc0;
+  --v-blue:#2f86ff;
+  --v-blue-2:#3b9bff;
+  --v-amber:#e2a84a;
+  --v-green:#3dce8a;
+}
+body.v-ref{background:#07111c!important}
+body.v-ref .app-shell{background:
+  radial-gradient(900px 520px at 50% 18%, rgba(38,92,168,.22), transparent 62%),
+  radial-gradient(700px 420px at 80% 80%, rgba(18,48,96,.18), transparent 70%),
+  #07111c!important}
+
+body.v-ref .topbar{
+  display:grid;grid-template-columns:44px minmax(0,1fr) auto;align-items:center;gap:8px;
+  min-height:56px;padding:10px 16px 0;background:transparent;border:0
+}
+body.v-ref .history-button,body.v-ref .chat-menu-button,body.v-ref .owner-status{
+  width:44px;height:44px;min-width:44px;border-radius:12px;color:#d5e2f2;background:transparent;border:0
+}
+body.v-ref .v-home-title{display:none;font-size:17px;font-weight:650;letter-spacing:.01em;color:#f7f9fc}
+body.v-ref.home-landing .topbar .header-core{display:none!important}
+body.v-ref:not(.home-landing) .v-home-title{display:none!important}
+body.v-ref:not(.home-landing) .v-chat-identity{display:block}
+body.v-ref.home-landing .v-chat-identity{display:none}
+body.v-ref .v-chat-identity{min-width:0}
+body.v-ref .v-scope{
+  display:flex;flex-direction:column;align-items:flex-start;gap:1px;max-width:100%;
+  background:transparent;border:0;color:inherit;text-align:left;padding:0;cursor:pointer
+}
+body.v-ref .v-scope strong{font-size:15px;font-weight:650;color:#f5f8fc}
+body.v-ref .v-scope strong:after{content:" ▾";font-size:11px;color:#9eb0c6}
+body.v-ref .v-scope span{font-size:12px;color:#8ea0b6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+body.v-ref:not(.home-landing) .topbar .header-core{
+  display:grid!important;width:42px!important;height:42px!important;min-width:42px!important;justify-self:center
+}
+body.v-ref:not(.home-landing) .topbar .header-core .core-stage{width:42px!important;height:42px!important;min-width:42px!important;max-width:42px!important}
+body.v-ref .topbar-actions{display:flex;align-items:center;gap:2px}
+body.v-ref .owner-status .trust{display:none}
+body.v-ref.home-landing .chat-menu-button,body.v-ref.home-landing .owner-status{display:none!important}
+
+body.v-ref.home-landing .side-copy,
+body.v-ref.home-landing .today-panel,
+body.v-ref.home-landing .state,
+body.v-ref.home-landing .conversation-title,
+body.v-ref.home-landing .message-stream,
+body.v-ref.home-landing .quick-actions,body.v-ref.home-landing #homeRecentSection{display:none!important}
+body.v-ref .home-intro{width:min(920px,100%);margin:0 auto;padding:8px 8px 18px}
+body.v-ref .home-greeting{text-align:center;margin:18px 0 8px}
+body.v-ref .home-greeting h1{font-size:clamp(28px,3vw,34px);line-height:1.2;font-weight:680;letter-spacing:-.03em;color:#f7f9fc;margin:0}
+body.v-ref .home-greeting p{margin:8px 0 0;color:#b7c4d6;font-size:18px}
+.home-sphere-stage{display:grid;place-items:center;height:248px;margin:6px 0 10px}
+.home-sphere-stage .core-stage{width:220px!important;height:220px!important;min-width:220px!important;max-width:220px!important;position:relative!important}
+.v-shortcuts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:8px 0 22px}
+.v-card,.v-project{
+  display:grid;grid-template-columns:36px minmax(0,1fr) 14px;gap:10px;align-items:center;
+  width:100%;min-height:74px;padding:12px 14px;text-align:left;color:#f4f7fb;
+  background:rgba(13,30,52,.78);border:1px solid rgba(120,164,214,.22);border-radius:16px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.03)
+}
+.v-card:hover,.v-project:hover,.v-card:focus-visible,.v-project:focus-visible{border-color:rgba(80,150,255,.55);outline:2px solid rgba(80,150,255,.45);outline-offset:2px}
+.v-icon{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:rgba(47,134,255,.12);color:#7eb6ff}
+.v-icon svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7}
+.v-card strong,.v-project strong{display:block;font-size:15px;font-weight:650}
+.v-card small,.v-project small{display:block;margin-top:2px;color:#93a6bd;font-size:13px;line-height:1.35}
+.v-chev{color:#8ea3bb;font-size:18px}
+.v-recent-head{display:flex;align-items:center;justify-content:space-between;margin:0 2px 10px}
+.v-recent-head h2{margin:0;font-size:16px;font-weight:650}
+.v-link{background:transparent;border:0;color:#8eb7ff;font-size:14px;min-height:44px;padding:0 4px}
+.v-project-list{display:grid;gap:10px}
+.v-project{grid-template-columns:36px minmax(0,1fr) 16px;min-height:68px}
+.v-status-dot{width:7px;height:7px;border-radius:50%;background:#3dce8a;display:inline-block;margin-right:6px}
+.v-empty,.v-error{padding:14px;border:1px dashed rgba(120,164,214,.28);border-radius:16px;color:#b7c4d6}
+.v-empty button,.v-error button{margin-top:8px}
+
+.v-chat-dock{display:none;width:min(820px,100%);margin:0 auto 8px;align-items:center;justify-content:space-between;gap:10px}
+body.v-ref:not(.home-landing) .v-chat-dock{display:flex}
+.v-context-chip{
+  display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:0 12px;border-radius:999px;
+  color:#d5e0ee;background:rgba(10,22,38,.8);border:1px solid rgba(120,164,214,.24);font-size:13px
+}
+.v-new-chat{
+  margin-left:auto;display:inline-flex;align-items:center;gap:6px;height:40px;padding:0 16px;border:0;border-radius:999px;
+  background:linear-gradient(180deg,#3d93ff,#2b74f6);color:#fff;font-weight:680;
+  box-shadow:0 8px 22px rgba(47,134,255,.32)
+}
+.v-new-chat svg{width:16px;height:16px;stroke:#fff;fill:none;stroke-width:2}
+body.v-ref .composer{
+  width:min(820px,calc(100% - 28px));margin:0 auto 16px;border-radius:28px;
+  background:rgba(10,20,34,.92);border:1px solid rgba(126,166,214,.28);min-height:56px
+}
+body.v-ref .composer textarea{font-size:16px}
+body.v-ref .message.user{background:#2f86ff;color:#fff;border-radius:18px 18px 6px 18px}
+body.v-ref .message.assistant{background:transparent;color:#e8eef6}
+.v-work{display:grid;gap:10px;margin:12px 0 8px}
+.v-work h3{margin:8px 0 4px;font-size:15px;color:#d5deea}
+.v-work-card{
+  display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:10px;align-items:center;
+  padding:12px;border-radius:16px;background:rgba(13,30,52,.78);border:1px solid rgba(120,164,214,.2)
+}
+.v-pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:4px 8px;font-size:12px;border:1px solid transparent}
+.v-pill.warn{color:#e2a84a;border-color:rgba(226,168,74,.45)}
+.v-pill.ok{color:#3dce8a;border-color:rgba(61,206,138,.4)}
+.v-action{height:36px;padding:0 14px;border:0;border-radius:12px;background:#2f86ff;color:#fff;font-weight:650}
+.v-toolbar{display:flex;gap:8px;margin-top:8px}
+.v-toolbar button{width:36px;height:36px;border-radius:10px;border:0;background:transparent;color:#b7c6d8}
+
+@media (max-width:760px){
+  body.v-ref.home-landing .v-home-title{display:block;justify-self:center;grid-column:2}
+  body.v-ref .home-greeting h1{font-size:26px}
+  body.v-ref .home-greeting p{font-size:16px}
+  .home-sphere-stage{height:188px}
+  .home-sphere-stage .core-stage{width:156px!important;height:156px!important;min-width:156px!important;max-width:156px!important}
+  .v-shortcuts{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .v-card{min-height:86px;padding:12px}
+  .v-new-chat{width:44px;height:44px;padding:0;border-radius:50%;justify-content:center}
+  .v-new-chat span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .v-work-card{grid-template-columns:36px minmax(0,1fr); }
+  .v-work-card .v-action{grid-column:2;justify-self:end}
+}
+@media (prefers-reduced-motion:reduce){
+  .v-new-chat,.home-sphere-stage{box-shadow:none}
+}
