@@ -26,9 +26,13 @@ const server = createServer(async (req, res) => {
     if (path === '/preferences') return send(200, { continuous_voice: true, voice_rate: 1, quiet_hours: true });
     if (path === '/everyday/active') return send(200, { items: [] });
     if (path === '/conversations') return send(200, { conversations: serverState.conversations });
-    if (path === '/projects' && req.method === 'GET') return send(200, { projects: serverState.projects });
+    if (path === '/approvals-center') return send(200, { approvals: [] });
+    if (path === '/projects' && req.method === 'GET') return send(200, { projects: serverState.projects.filter(item => url.searchParams.get('status') === 'archived' ? item.status === 'archived' : item.status !== 'archived') });
     if (path === '/projects' && req.method === 'POST') {
-      const project = { id: `project-${serverState.nextId++}`, ...body, status: 'active', conversation_id: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), task_count: 0, done_count: 0, milestone_count: 0, tasks: [], milestones: [], files: [], threads: [], activity: [] };
+      const milestoneIds = new Map((body.milestones || []).map(item => [item.client_id, `milestone-${serverState.nextId++}`]));
+      const tasks = (body.tasks || []).map(item => ({ id: `task-${serverState.nextId++}`, ...item, milestone_id: milestoneIds.get(item.milestone_client_id) || null, status: 'planned', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }));
+      const milestones = (body.milestones || []).map(item => ({ id: milestoneIds.get(item.client_id), ...item, status: 'planned', task_ids: tasks.filter(task => task.milestone_id === milestoneIds.get(item.client_id)).map(task => task.id) }));
+      const project = { id: `project-${serverState.nextId++}`, ...body, status: 'active', conversation_id: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), task_count: tasks.length, done_count: 0, milestone_count: milestones.length, tasks, milestones, files: [], approvals: [], threads: [], activity: [] };
       serverState.projects.unshift(project); project.activity.push({ id: 'event-create', actor: 'owner', action: 'created project', target_type: 'project', detail: project.name, created_at: project.created_at });
       return send(201, { project });
     }
@@ -39,10 +43,20 @@ const server = createServer(async (req, res) => {
       const tail = projectPath[2];
       const result = () => { project.task_count = project.tasks.length; project.done_count = project.tasks.filter(item => item.status === 'done').length; project.milestone_count = project.milestones.length; project.updated_at = new Date().toISOString(); return { project }; };
       if (!tail && req.method === 'GET') return send(200, result());
+      if (!tail && req.method === 'PATCH') { Object.assign(project, body); return send(200, result()); }
+      if (!tail && req.method === 'DELETE') { project.status = 'archived'; return send(204, ''); }
+      if (tail === '/restore' && req.method === 'POST') { project.status = 'active'; return send(200, result()); }
       if (tail === '/tasks' && req.method === 'POST') { project.tasks.push({ id: `task-${serverState.nextId++}`, project_id: project.id, status: 'planned', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...body }); project.activity.push({ id: `event-${serverState.nextId++}`, actor: 'owner', action: 'created task', target_type: 'task', detail: body.title, created_at: new Date().toISOString() }); return send(201, result()); }
       const taskPath = tail.match(/^\/tasks\/([^/]+)$/);
       if (taskPath && req.method === 'PATCH') { const task = project.tasks.find(item => item.id === decodeURIComponent(taskPath[1])); if (!task) return send(404, { detail: 'Task not found' }); Object.assign(task, body); task.updated_at = new Date().toISOString(); return send(200, result()); }
-      if (tail === '/milestones' && req.method === 'POST') { project.milestones.push({ id: `milestone-${serverState.nextId++}`, status: 'planned', ...body }); return send(201, result()); }
+      if (tail === '/milestones' && req.method === 'POST') { project.milestones.push({ id: `milestone-${serverState.nextId++}`, status: 'planned', task_ids: body.task_ids || [], ...body }); return send(201, result()); }
+      const milestonePath = tail.match(/^\/milestones\/([^/]+)$/);
+      if (milestonePath && req.method === 'PATCH') { Object.assign(project.milestones.find(item => item.id === decodeURIComponent(milestonePath[1])), body); return send(200, result()); }
+      if (tail === '/approvals' && req.method === 'POST') { project.approvals.unshift({ id: `proposal-${serverState.nextId++}`, status: 'pending', proposed_at: new Date().toISOString(), history: [], reviewer_comments: '', ...body }); return send(201, result()); }
+      const proposalDecision = tail.match(/^\/approvals\/([^/]+)\/decision$/);
+      if (proposalDecision && req.method === 'POST') { const item = project.approvals.find(row => row.id === decodeURIComponent(proposalDecision[1])); item.status = body.decision; item.decision = body.decision; item.reviewer = 'owner'; item.reviewed_at = new Date().toISOString(); item.reviewer_comments = body.comments; item.history.push({ actor: 'owner', decision: body.decision, comments: body.comments, created_at: item.reviewed_at }); return send(200, { ...result(), execution_started: false }); }
+      const proposalResubmit = tail.match(/^\/approvals\/([^/]+)\/resubmit$/);
+      if (proposalResubmit && req.method === 'POST') { const item = project.approvals.find(row => row.id === decodeURIComponent(proposalResubmit[1])); Object.assign(item, body, { status: 'pending', reviewer_comments: '', decision: null, reviewed_at: null }); item.history.push({ actor: 'owner', decision: 'resubmitted', comments: '', created_at: new Date().toISOString() }); return send(200, result()); }
       if (tail === '/conversation' && req.method === 'POST') { project.conversation_id ||= `conversation-${serverState.nextId++}`; return send(201, { conversation_id: project.conversation_id, project }); }
       if (tail === '/activity' && req.method === 'POST') { project.activity.push({ id: `event-${serverState.nextId++}`, actor: 'owner', action: 'asked Vishnu', target_type: 'conversation', detail: body.content, created_at: new Date().toISOString() }); return send(201, result()); }
       if (tail === '/discussions' && req.method === 'POST') { project.threads.push({ id: `thread-${serverState.nextId++}`, title: body.title, status: 'open', updated_at: new Date().toISOString(), replies: [{ author: 'owner', content: body.content }] }); return send(201, result()); }
@@ -72,36 +86,88 @@ try {
     await page.waitForFunction(() => document.body.classList.contains('home-landing'));
     await page.locator('#historyButton').click();
     await page.locator('[data-app-module="projects"]').click();
-    await page.getByRole('heading', { name: 'Your project work starts here' }).waitFor();
-    await page.getByRole('button', { name: 'Create your first project' }).click();
-    const dialog = page.locator('dialog.project-dialog');
-    await dialog.locator('input[name="name"]').fill(`Responsive workspace ${viewport.width}`);
-    await dialog.locator('textarea[name="goal"]').fill('Ship the project workspace and verify owner-controlled data.');
-    await dialog.getByRole('button', { name: 'Save' }).click();
+    await page.getByRole('button', { name: /New project/i }).first().click();
+    await page.locator('.project-wizard-page input[name="name"]').fill(`Responsive workspace ${viewport.width}`);
+    await page.locator('.project-wizard-page textarea[name="goal"]').fill('Ship the project workspace and verify owner-controlled data.');
+    await page.locator('[data-wizard-next]').click();
+    await page.locator('[data-wizard-next]').click();
+    await page.locator('[data-wizard-create]').click();
     await page.getByRole('heading', { name: `Responsive workspace ${viewport.width}` }).waitFor();
     await page.getByRole('button', { name: 'Add task' }).click();
     const taskDialog = page.locator('dialog.project-dialog');
     await taskDialog.locator('input[name="title"]').fill('Verify the responsive workspace');
+    await taskDialog.locator('textarea[name="context_notes"]').fill('Review the design brief before this task.');
     await taskDialog.getByRole('button', { name: 'Save' }).click();
-    await page.getByRole('button', { name: 'Work plan' }).click();
+    await page.getByRole('button', { name: /Add milestone/i }).first().click();
+    const milestoneDialog = page.locator('dialog.project-dialog');
+    await milestoneDialog.locator('input[name="title"]').fill('Workspace ready');
+    await milestoneDialog.locator('textarea[name="outcome"]').fill('The responsive workspace is ready to use.');
+    await milestoneDialog.locator('input[name="target_date"]').fill('2026-12-15');
+    await milestoneDialog.locator('textarea[name="completion_criteria"]').fill('The owner reviewed the mobile and desktop layout.');
+    await milestoneDialog.locator('input[name="task_ids"]').check();
+    await milestoneDialog.getByRole('button', { name: 'Save' }).click();
+    const savedProject = serverState.projects.find(item => item.name === `Responsive workspace ${viewport.width}`);
+    assert.equal(savedProject.tasks[0].context_notes, 'Review the design brief before this task.');
+    assert.deepEqual(savedProject.milestones[0].task_ids, [savedProject.tasks[0].id]);
+    await page.getByRole('tab', { name: 'Work plan' }).click();
     await page.getByText('Verify the responsive workspace').waitFor();
+    await page.getByText('Workspace ready').waitFor();
     await page.getByRole('button', { name: 'Ask Vishnu' }).first().click();
     await page.locator('#projectChatForm textarea').fill('Please make a safe implementation plan.');
     await page.locator('#projectChatForm button[type="submit"]').click();
     await page.getByText(/Vishnu plan for:/).waitFor();
     assert.equal(serverState.turns.at(-1).conversation_id, serverState.projects[0].conversation_id, 'Project chat must use its linked canonical conversation');
-    await page.getByRole('button', { name: 'Files & sources' }).click();
-    await page.locator('[data-project-action="upload-file"]').click();
-    await page.locator('#projectFileInput').setInputFiles({ name: 'project-notes.md', mimeType: 'text/markdown', buffer: Buffer.from('Responsive acceptance criteria') });
+    await page.getByRole('tab', { name: 'Files & sources' }).click();
+    await page.locator('[data-project-action="add-files"]').click();
+    const filesDialog = page.locator('dialog.project-files-dialog');
+    await filesDialog.locator('input[type=file]').setInputFiles({ name: 'project-notes.md', mimeType: 'text/markdown', buffer: Buffer.from('Responsive acceptance criteria') });
+    await filesDialog.getByText('project-notes.md').waitFor();
+    await filesDialog.getByRole('button', { name: 'Add to project' }).click();
     await page.getByText('project-notes.md').waitFor();
-    await page.getByRole('button', { name: 'Activity' }).click();
+    await page.getByRole('tab', { name: 'Work plan' }).click();
+    await page.locator('[data-project-task-edit]').first().click();
+    const editTaskDialog = page.locator('dialog.project-dialog');
+    await editTaskDialog.locator('input[name="file_ids"]').check();
+    await editTaskDialog.getByRole('button', { name: 'Save' }).click();
+    assert.deepEqual(savedProject.tasks[0].file_ids, [savedProject.files[0].id]);
+    await page.getByText(/Files: project-notes.md/).waitFor();
+    await page.getByRole('tab', { name: 'Approvals' }).click();
+    await page.getByRole('button', { name: 'New proposal' }).click();
+    const proposalDialog = page.locator('dialog.project-dialog');
+    await proposalDialog.locator('input[name="title"]').fill('Review scoped project change');
+    await proposalDialog.locator('textarea[name="summary"]').fill('A specific change for this workspace.');
+    await proposalDialog.locator('textarea[name="impact_summary"]').fill('Only the project workflow changes.');
+    await proposalDialog.locator('textarea[name="scope_summary"]').fill('This project and linked task only.');
+    await proposalDialog.locator('input[name="task_ids"]').check();
+    await proposalDialog.locator('input[name="file_ids"]').check();
+    await proposalDialog.getByRole('button', { name: 'Save' }).click();
+    await page.getByRole('button', { name: 'Review' }).click();
+    const reviewDialog = page.locator('dialog.project-approval-dialog');
+    await reviewDialog.locator('textarea[name="comments"]').fill('Clarify the rollback scope.');
+    await reviewDialog.getByRole('button', { name: 'Request changes' }).click();
+    await page.getByText(/changes requested/).waitFor();
+    await page.getByRole('button', { name: 'Revise' }).click();
+    const reviseDialog = page.locator('dialog.project-dialog');
+    await reviseDialog.locator('textarea[name="summary"]').fill('Revised with bounded rollback scope.');
+    await reviseDialog.getByRole('button', { name: 'Save' }).click();
+    await page.getByRole('button', { name: 'Review' }).click();
+    const approvalDialog = page.locator('dialog.project-approval-dialog');
+    await approvalDialog.getByRole('button', { name: 'Approve & continue' }).click();
+    assert.equal(savedProject.approvals[0].status, 'approved');
+    assert.equal(savedProject.approvals[0].history.length, 3);
+    assert.equal(savedProject.approvals[0].history[0].comments, 'Clarify the rollback scope.');
+    await page.getByRole('tab', { name: 'Activity' }).click();
     await page.getByText('asked Vishnu').waitFor();
+    await page.getByRole('tab', { name: 'Live work' }).click();
+    await page.getByRole('button', { name: 'Review pending approvals' }).click();
+    await page.getByRole('heading', { name: 'No pending approvals' }).waitFor();
+    await page.getByRole('button', { name: 'Close approvals' }).click();
     const overflow = await page.evaluate(() => ({ body: document.body.scrollWidth, viewport: innerWidth, module: document.querySelector('#moduleBody').scrollWidth }));
     assert.ok(overflow.body <= overflow.viewport + 1, `Workspace must not cause page-width overflow: ${JSON.stringify(overflow)}`);
     assert.deepEqual(errors, [], `No browser exceptions at ${viewport.width}px: ${errors.join(' | ')}`);
     await page.close();
   }
-  console.log('Projects workspace browser smoke passed at 390px and 1440px: create, task, project chat, file upload, activity, and no horizontal page overflow.');
+  console.log('Projects workspace browser smoke passed at 390px and 1440px: wizard, task-file links, proposal review/comments/resubmission, project chat, upload, activity, and no horizontal overflow.');
 } finally {
   await browser.close();
   await new Promise(resolve => server.close(resolve));
