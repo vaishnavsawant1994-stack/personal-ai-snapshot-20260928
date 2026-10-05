@@ -112,3 +112,20 @@ def test_combined_timeline_requires_owner_and_includes_real_completed_records():
     for limit in ['0', '-1', '501', 'abc']:
         assert client.get('/iphone/api/everyday/timeline?limit=' + limit,
                           cookies=auth()).status_code == 422
+
+
+def test_individual_everyday_item_detail_is_owner_scoped_and_404s_missing_records():
+    client, registry, everyday = client_for_today()
+    everyday.records['task-42'] = {
+        'id': 'task-42', 'kind': 'task', 'title': 'Review the launch brief',
+        'description': 'Saved task detail', 'status': 'scheduled',
+    }
+    url = '/iphone/api/everyday/items/task-42'
+    assert client.get(url).status_code == 401
+    registry.allowed = False
+    assert client.get(url, cookies=auth()).status_code == 403
+    registry.allowed = True
+    result = client.get(url, cookies=auth())
+    assert result.status_code == 200
+    assert result.json()['item']['description'] == 'Saved task detail'
+    assert client.get('/iphone/api/everyday/items/missing', cookies=auth()).status_code == 404

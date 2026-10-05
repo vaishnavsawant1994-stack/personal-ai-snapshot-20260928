@@ -219,11 +219,13 @@ def test_ui_preferences_are_scoped_to_the_trusted_device_and_persist(tmp_path):
         'continuous_voice': True,
         'voice_rate': 1.0,
         'quiet_hours': True,
+        'pinned_sidebar_items': [],
     }
     updated = client.put('/iphone/api/preferences', json={
         'continuous_voice': False,
         'voice_rate': 1.15,
         'quiet_hours': False,
+        'pinned_sidebar_items': ['chat:conversation-1', 'project:project-1'],
     })
     assert updated.status_code == 200
     assert client.get('/iphone/api/preferences').json() == updated.json()
