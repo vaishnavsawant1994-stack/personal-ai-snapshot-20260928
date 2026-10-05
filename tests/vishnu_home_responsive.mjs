@@ -64,8 +64,10 @@ try {
         dock: rect("#vChatDock"), newChat: rect("#vNewChat"), viewAll: rect("#vViewAllProjects"),
         projectsHeading: rect("#homeProjectsHeading"), projectList: rect("#homeProjectList"),
         composer: rect("#composer"), home: rect("#homeIntro"),
+        homeScroll: { height: document.querySelector("#homeIntro").clientHeight, scrollHeight: document.querySelector("#homeIntro").scrollHeight, maxHeight: getComputedStyle(document.querySelector("#homeIntro")).maxHeight },
       };
     });
+    if (width <= 600) console.log(`mobile layout ${width}x${height}: ${JSON.stringify(layout)}`);
     assert.ok(layout.documentWidth <= width, `horizontal overflow at ${width}px`);
     assert.equal(layout.gridColumns, columns, `shortcut grid should have ${columns} columns at ${width}px`);
     assert.equal(layout.cards.length, 4);
