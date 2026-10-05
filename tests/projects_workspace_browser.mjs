@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -8,6 +8,8 @@ const { chromium } = require('playwright');
 
 const root = new URL('../', import.meta.url);
 const read = path => readFile(new URL(path, root));
+const screenshotDir = process.env.PROJECT_SCREENSHOT_DIR;
+if (screenshotDir) await mkdir(screenshotDir, { recursive: true });
 const serverState = { projects: [], conversations: [], turns: [], nextId: 1 };
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
@@ -86,7 +88,32 @@ try {
     await page.waitForFunction(() => document.body.classList.contains('home-landing'));
     await page.locator('#historyButton').click();
     await page.locator('[data-app-module="projects"]').click();
+    await page.locator('.project-list-page').waitFor();
+    if (screenshotDir) await page.screenshot({ path: `${screenshotDir}/projects-${viewport.width}.png`, fullPage: false });
+    const projectSurface = await page.evaluate(() => {
+      const panel = document.querySelector('#modulePanel').getBoundingClientRect();
+      const page = document.querySelector('.project-list-page').getBoundingClientRect();
+      const shell = document.querySelector('.app-shell').getBoundingClientRect();
+      const panelStyle = getComputedStyle(document.querySelector('#modulePanel'));
+      return { viewport: innerWidth, projectClass: !!document.querySelector('#modulePanel.module-panel.open[data-surface=\"projects\"]'), shellLeft: shell.left, shellWidth: shell.width, panelWidth: panel.width, panelHeight: panel.height, panelLeft: panel.left, panelPosition: panelStyle.position, panelTransform: panelStyle.transform, pageLeft: page.left, bodyWidth: document.body.scrollWidth };
+    });
+    assert.ok(projectSurface.panelWidth >= projectSurface.viewport - 1, `Projects should use the available workspace width: ${JSON.stringify(projectSurface)}`);
+    assert.ok(projectSurface.panelHeight > 0, `Projects should fill the workspace height: ${JSON.stringify(projectSurface)}`);
+    assert.ok(projectSurface.bodyWidth <= projectSurface.viewport + 1, `Projects should not overflow horizontally: ${JSON.stringify(projectSurface)}`);
+    if (viewport.isMobile) assert.ok(projectSurface.pageLeft >= -1 && projectSurface.pageLeft < 20, `Mobile Projects should not sit inside an inset card: ${JSON.stringify(projectSurface)}`);
     await page.getByRole('button', { name: /New project/i }).first().click();
+    await page.locator('.project-wizard-page').waitFor();
+    if (screenshotDir) await page.screenshot({ path: `${screenshotDir}/project-setup-${viewport.width}.png`, fullPage: false });
+    const wizardSurface = await page.evaluate(() => {
+      const panel = document.querySelector('#modulePanel').getBoundingClientRect();
+      const body = document.querySelector('#moduleBody').getBoundingClientRect();
+      const wizard = document.querySelector('.project-wizard-page').getBoundingClientRect();
+      const actions = document.querySelector('.project-wizard-actions').getBoundingClientRect();
+      return { viewport: innerWidth, panelWidth: panel.width, panelHeight: panel.height, bodyHeight: body.height, wizardWidth: wizard.width, wizardHeight: wizard.height, actionsBottom: actions.bottom, bodyWidth: document.body.scrollWidth };
+    });
+    assert.ok(wizardSurface.wizardWidth >= wizardSurface.panelWidth - 3, `Project setup should fill its page surface: ${JSON.stringify(wizardSurface)}`);
+    assert.ok(wizardSurface.wizardHeight >= wizardSurface.bodyHeight - 20, `Project setup should fill the available page content: ${JSON.stringify(wizardSurface)}`);
+    assert.ok(wizardSurface.bodyWidth <= wizardSurface.viewport + 1, `Project setup should not overflow horizontally: ${JSON.stringify(wizardSurface)}`);
     await page.locator('.project-wizard-page input[name="name"]').fill(`Responsive workspace ${viewport.width}`);
     await page.locator('.project-wizard-page textarea[name="goal"]').fill('Ship the project workspace and verify owner-controlled data.');
     await page.locator('[data-wizard-next]').click();
@@ -167,6 +194,17 @@ try {
     assert.deepEqual(errors, [], `No browser exceptions at ${viewport.width}px: ${errors.join(' | ')}`);
     await page.close();
   }
+  const preview = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
+  await preview.goto(`http://127.0.0.1:${address.port}/iphone/?uiDemo=1`, { waitUntil: 'domcontentloaded' });
+  await preview.waitForFunction(() => document.body.classList.contains('home-landing'));
+  await preview.locator('#historyButton').click();
+  await preview.locator('[data-app-module="projects"]').click();
+  await preview.getByText('Preview data · sample projects only; these records are not saved to your account.').waitFor();
+  assert.equal(await preview.locator('.project-card-rich').count(), 4, 'demo preview should show four clearly labeled sample projects');
+  assert.ok((await preview.locator('.project-card-rich [data-project-open]').first().innerText()).includes('Preview'), 'demo project action must remain labeled as preview');
+  await preview.locator('.project-card-rich [data-project-open]').first().click();
+  await preview.getByText(/Preview project only/).waitFor();
+  await preview.close();
   console.log('Projects workspace browser smoke passed at 390px and 1440px: wizard, task-file links, proposal review/comments/resubmission, project chat, upload, activity, and no horizontal overflow.');
 } finally {
   await browser.close();

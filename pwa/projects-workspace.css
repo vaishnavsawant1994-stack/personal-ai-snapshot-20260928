@@ -27,3 +27,72 @@
 .project-approval-view{display:grid;grid-template-rows:auto minmax(0,1fr) auto;max-height:inherit}.project-approval-view>.project-dialog-fields{min-height:180px}.project-approval-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px;border:1px solid var(--pr-border);border-radius:13px;background:rgba(10,19,32,.78)}.project-approval-row>div{display:grid;gap:5px;min-width:0}.project-approval-row strong{font-size:.84rem}.project-approval-row small{color:#96a6bd;font-size:.7rem;overflow-wrap:anywhere}.project-approval-banner{display:grid;gap:5px;padding:13px;border:1px solid rgba(239,182,75,.3);border-radius:12px;background:rgba(109,71,18,.14);color:#f0c973}.project-approval-banner span{font-size:.73rem;color:#c6b38b}.project-approval-summary,.project-approval-facts>div{padding:13px;border:1px solid var(--pr-border);border-radius:12px;background:rgba(10,19,32,.7)}.project-approval-summary h3{margin:0 0 7px;font-size:.9rem}.project-approval-summary p{margin:0;color:#b7c5d8;overflow-wrap:anywhere}.project-approval-facts{display:grid;grid-template-columns:1fr 1fr;gap:8px}.project-approval-facts>div{display:grid;gap:5px}.project-approval-facts b{font-size:.72rem}.project-approval-facts span{font-size:.7rem;color:#9eafc5;overflow-wrap:anywhere}
 @media(max-width:760px){.project-approval-dialog{position:fixed;inset:0;width:100vw;max-width:none;height:100dvh;max-height:none;margin:0;border:0;border-radius:0;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}.project-approval-dialog .project-approval-view{height:100%;max-height:100%;grid-template-rows:auto minmax(0,1fr) auto}.project-approval-dialog .project-dialog-fields{max-height:none;padding:14px 16px 24px}.project-approval-dialog .project-dialog-actions{grid-template-columns:1fr 1fr;padding:11px 14px max(11px,env(safe-area-inset-bottom))}.project-approval-dialog [data-approval-approve]{grid-column:1/-1;grid-row:1}.project-approval-facts{grid-template-columns:1fr}}
 .project-task-context{color:#8fa1ba;font-size:.72rem;line-height:1.45;margin:.15rem 0 0;overflow-wrap:anywhere}
+
+/* Projects is a page surface, not a card embedded in the Home dashboard.
+   Give its list and setup wizard the full workspace viewport. */
+body:has(#modulePanel.module-panel.open[data-surface="projects"]) .app-shell{height:100dvh;min-height:100dvh;overflow:hidden;grid-template-rows:auto minmax(0,1fr);gap:0}
+body:has(#modulePanel.module-panel.open[data-surface="projects"]) .module-panel{display:flex;width:min(1480px,100%);height:100%;min-height:0;max-width:none;flex-direction:column;overflow:hidden;margin:0 auto;border:0;border-radius:0;background:transparent;padding:8px 0 0;backdrop-filter:none}
+body:has(#modulePanel.module-panel.open[data-surface="projects"]) .module-head{display:none}
+body:has(#modulePanel.module-panel.open[data-surface="projects"]) .module-body{display:block;flex:1 1 auto;min-height:0;width:100%;height:auto;max-height:none;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;margin:0;padding:0 0 16px;scrollbar-width:thin}
+body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-list-page{min-height:100%;align-content:start;padding:8px 0 24px}
+body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-page{height:100%;min-height:0;display:flex;flex-direction:column;gap:0;padding-bottom:0;overflow:hidden}
+body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-layout{flex:1 1 auto;min-height:0}
+body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-actions{flex:none}
+body:has(#modulePanel.module-panel.open[data-surface="projects"]) #modulePanel.module-panel.open[data-surface="projects"]{position:relative!important;inset:auto!important;transform:none!important;width:100%!important;height:100%!important;max-width:none!important;margin:0 auto!important}
+@media(max-width:900px){
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .app-shell{position:relative;display:block;padding:0}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .topbar{height:calc(env(safe-area-inset-top) + 56px);min-height:calc(env(safe-area-inset-top) + 56px);padding:env(safe-area-inset-top) 14px 0}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) #modulePanel.module-panel.open[data-surface="projects"]{position:absolute!important;inset:calc(env(safe-area-inset-top) + 56px) 0 env(safe-area-inset-bottom)!important;inset-inline:0!important;transform:none!important;width:auto!important;max-width:none!important;height:auto!important;margin:0!important;padding:0}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .module-body{padding:0;scrollbar-width:none}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .module-body::-webkit-scrollbar{display:none}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-list-page{gap:18px;min-height:100%;padding:8px 18px max(24px,env(safe-area-inset-bottom))}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-list-page>.project-heading{align-items:center;gap:10px}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-list-page>.project-heading h1{font-size:1.75rem;line-height:1.1}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-list-page>.project-heading p{max-width:32ch;font-size:.88rem;line-height:1.4}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-list-toolbar{gap:10px}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-results-heading{gap:12px;flex-wrap:wrap;font-size:.75rem}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-empty{min-height:min(340px,42dvh);display:flex;flex-direction:column;justify-content:center;align-items:center;padding:28px 20px}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-empty p{font-size:.92rem}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-page{gap:0;margin:0;border:0;border-radius:0;background:transparent}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-heading{flex:none;padding:12px 18px 0}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-heading h1{font-size:clamp(1.8rem,7vw,2.25rem);line-height:1.12}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-heading p{font-size:.93rem;line-height:1.5}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-steps{flex:none;padding:14px 18px 18px}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-layout{display:block;overflow-y:auto;overscroll-behavior:contain;padding:4px 18px 20px}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-form{gap:18px}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-form>label{gap:8px;font-size:.95rem}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-form input,body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-form textarea,body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-form select{min-height:54px;padding:13px 15px;font-size:1rem}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-form textarea{min-height:132px}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-actions{position:relative;bottom:auto;z-index:3;display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:10px;margin:0;padding:12px 16px max(12px,env(safe-area-inset-bottom));border-top:1px solid var(--pr-border);background:rgba(5,11,19,.98);backdrop-filter:blur(16px)}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-actions .project-btn{min-height:54px;white-space:normal}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-actions>[data-wizard-cancel]{display:none}
+}
+@media(max-width:420px){
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-list-page{padding-inline:14px}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-list-page>.project-heading h1{font-size:1.6rem}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-list-page>.project-heading p{font-size:.8rem}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-list-page>.project-heading .project-btn{padding-inline:10px;font-size:.78rem}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-heading,body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-layout{padding-inline:16px}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-actions{padding-inline:12px}
+}
+
+/* Remove the shared modal treatment when Projects is the active page. */
+body:has(#modulePanel.module-panel.open[data-surface="projects"]) #modulePanel.module-panel.open[data-surface="projects"]{border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+@media(max-width:900px){
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .topbar{display:grid!important;position:relative;z-index:40}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-list-page{display:flex;flex-direction:column}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-empty{flex:1 0 auto}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-list-page>.project-heading h1{font-size:1.5rem}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-page>.project-breadcrumb{display:flex;flex:none;padding:8px 16px;border-bottom:1px solid var(--pr-border)}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-heading h1{font-size:clamp(1.65rem,6vw,2rem)}
+}
+body:has(#modulePanel.module-panel.open[data-surface="projects"]).focused-module .topbar{display:grid!important;visibility:visible!important;opacity:1!important}
+@media(max-width:900px){body:has(#modulePanel.module-panel.open[data-surface="projects"]).focused-module .topbar{display:grid!important;visibility:visible!important;opacity:1!important}}
+@media(max-width:900px){
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .topbar{grid-template-columns:48px minmax(0,1fr) 48px;align-items:center}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .topbar .v-chat-identity,body:has(#modulePanel.module-panel.open[data-surface="projects"]) .topbar .header-core{display:none!important}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .topbar .v-home-title{position:static;grid-column:2;grid-row:1;display:block!important;transform:none;justify-self:center;pointer-events:none;font-size:.9rem;font-weight:600;letter-spacing:0}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .topbar .topbar-actions{grid-column:3;grid-row:1;justify-self:end}
+}
+
+.project-demo-notice{margin:-8px 0 0;padding:9px 12px;border:1px solid rgba(65,145,255,.24);border-radius:11px;background:rgba(20,75,145,.15);color:#a9caff;font-size:.78rem;line-height:1.4}
