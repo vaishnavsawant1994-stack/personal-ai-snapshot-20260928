@@ -10,11 +10,14 @@
       body.v-ref.home-landing .home{height:calc(100dvh - 130px)!important;max-height:calc(100dvh - 130px)!important;min-height:0!important;padding-top:calc(var(--home-fixed-top,0px) + var(--home-fixed-header-h,66px) + 4px)!important;padding-bottom:8px!important;overflow:hidden!important}
       body.v-ref.home-landing .home-intro{max-height:100%;min-height:0;padding-bottom:12px}
       body.v-ref.home-landing .home-greeting{margin:8px 0 9px}
-      body.v-ref.home-landing .home-sphere-stage{height:148px;margin:0 0 5px}
-      body.v-ref.home-landing .home-sphere-stage .core-stage{width:142px!important;height:142px!important;min-width:142px!important;max-width:142px!important}
-      body.v-ref.home-landing .v-shortcuts{gap:8px;margin:6px 0 14px}
-      body.v-ref.home-landing .v-card{min-height:76px;padding:9px 10px}
+      body.v-ref.home-landing .home-sphere-stage{height:210px;margin:0 0 11px}
+      body.v-ref.home-landing .home-sphere-stage .core-stage{width:156px!important;height:156px!important;min-width:156px!important;max-width:156px!important}
+      body.v-ref.home-landing .v-shortcuts{gap:10px;margin:6px 0 28px}
+      body.v-ref.home-landing .v-card{min-height:86px;padding:14px 12px}
       body.v-ref.home-landing .v-recent-head{margin-bottom:6px}
+    }
+    @media(max-width:760px) and (max-height:650px){
+      body.v-ref.home-landing .home-sphere-stage{height:148px;margin:0 0 5px}
     }`;
     document.head.append(style);
   }
