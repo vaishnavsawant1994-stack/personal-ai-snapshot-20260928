@@ -96,3 +96,30 @@ body:has(#modulePanel.module-panel.open[data-surface="projects"]).focused-module
 }
 
 .project-demo-notice{margin:-8px 0 0;padding:9px 12px;border:1px solid rgba(65,145,255,.24);border-radius:11px;background:rgba(20,75,145,.15);color:#a9caff;font-size:.78rem;line-height:1.4}
+
+/* Keep the mobile setup form anchored to the viewport instead of allowing
+   intrinsic form widths to create a sideways-moving page. */
+@media(max-width:900px){
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) #modulePanel,
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) #moduleBody{max-width:100vw;overflow-x:hidden}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) #moduleBody{scrollbar-width:none}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) #moduleBody::-webkit-scrollbar{display:none}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-page,
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-page *{box-sizing:border-box}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-page{width:100%;max-width:100%;min-width:0;overflow:hidden}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-layout{width:100%;max-width:100%;min-width:0;overflow-x:hidden;scrollbar-width:none}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-layout::-webkit-scrollbar{display:none}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-main,
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-form,
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-form>label{display:grid;width:100%;max-width:100%;min-width:0;justify-items:stretch;text-align:left}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-form input,
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-form textarea,
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-form select,
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-link-form input{box-sizing:border-box;width:100%;max-width:100%;min-width:0}
+}
+@media(max-width:900px){
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-layout{overflow-y:auto}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-layout::-webkit-scrollbar{display:none}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-form>label>span{display:block;min-width:0}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-form>label em{display:inline;color:#78adff;font-style:normal}
+}
