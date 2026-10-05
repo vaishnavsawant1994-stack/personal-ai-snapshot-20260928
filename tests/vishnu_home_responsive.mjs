@@ -60,6 +60,7 @@ try {
       return {
         documentWidth: document.documentElement.scrollWidth,
         gridColumns: getComputedStyle(document.querySelector(".v-shortcuts")).gridTemplateColumns.split(" ").length,
+        greeting: rect("#homeGreeting"), sphere: rect("#homeSphereStage"), intro: rect("#homeIntro"),
         cards: [...document.querySelectorAll(".v-card")].map(node => rect(`#${node.id}`)),
         dock: rect("#vChatDock"), newChat: rect("#vNewChat"), viewAll: rect("#vViewAllProjects"),
         projectsHeading: rect("#homeProjectsHeading"), projectList: rect("#homeProjectList"),
