@@ -110,6 +110,53 @@ class ProjectStoreTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'already been reviewed'):
                 store.decide_approval(project['id'], approval['id'], decision='approved')
 
+    def test_discussion_links_follow_pins_and_resolution_are_persisted_and_scoped(self):
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / 'projects.sqlite3'
+            store = ProjectStore(path)
+            project = store.create(name='Discussion workspace')
+            other = store.create(name='Other workspace')
+            task = store.add_task(project['id'], title='Review mobile layout')['tasks'][0]
+            thread = store.add_thread(project['id'], title='Mobile layout', content='Check keyboard spacing.',
+                                      linked_item_type='task', linked_item_id=task['id'])['threads'][0]
+            reply_id = thread['replies'][0]['id']
+            saved = store.update_thread(project['id'], thread['id'], {'followed': True, 'pinned_reply_id': reply_id})
+            saved_thread = saved['threads'][0]
+            self.assertTrue(saved_thread['followed'])
+            self.assertEqual(saved_thread['pinned_reply']['content'], 'Check keyboard spacing.')
+            self.assertEqual(saved_thread['linked_item_title'], 'Review mobile layout')
+            resolved = store.update_thread(project['id'], thread['id'], {'status': 'resolved'})['threads'][0]
+            self.assertEqual(resolved['status'], 'resolved')
+            self.assertTrue(resolved['resolved_at'])
+            self.assertIsNone(store.update_thread(other['id'], thread['id'], {'status': 'open'}))
+            with self.assertRaisesRegex(ValueError, 'does not belong'):
+                store.add_thread(other['id'], title='Cross project', content='No.', linked_item_type='task', linked_item_id=task['id'])
+            reopened = ProjectStore(path).get(project['id'])['threads'][0]
+            self.assertEqual(reopened['status'], 'resolved')
+
+    def test_files_can_be_pinned_only_within_their_project(self):
+        with TemporaryDirectory() as folder:
+            store = ProjectStore(Path(folder) / 'projects.sqlite3')
+            first = store.create(name='First')
+            second = store.create(name='Second')
+            file_id = store.add_upload(first['id'], title='brief.md', media_type='text/markdown', content=b'Brief')['files'][0]['id']
+            self.assertTrue(store.update_file(first['id'], file_id, {'is_pinned': True})['files'][0]['is_pinned'])
+            self.assertIsNone(store.update_file(second['id'], file_id, {'is_pinned': False}))
+
+    def test_walkthrough_is_explicit_persisted_and_idempotent(self):
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / 'projects.sqlite3'
+            store = ProjectStore(path)
+            project = store.create_walkthrough()
+            self.assertEqual(project['is_walkthrough'], 1)
+            self.assertIn('illustrative', project['description'].lower())
+            self.assertTrue(project['tasks'])
+            self.assertTrue(project['milestones'])
+            self.assertTrue(project['files'])
+            self.assertTrue(project['threads'])
+            self.assertEqual(store.create_walkthrough()['id'], project['id'])
+            self.assertEqual(ProjectStore(path).get(project['id'])['is_walkthrough'], 1)
+
 
 if __name__ == '__main__':
     unittest.main()
