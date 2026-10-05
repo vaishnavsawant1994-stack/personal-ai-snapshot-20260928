@@ -229,7 +229,7 @@ class ProjectStore:
         target = (datetime.now(timezone.utc).date()).isoformat()
         project = self.create(name='Walkthrough · Personal AI redesign',
             goal='Use this sample workspace to learn how project goals, tasks, sources, and focused discussions fit together.',
-            description='Illustrative walkthrough records created on request. These examples do not represent actual work or Vishnu execution.',
+            description='illustrative walkthrough records created on request. These examples do not represent actual work or Vishnu execution.',
             project_type='software', success_criteria='Understand the saved project workflow and the available project sections.')
         with self.lock, self.con() as con:
             con.execute('UPDATE projects SET is_walkthrough=1 WHERE id=?', (project['id'],))
