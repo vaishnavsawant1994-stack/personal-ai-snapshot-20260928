@@ -18,7 +18,8 @@
       body.v-ref.home-landing .v-card{height:92px;min-height:92px;padding:9px;grid-template-columns:32px minmax(0,1fr) 8px;gap:6px}
       body.v-ref.home-landing .v-card .v-icon{width:32px;height:32px}
       body.v-ref.home-landing .v-recent-head{margin-bottom:6px}
-      body.v-ref.home-landing #composer{background:#0a1422!important;border-color:rgba(146,157,175,.3)!important}
+      body.v-ref.home-landing #vChatDock{background:transparent!important;background-image:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;box-shadow:none!important}
+      body.v-ref.home-landing #composer{background:transparent!important;background-image:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;box-shadow:none!important;border-color:rgba(146,157,175,.3)!important}
       body.v-ref.home-landing .topbar-actions{display:flex!important}
       body.v-ref.home-landing .topbar-actions .chat-menu-button{display:none!important}
       body.v-ref.home-landing .topbar-actions .owner-status{display:grid!important;grid-column:3;grid-row:1;justify-self:end;width:44px;height:44px;min-width:44px;min-height:44px;padding:0;place-items:center}
