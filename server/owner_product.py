@@ -113,6 +113,7 @@ class UiPreferencesBody(BaseModel):
     continuous_voice: bool = True
     voice_rate: float = Field(default=1.0, ge=0.75, le=1.35)
     quiet_hours: bool = True
+    pinned_sidebar_items: list[str] = Field(default_factory=list, max_length=40)
 
 
 def _bounded_mapping(value, *, max_bytes=65536, max_depth=8, max_items=256, max_string=12000):
