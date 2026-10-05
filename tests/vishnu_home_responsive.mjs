@@ -63,8 +63,11 @@ try {
         greeting: rect("#homeGreeting"), sphere: rect("#homeSphereStage"), intro: rect("#homeIntro"),
         cards: [...document.querySelectorAll(".v-card")].map(node => rect(`#${node.id}`)),
         dock: rect("#vChatDock"), newChat: rect("#vNewChat"), viewAll: rect("#vViewAllProjects"),
+        sidebarButton: rect("#ownerButton"),
         projectsHeading: rect("#homeProjectsHeading"), projectList: rect("#homeProjectList"),
         composer: rect("#composer"), home: rect("#homeIntro"),
+        scrollbar: getComputedStyle(document.querySelector("#homeIntro")).scrollbarWidth,
+        composerBackground: getComputedStyle(document.querySelector("#composer")).backgroundColor,
         homeScroll: { height: document.querySelector("#homeIntro").clientHeight, scrollHeight: document.querySelector("#homeIntro").scrollHeight, maxHeight: getComputedStyle(document.querySelector("#homeIntro")).maxHeight },
       };
     });
@@ -77,6 +80,10 @@ try {
     if (width <= 600) {
       assert.equal(await page.locator("#vNewChat").evaluate(node => Math.round(node.getBoundingClientRect().width)), 44, "mobile New chat remains a circle");
       assert.equal(await page.locator("#vNewChat").getAttribute("aria-label"), "New chat");
+      assert.ok(Math.max(...layout.cards.map(card => card.height)) - Math.min(...layout.cards.map(card => card.height)) <= 1, "all four mobile shortcuts have matching heights");
+      assert.ok(layout.sidebarButton.width >= 44 && layout.sidebarButton.right <= width, "right timeline sidebar button is visible and usable");
+      assert.equal(layout.scrollbar, "none", "Home scrolling works without a visible scrollbar");
+      assert.match(layout.composerBackground, /^rgb\(/, "composer uses an opaque background so content cannot show through");
       assert.ok(layout.home.bottom <= layout.dock.top + 1, `Scrollable Home content extends under the fixed dock at ${width}px`);
       assert.ok(layout.home.bottom <= layout.composer.top + 1, `Scrollable Home content extends under the composer at ${width}px`);
       const headingVisible = layout.projectsHeading.bottom > layout.home.top && layout.projectsHeading.top < layout.home.bottom;
