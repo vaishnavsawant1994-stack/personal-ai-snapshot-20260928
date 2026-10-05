@@ -61,7 +61,9 @@ try {
         documentWidth: document.documentElement.scrollWidth,
         gridColumns: getComputedStyle(document.querySelector(".v-shortcuts")).gridTemplateColumns.split(" ").length,
         cards: [...document.querySelectorAll(".v-card")].map(node => rect(`#${node.id}`)),
-        dock: rect("#vChatDock"), composer: rect("#composer"), home: rect("#homeIntro"),
+        dock: rect("#vChatDock"), newChat: rect("#vNewChat"), viewAll: rect("#vViewAllProjects"),
+        projectsHeading: rect("#homeProjectsHeading"), projectList: rect("#homeProjectList"),
+        composer: rect("#composer"), home: rect("#homeIntro"),
       };
     });
     assert.ok(layout.documentWidth <= width, `horizontal overflow at ${width}px`);
@@ -72,6 +74,8 @@ try {
     if (width <= 600) {
       assert.equal(await page.locator("#vNewChat").evaluate(node => Math.round(node.getBoundingClientRect().width)), 44, "mobile New chat remains a circle");
       assert.equal(await page.locator("#vNewChat").getAttribute("aria-label"), "New chat");
+      assert.ok(layout.newChat.left >= layout.viewAll.right || layout.newChat.right <= layout.viewAll.left || layout.newChat.bottom <= layout.viewAll.top || layout.newChat.top >= layout.viewAll.bottom, `New chat covers View all at ${width}px`);
+      assert.ok(layout.projectsHeading.bottom <= layout.dock.top + 1, `Recent projects heading is obscured by the fixed dock at ${width}px`);
     } else assert.equal(await page.locator("#vNewChat span").isVisible(), true, "desktop New chat shows its label");
     if ([320, 390, 1440].includes(width)) await page.screenshot({ path: `artifacts/vishnu-home-${width}.png`, fullPage: true });
   }
