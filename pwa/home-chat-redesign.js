@@ -7,7 +7,7 @@
     const style=document.createElement('style');
     style.id='vMobileHomeViewportFix';
     style.textContent=`@media(max-width:760px){
-      body.v-ref.home-landing .home{height:calc(100dvh - 196px);max-height:calc(100dvh - 196px);min-height:0;overflow:hidden}
+      body.v-ref.home-landing .home{height:calc(100dvh - 196px)!important;max-height:calc(100dvh - 196px)!important;min-height:0!important;padding-top:0!important;padding-bottom:0!important;overflow:hidden!important}
       body.v-ref.home-landing .home-intro{max-height:100%;min-height:0;padding-bottom:12px}
       body.v-ref.home-landing .home-greeting{margin:8px 0 9px}
       body.v-ref.home-landing .home-sphere-stage{height:148px;margin:0 0 5px}
