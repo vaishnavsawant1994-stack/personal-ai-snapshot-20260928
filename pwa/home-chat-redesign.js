@@ -264,10 +264,10 @@
   async function runWorkAction(item, actionKind){
     if(actionKind === 'start'){
       try{
-        const result=await api('/projects/'+encodeURIComponent(item.project.id)+'/tasks/'+encodeURIComponent(item.task.id), {method:'PATCH', body:JSON.stringify({status:'in_progress'})});
-        await openProjectWorkspace(item.project.id,'live');
-        showToast('Task marked In progress. Project status was saved; no background operation was started.');
-        if(result.project)projectCurrent=result.project;
+        await openProjectWorkspace(item.project.id,'chat');
+        if(typeof sendProjectMessage!=='function')throw new Error('Project task chat is unavailable in this build.');
+        const prompt=`Start work on the project task “${item.task.title}”${item.task.description?': '+item.task.description:''}. Take the next concrete step that the existing project workflow supports. Use approvals for consequential actions, ask me if you need missing information, and report what actually happened. Do not claim a task or background operation has started unless the corresponding operation succeeds.`;
+        await sendProjectMessage(prompt);
       }catch(error){ showToast(error.message || 'Could not start that task.'); }
       return;
     }
