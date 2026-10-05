@@ -302,6 +302,18 @@ def iphone_pwa_router(runtime, settings, *, include_legacy_runtime_routes: bool 
     def service_worker():
         return Response((web_dir / 'sw.js').read_text(encoding='utf-8'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
 
+    @router.get('/projects-workspace.js', include_in_schema=False)
+    def projects_workspace_script():
+        return Response((web_dir / 'projects-workspace.js').read_text(encoding='utf-8'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+    @router.get('/home-chat-redesign.js', include_in_schema=False)
+    def home_chat_redesign_script():
+        return Response((web_dir / 'home-chat-redesign.js').read_text(encoding='utf-8'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+    @router.get('/projects-workspace.css', include_in_schema=False)
+    def projects_workspace_styles():
+        return Response((web_dir / 'projects-workspace.css').read_text(encoding='utf-8'), media_type='text/css', headers={'Cache-Control': 'no-cache'})
+
     @router.get('/api/status')
     def status(
         response: Response,
@@ -335,9 +347,17 @@ def iphone_pwa_router(runtime, settings, *, include_legacy_runtime_routes: bool 
                 memory_count = len(second_brain.graph().get('nodes', []))
             except Exception:
                 memory_count = 0
+        preferences = runtime.get('preferences')
+        owner_display_name = ''
+        if preferences is not None:
+            try:
+                owner_display_name = str(preferences.get('preferred_name', '') or '').strip()[:80]
+            except Exception:
+                owner_display_name = ''
         return {
             'ok': True,
             'device_id': device_id,
+            'owner_display_name': owner_display_name,
             'voice_qualification_available': recorder is not None,
             'active_qualification': active_qualification,
             'continuity_available': continuity is not None,
