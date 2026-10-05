@@ -2342,6 +2342,42 @@ body.v-ref .v-new-chat span{position:absolute!important;width:1px;height:1px;ove
   body.v-ref .v-new-chat span{position:static!important;width:auto;height:auto;overflow:visible;clip:auto}
 }
 
+
+/* One phone frame. Every phone scales this same 390 by 844 design. */
+@media (max-width: 760px) {
+  html, body.v-ref { height: 100%; background: #07111c !important; overflow: hidden !important; }
+  body.v-ref .app-shell {
+    width: 390px !important;
+    height: 844px !important;
+    max-width: none !important;
+    transform-origin: top center;
+    transform: scale(min(100vw / 390, 100dvh / 844));
+    margin-left: calc((100vw - 390px * min(100vw / 390, 100dvh / 844)) / 2) !important;
+    overflow: hidden !important;
+    position: relative !important;
+  }
+  body.v-ref .home, body.v-ref #voicePanel {
+    height: 844px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 0 !important;
+  }
+  body.v-ref .topbar { height: 56px !important; min-height: 56px !important; padding: 10px 16px 0 !important; }
+  body.v-ref .home-intro { width: 390px !important; height: 620px !important; padding: 8px 16px 0 !important; box-sizing: border-box !important; }
+  body.v-ref .home-greeting { height: 72px !important; margin: 18px 0 0 !important; }
+  body.v-ref .home-greeting h1 { font-size: 28px !important; line-height: 34px !important; height: 34px !important; }
+  body.v-ref .home-greeting p { font-size: 16px !important; line-height: 22px !important; height: 22px !important; margin-top: 6px !important; }
+  .home-sphere-stage { width: 358px !important; height: 168px !important; }
+  .home-sphere-stage .core-stage { width: 148px !important; height: 148px !important; }
+  .v-shortcuts { width: 358px !important; height: 194px !important; grid-template-columns: 174px 174px !important; grid-template-rows: 92px 92px !important; gap: 10px !important; margin: 6px 0 16px !important; }
+  .v-card { width: 174px !important; height: 92px !important; min-height: 92px !important; max-height: 92px !important; }
+  .v-recent { width: 358px !important; height: 150px !important; }
+  .v-recent-head { height: 28px !important; }
+  body.v-ref .v-chat-dock { width: 358px !important; height: 48px !important; margin: 0 16px 8px !important; }
+  body.v-ref .v-new-chat { width: 44px !important; height: 44px !important; }
+  body.v-ref .composer { width: 358px !important; height: 52px !important; min-height: 52px !important; margin: 0 16px 18px !important; }
+}
+
 </style>
 <style>
 /* Shared Vishnu Home and system-wide chat. Same design at every width; only the grid changes. */
