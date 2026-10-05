@@ -8,7 +8,7 @@
     style.id='vMobileHomeViewportFix';
     style.textContent=`@media(max-width:760px){
       body.v-ref.home-landing .home{overflow:hidden}
-      body.v-ref.home-landing .home-intro{max-height:calc(100dvh - 240px);padding-bottom:12px}
+      body.v-ref.home-landing .home-intro{max-height:calc(100dvh - 290px);padding-bottom:12px}
       body.v-ref.home-landing .home-greeting{margin:8px 0 9px}
       body.v-ref.home-landing .home-sphere-stage{height:148px;margin:0 0 5px}
       body.v-ref.home-landing .home-sphere-stage .core-stage{width:142px!important;height:142px!important;min-width:142px!important;max-width:142px!important}
