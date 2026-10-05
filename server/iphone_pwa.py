@@ -294,6 +294,22 @@ def iphone_pwa_router(runtime, settings, *, include_legacy_runtime_routes: bool 
     def iphone_home():
         return HTMLResponse((web_dir / 'index.html').read_text(encoding='utf-8'), headers={'Cache-Control': 'no-store'})
 
+    @router.get('/projects-workspace.js', include_in_schema=False)
+    def projects_workspace_js():
+        return Response((web_dir / 'projects-workspace.js').read_text(encoding='utf-8'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+    @router.get('/projects-workspace.css', include_in_schema=False)
+    def projects_workspace_css():
+        return Response((web_dir / 'projects-workspace.css').read_text(encoding='utf-8'), media_type='text/css', headers={'Cache-Control': 'no-cache'})
+
+    @router.get('/home-chat-redesign.js', include_in_schema=False)
+    def home_chat_redesign_js():
+        return Response((web_dir / 'home-chat-redesign.js').read_text(encoding='utf-8'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+    @router.get('/home-chat-redesign.css', include_in_schema=False)
+    def home_chat_redesign_css():
+        return Response((web_dir / 'home-chat-redesign.css').read_text(encoding='utf-8'), media_type='text/css', headers={'Cache-Control': 'no-cache'})
+
     @router.get('/manifest.webmanifest', include_in_schema=False)
     def manifest():
         return Response((web_dir / 'manifest.webmanifest').read_text(encoding='utf-8'), media_type='application/manifest+json')
