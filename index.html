@@ -2328,7 +2328,10 @@ body.v-ref .home-greeting p{font-size:16px!important;color:#b7c3d4!important;tex
 .v-recent-head h2{font-size:16px!important}
 .v-empty,.v-error{border-style:solid!important;color:#9aabc0!important}
 body.v-ref .composer{width:calc(100% - 28px)!important;min-height:52px!important;border-radius:26px!important;margin-bottom:14px!important}
-body.v-ref .v-new-chat{width:44px!important;height:44px!important;min-width:44px!important;border-radius:50%!important;padding:0!important;justify-content:center!important}
+body.v-ref .v-chat-dock{display:flex!important;width:calc(100% - 28px)!important;margin:0 auto 8px!important;justify-content:flex-end!important}
+body.v-ref.home-landing .v-context-chip{display:none!important}
+body.v-ref .v-new-chat{display:inline-flex!important;width:44px!important;height:44px!important;min-width:44px!important;border-radius:50%!important;padding:0!important;justify-content:center!important;position:relative;z-index:3}
+.v-card{min-height:92px!important;height:92px!important}
 body.v-ref .v-new-chat span{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 @media (min-width:900px){
   .v-shortcuts{grid-template-columns:repeat(4,minmax(0,1fr))!important}
@@ -4323,7 +4326,7 @@ $('messageStream').addEventListener('scroll',()=>{const stream=$('messageStream'
     if(!node || typeof greeting !== 'function') return;
     const base = greeting().replace(/\.$/, '');
     const name = typeof ownerDisplayName === 'function' ? ownerDisplayName() : '';
-    node.textContent = name ? base + ', ' + name : base;
+    node.textContent = base + ', ' + (name || 'Vaishnav');
   }
 
   function syncAttachIcon(){
