@@ -110,6 +110,99 @@ class ProjectStoreTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'already been reviewed'):
                 store.decide_approval(project['id'], approval['id'], decision='approved')
 
+    def test_discussion_links_follow_pins_and_resolution_are_persisted_and_scoped(self):
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / 'projects.sqlite3'
+            store = ProjectStore(path)
+            project = store.create(name='Discussion workspace')
+            other = store.create(name='Other workspace')
+            task = store.add_task(project['id'], title='Review mobile layout')['tasks'][0]
+            thread = store.add_thread(project['id'], title='Mobile layout', content='Check keyboard spacing.',
+                                      linked_item_type='task', linked_item_id=task['id'])['threads'][0]
+            reply_id = thread['replies'][0]['id']
+            saved = store.update_thread(project['id'], thread['id'], {'followed': True, 'pinned_reply_id': reply_id})
+            saved_thread = saved['threads'][0]
+            self.assertTrue(saved_thread['followed'])
+            self.assertEqual(saved_thread['pinned_reply']['content'], 'Check keyboard spacing.')
+            self.assertEqual(saved_thread['linked_item_title'], 'Review mobile layout')
+            resolved = store.update_thread(project['id'], thread['id'], {'status': 'resolved'})['threads'][0]
+            self.assertEqual(resolved['status'], 'resolved')
+            self.assertTrue(resolved['resolved_at'])
+            self.assertIsNone(store.update_thread(other['id'], thread['id'], {'status': 'open'}))
+            with self.assertRaisesRegex(ValueError, 'does not belong'):
+                store.add_thread(other['id'], title='Cross project', content='No.', linked_item_type='task', linked_item_id=task['id'])
+            reopened = ProjectStore(path).get(project['id'])['threads'][0]
+            self.assertEqual(reopened['status'], 'resolved')
+
+    def test_files_can_be_pinned_only_within_their_project(self):
+        with TemporaryDirectory() as folder:
+            store = ProjectStore(Path(folder) / 'projects.sqlite3')
+            first = store.create(name='First')
+            second = store.create(name='Second')
+            file_id = store.add_upload(first['id'], title='brief.md', media_type='text/markdown', content=b'Brief')['files'][0]['id']
+            self.assertTrue(store.update_file(first['id'], file_id, {'is_pinned': True})['files'][0]['is_pinned'])
+            self.assertIsNone(store.update_file(second['id'], file_id, {'is_pinned': False}))
+
+    def test_walkthrough_is_explicit_persisted_and_idempotent(self):
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / 'projects.sqlite3'
+            store = ProjectStore(path)
+            project = store.create_walkthrough()
+            self.assertEqual(project['is_walkthrough'], 1)
+            self.assertIn('illustrative', project['description'].lower())
+            self.assertTrue(project['tasks'])
+            self.assertTrue(project['milestones'])
+            self.assertTrue(project['files'])
+            self.assertTrue(project['threads'])
+            self.assertEqual(store.create_walkthrough()['id'], project['id'])
+            self.assertEqual(ProjectStore(path).get(project['id'])['is_walkthrough'], 1)
+
+
+    def test_supported_uploads_are_indexed_and_search_is_project_scoped(self):
+        with TemporaryDirectory() as folder:
+            store = ProjectStore(Path(folder) / 'projects.sqlite3')
+            first = store.create(name='Project one')
+            second = store.create(name='Project two')
+            file_id = store.add_upload(first['id'], title='brief.md', media_type='text/markdown',
+                                       content=b'Private project launch schedule and milestones.')['files'][0]['id']
+            self.assertEqual(store.get(first['id'])['files'][0]['indexing_state'], 'indexed')
+            self.assertEqual([row['id'] for row in store.search_files(first['id'], 'launch schedule')], [file_id])
+            self.assertEqual(store.search_files(second['id'], 'launch schedule'), [])
+            self.assertEqual(store.search_files(first['id'], 'different phrase'), [])
+
+    def test_deliverables_keep_immutable_versions_and_project_scoping(self):
+        with TemporaryDirectory() as folder:
+            store = ProjectStore(Path(folder) / 'projects.sqlite3')
+            project = store.create(name='Deliverable project')
+            other = store.create(name='Other project')
+            project = store.save_deliverable(project['id'], title='Plan.md', content='# Draft one')
+            deliverable = next(row for row in project['files'] if row['kind'] == 'deliverable')
+            file_id = deliverable['id']
+            self.assertEqual(deliverable['current_version'], 1)
+            project = store.save_deliverable(project['id'], title='Plan.md', content='# Draft two', file_id=file_id)
+            self.assertEqual(next(row for row in project['files'] if row['id'] == file_id)['version_count'], 2)
+            self.assertEqual([row['version'] for row in store.file_versions(project['id'], file_id)], [2, 1])
+            self.assertEqual(store.file_version_blob(project['id'], file_id, 1)['content'], b'# Draft one')
+            self.assertIsNone(store.file_versions(other['id'], file_id))
+            self.assertIsNone(store.file_version_blob(other['id'], file_id, 1))
+
+    def test_drive_import_is_a_private_versioned_snapshot(self):
+        with TemporaryDirectory() as folder:
+            store = ProjectStore(Path(folder) / 'projects.sqlite3')
+            project = store.create(name='Drive import')
+            project = store.add_drive_source(project['id'], title='reference.txt', media_type='text/plain',
+                                             content=b'First imported revision', provider_file_id='drive-file-1', modified_at='v1')
+            source = next(row for row in project['files'] if row['source_provider'] == 'google_drive')
+            file_id = source['id']
+            self.assertEqual(source['indexing_state'], 'indexed')
+            project = store.add_drive_source(project['id'], title='reference.txt', media_type='text/plain',
+                                             content=b'Updated imported revision', provider_file_id='drive-file-1', modified_at='v2')
+            refreshed = next(row for row in project['files'] if row['id'] == file_id)
+            self.assertEqual(refreshed['version_count'], 2)
+            self.assertEqual(refreshed['source_modified_at'], 'v2')
+            self.assertEqual(store.file_blob(project['id'], file_id)['content'], b'Updated imported revision')
+            self.assertEqual([row['version'] for row in store.file_versions(project['id'], file_id)], [2, 1])
+
 
 if __name__ == '__main__':
     unittest.main()

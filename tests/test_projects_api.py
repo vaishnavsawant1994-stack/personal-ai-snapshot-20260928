@@ -164,6 +164,41 @@ class ProjectApiTests(unittest.TestCase):
         self.assertFalse(decision.json()['execution_started'])
         self.assertEqual(decision.json()['project']['approvals'][0]['reviewer_comments'], 'Clarify the impact.')
 
+    def test_discussion_actions_are_authenticated_project_scoped_and_persistent(self):
+        first = self.store.create(name='Discussion owner project')
+        second = self.store.create(name='Other project')
+        task = self.store.add_task(first['id'], title='Review the page')['tasks'][0]
+        response = self.client.post(f"/iphone/api/projects/{first['id']}/discussions", json={
+            'title': 'Page review', 'content': 'Please review the mobile layout.',
+            'linked_item_type': 'task', 'linked_item_id': task['id'],
+        })
+        self.assertEqual(response.status_code, 201, response.text)
+        thread = response.json()['project']['threads'][0]
+        reply_id = thread['replies'][0]['id']
+        patched = self.client.patch(f"/iphone/api/projects/{first['id']}/discussions/{thread['id']}", json={
+            'followed': True, 'pinned_reply_id': reply_id, 'status': 'resolved',
+        })
+        self.assertEqual(patched.status_code, 200, patched.text)
+        persisted = patched.json()['project']['threads'][0]
+        self.assertTrue(persisted['followed'])
+        self.assertEqual(persisted['status'], 'resolved')
+        self.assertEqual(persisted['linked_item_title'], 'Review the page')
+        self.assertEqual(self.client.patch(f"/iphone/api/projects/{second['id']}/discussions/{thread['id']}",
+                                          json={'status': 'open'}).status_code, 404)
+        self.assertEqual(self.client.patch(f"/iphone/api/projects/{first['id']}/discussions/{thread['id']}",
+                                          json={'pinned_reply_id': 'foreign-reply'}).status_code, 422)
+
+    def test_walkthrough_records_are_explicit_labeled_and_idempotent(self):
+        first = self.client.post('/iphone/api/projects/walkthrough', json={})
+        self.assertEqual(first.status_code, 201, first.text)
+        project = first.json()['project']
+        self.assertTrue(project['is_walkthrough'])
+        self.assertIn('illustrative', project['description'])
+        self.assertTrue(project['tasks'])
+        self.assertTrue(project['files'])
+        self.assertTrue(project['threads'])
+        again = self.client.post('/iphone/api/projects/walkthrough', json={})
+        self.assertEqual(again.json()['project']['id'], project['id'])
 
 if __name__ == '__main__':
     unittest.main()

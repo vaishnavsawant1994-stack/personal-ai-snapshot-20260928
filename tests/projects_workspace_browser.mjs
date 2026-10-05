@@ -38,6 +38,17 @@ const server = createServer(async (req, res) => {
       serverState.projects.unshift(project); project.activity.push({ id: 'event-create', actor: 'owner', action: 'created project', target_type: 'project', detail: project.name, created_at: project.created_at });
       return send(201, { project });
     }
+    if (path === '/projects/walkthrough' && req.method === 'POST') {
+      let project = serverState.projects.find(item => item.is_walkthrough);
+      if (!project) {
+        project = { id: `project-${serverState.nextId++}`, name: 'Walkthrough · Personal AI redesign', is_walkthrough: true,
+          description: 'Illustrative walkthrough records created on request.', goal: 'Learn the saved project workflow.', project_type: 'software', status: 'active',
+          task_count: 1, done_count: 0, milestone_count: 1, tasks: [{ id: `task-${serverState.nextId++}`, title: 'Review walkthrough', status: 'planned', owner: 'owner', priority: 'medium', file_ids: [] }],
+          milestones: [{ id: `milestone-${serverState.nextId++}`, title: 'Workspace review', status: 'planned', task_ids: [] }], files: [], approvals: [], threads: [], activity: [], created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+        serverState.projects.unshift(project);
+      }
+      return send(201, { project });
+    }
     const projectPath = path.match(/^\/projects\/([^/]+)(.*)$/);
     if (projectPath) {
       const project = serverState.projects.find(item => item.id === decodeURIComponent(projectPath[1]));
@@ -61,8 +72,14 @@ const server = createServer(async (req, res) => {
       if (proposalResubmit && req.method === 'POST') { const item = project.approvals.find(row => row.id === decodeURIComponent(proposalResubmit[1])); Object.assign(item, body, { status: 'pending', reviewer_comments: '', decision: null, reviewed_at: null }); item.history.push({ actor: 'owner', decision: 'resubmitted', comments: '', created_at: new Date().toISOString() }); return send(200, result()); }
       if (tail === '/conversation' && req.method === 'POST') { project.conversation_id ||= `conversation-${serverState.nextId++}`; return send(201, { conversation_id: project.conversation_id, project }); }
       if (tail === '/activity' && req.method === 'POST') { project.activity.push({ id: `event-${serverState.nextId++}`, actor: 'owner', action: 'asked Vishnu', target_type: 'conversation', detail: body.content, created_at: new Date().toISOString() }); return send(201, result()); }
-      if (tail === '/discussions' && req.method === 'POST') { project.threads.push({ id: `thread-${serverState.nextId++}`, title: body.title, status: 'open', updated_at: new Date().toISOString(), replies: [{ author: 'owner', content: body.content }] }); return send(201, result()); }
+      if (tail === '/discussions' && req.method === 'POST') { const thread = { id: `thread-${serverState.nextId++}`, title: body.title, status: 'open', linked_item_type: body.linked_item_type || '', linked_item_id: body.linked_item_id || null, linked_item_title: body.linked_item_type === 'task' ? project.tasks.find(item => item.id === body.linked_item_id)?.title : '', followed: false, updated_at: new Date().toISOString(), replies: [{ id: `reply-${serverState.nextId++}`, author: 'owner', content: body.content, created_at: new Date().toISOString() }] }; project.threads.unshift(thread); return send(201, result()); }
+      const discussionReply = tail.match(/^\/discussions\/([^/]+)\/replies$/);
+      if (discussionReply && req.method === 'POST') { const thread = project.threads.find(row => row.id === decodeURIComponent(discussionReply[1])); if (!thread) return send(404, { detail: 'Discussion not found' }); thread.replies.push({ id: `reply-${serverState.nextId++}`, author: 'owner', content: body.content, created_at: new Date().toISOString() }); thread.updated_at = new Date().toISOString(); return send(201, result()); }
+      const discussionUpdate = tail.match(/^\/discussions\/([^/]+)$/);
+      if (discussionUpdate && req.method === 'PATCH') { const thread = project.threads.find(row => row.id === decodeURIComponent(discussionUpdate[1])); if (!thread) return send(404, { detail: 'Discussion not found' }); Object.assign(thread, body); if (body.status === 'resolved') { thread.resolved_by = 'owner'; thread.resolved_at = new Date().toISOString(); } return send(200, result()); }
       if (tail === '/files/upload' && req.method === 'POST') { const file = { id: `file-${serverState.nextId++}`, title: body.filename, kind: 'upload', created_at: new Date().toISOString(), content: Buffer.from(body.content_base64, 'base64') }; project.files.push(file); return send(201, result()); }
+      const fileUpdate = tail.match(/^\/files\/([^/]+)$/);
+      if (fileUpdate && req.method === 'PATCH') { const file = project.files.find(item => item.id === decodeURIComponent(fileUpdate[1])); if (!file) return send(404, { detail: 'File not found' }); Object.assign(file, body); return send(200, result()); }
       const downloadPath = tail.match(/^\/files\/([^/]+)\/download$/);
       if (downloadPath && req.method === 'GET') { const file = project.files.find(item => item.id === decodeURIComponent(downloadPath[1])); return file ? send(200, file.content, 'text/markdown') : send(404, { detail: 'File not found' }); }
     }
@@ -81,7 +98,7 @@ await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const address = server.address();
 const browser = await chromium.launch({ headless: true });
 try {
-  for (const viewport of [{ width: 390, height: 844, isMobile: true }, { width: 1440, height: 1000, isMobile: false }]) {
+  for (const viewport of [{ width: 390, height: 844, isMobile: true }, { width: 820, height: 1000, isMobile: false }, { width: 1440, height: 1000, isMobile: false }]) {
     const page = await browser.newPage({ viewport, deviceScaleFactor: viewport.isMobile ? 2 : 1, isMobile: viewport.isMobile, hasTouch: viewport.isMobile, serviceWorkers: 'block' });
     const errors = []; page.on('pageerror', error => errors.push(error.message));
     await page.goto(`http://127.0.0.1:${address.port}/iphone/`, { waitUntil: 'domcontentloaded' });
@@ -89,6 +106,7 @@ try {
     await page.locator('#historyButton').click();
     await page.locator('[data-app-module="projects"]').click();
     await page.locator('.project-list-page').waitFor();
+    const openProjectTab = async key => { let tab = page.locator(`[data-project-tab="${key}"]:visible`).first(); if (!(await tab.count())) { await page.locator('.project-more-tabs > summary').click(); tab = page.locator(`[data-project-tab="${key}"]:visible`).first(); } await tab.click(); };
     if (screenshotDir) await page.screenshot({ path: `${screenshotDir}/projects-${viewport.width}.png`, fullPage: false });
     const projectSurface = await page.evaluate(() => {
       const panel = document.querySelector('#modulePanel').getBoundingClientRect();
@@ -141,29 +159,57 @@ try {
     const savedProject = serverState.projects.find(item => item.name === `Responsive workspace ${viewport.width}`);
     assert.equal(savedProject.tasks[0].context_notes, 'Review the design brief before this task.');
     assert.deepEqual(savedProject.milestones[0].task_ids, [savedProject.tasks[0].id]);
-    await page.getByRole('tab', { name: 'Work plan' }).click();
+    await openProjectTab('plan');
     await page.getByText('Verify the responsive workspace').waitFor();
-    await page.getByText('Workspace ready').waitFor();
+    await page.getByText('Workspace ready').first().waitFor();
     await page.getByRole('button', { name: 'Ask Vishnu' }).first().click();
     await page.locator('#projectChatForm textarea').fill('Please make a safe implementation plan.');
     await page.locator('#projectChatForm button[type="submit"]').click();
     await page.getByText(/Vishnu plan for:/).waitFor();
     assert.equal(serverState.turns.at(-1).conversation_id, serverState.projects[0].conversation_id, 'Project chat must use its linked canonical conversation');
-    await page.getByRole('tab', { name: 'Files & sources' }).click();
-    await page.locator('[data-project-action="add-files"]').click();
+    await openProjectTab('files');
+    await page.locator('[data-project-action="add-files"]:visible').first().click();
     const filesDialog = page.locator('dialog.project-files-dialog');
     await filesDialog.locator('input[type=file]').setInputFiles({ name: 'project-notes.md', mimeType: 'text/markdown', buffer: Buffer.from('Responsive acceptance criteria') });
     await filesDialog.getByText('project-notes.md').waitFor();
     await filesDialog.getByRole('button', { name: 'Add to project' }).click();
     await page.getByText('project-notes.md').waitFor();
-    await page.getByRole('tab', { name: 'Work plan' }).click();
+    await openProjectTab('plan');
     await page.locator('[data-project-task-edit]').first().click();
     const editTaskDialog = page.locator('dialog.project-dialog');
     await editTaskDialog.locator('input[name="file_ids"]').check();
     await editTaskDialog.getByRole('button', { name: 'Save' }).click();
     assert.deepEqual(savedProject.tasks[0].file_ids, [savedProject.files[0].id]);
     await page.getByText(/Files: project-notes.md/).waitFor();
-    await page.getByRole('tab', { name: 'Approvals' }).click();
+    await openProjectTab('discussions');
+    await page.locator('[data-project-action="new-discussion"]:visible').first().click();
+    const discussionDialog = page.locator('dialog.project-dialog');
+    await discussionDialog.locator('input[name="title"]').fill('Review the mobile project composer');
+    await discussionDialog.locator('textarea[name="content"]').fill('Check that the reply field stays visible around the keyboard.');
+    await discussionDialog.locator('select[name="linked_item"]').selectOption({ label: 'Task · Verify the responsive workspace' });
+    await discussionDialog.getByRole('button', { name: 'Save' }).click();
+    await page.getByRole('heading', { name: 'Review the mobile project composer' }).waitFor();
+    assert.equal(new URL(page.url()).searchParams.get('discussion'), savedProject.threads[0].id, 'Discussion URL should include the stable thread ID');
+    await page.locator('[data-thread-reply-form] textarea').fill('The composer stays in the thread panel.');
+    await page.locator('[data-thread-reply-form] button[type="submit"]').click();
+    await page.getByText('The composer stays in the thread panel.').waitFor();
+    await page.getByRole('button', { name: 'Follow', exact: true }).click();
+    await page.getByRole('button', { name: 'Following', exact: true }).waitFor();
+    const decisionPin = page.locator('[data-thread-pin]').last();
+    await decisionPin.click();
+    await page.getByText('Pinned to project context').waitFor();
+    await page.locator('.project-thread-head .project-thread-actions>button[data-thread-resolve]').click();
+    if (viewport.isMobile) await page.locator('.project-thread-mobile-back').dispatchEvent('click');
+    await page.locator('[data-discussion-filter]').selectOption('resolved');
+    await page.getByRole('button', { name: 'Review the mobile project composer' }).click();
+    await page.locator('.project-thread-head .project-thread-actions>button[data-thread-resolve]').click();
+    assert.equal(savedProject.threads[0].status, 'open');
+    await openProjectTab('files');
+    await page.locator('[data-file-select]').click();
+    await page.locator('[data-file-pin]').click();
+    assert.equal(savedProject.files[0].is_pinned, true, 'File pin should persist through the project data API');
+    if (viewport.isMobile) await page.locator('[data-file-inspector-close]').click();
+    await openProjectTab('approvals');
     await page.getByRole('button', { name: 'New proposal' }).click();
     const proposalDialog = page.locator('dialog.project-dialog');
     await proposalDialog.locator('input[name="title"]').fill('Review scoped project change');
@@ -188,12 +234,17 @@ try {
     assert.equal(savedProject.approvals[0].status, 'approved');
     assert.equal(savedProject.approvals[0].history.length, 3);
     assert.equal(savedProject.approvals[0].history[0].comments, 'Clarify the rollback scope.');
-    await page.getByRole('tab', { name: 'Activity' }).click();
+    await openProjectTab('activity');
     await page.getByText('asked Vishnu').waitFor();
-    await page.getByRole('tab', { name: 'Live work' }).click();
+    await openProjectTab('live');
     await page.getByRole('button', { name: 'Review pending approvals' }).click();
     await page.getByRole('heading', { name: 'No pending approvals' }).waitFor();
     await page.getByRole('button', { name: 'Close approvals' }).click();
+    await openProjectTab('plan');
+    for (const mode of ['board', 'timeline', 'list']) {
+      await page.locator(`[data-plan-view="${mode}"]`).click();
+      await page.locator('.project-plan-page').waitFor();
+    }
     const overflow = await page.evaluate(() => ({ body: document.body.scrollWidth, viewport: innerWidth, module: document.querySelector('#moduleBody').scrollWidth }));
     assert.ok(overflow.body <= overflow.viewport + 1, `Workspace must not cause page-width overflow: ${JSON.stringify(overflow)}`);
     assert.deepEqual(errors, [], `No browser exceptions at ${viewport.width}px: ${errors.join(' | ')}`);
@@ -210,7 +261,7 @@ try {
   await preview.locator('.project-card-rich [data-project-open]').first().click();
   await preview.getByText(/Preview project only/).waitFor();
   await preview.close();
-  console.log('Projects workspace browser smoke passed at 390px and 1440px: wizard, task-file links, proposal review/comments/resubmission, project chat, upload, activity, and no horizontal overflow.');
+  console.log('Projects workspace browser smoke passed at 390px, 820px, and 1440px: wizard, task-file links, proposal review/comments/resubmission, project chat, upload, activity, and no horizontal overflow.');
 } finally {
   await browser.close();
   await new Promise(resolve => server.close(resolve));

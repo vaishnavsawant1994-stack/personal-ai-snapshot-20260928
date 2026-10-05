@@ -288,7 +288,7 @@ try {
       timelineButton: rect("#ownerButton"),
       header: rect(".topbar"),
       composer: rect("#composer"),
-      core: rect(".topbar .core-stage"),
+      core: rect("#homeSphereStage"),
       quick: rect(".quick-actions"),
       recent: rect("#homeRecentSection"),
       recentList: rect("#homeRecentList"),

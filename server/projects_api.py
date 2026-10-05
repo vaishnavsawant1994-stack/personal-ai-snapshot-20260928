@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import binascii
 from datetime import date
+import json
 import re
 from urllib.parse import urlparse
 
@@ -23,6 +24,7 @@ def _validate_iso_date(value):
 
 from projects.store import ProjectStore
 from security.request_context import current_trusted_request
+from integrations.gateway import ConnectorError
 
 
 class ProjectCreateBody(BaseModel):
@@ -179,9 +181,38 @@ class ProjectFileUploadBody(BaseModel):
     content_base64: str = Field(min_length=1, max_length=16_800_000)
 
 
+class ProjectFileUpdateBody(BaseModel):
+    is_pinned: bool
+
+
+class DeliverableBody(BaseModel):
+    title: str = Field(min_length=1, max_length=180)
+    content: str = Field(min_length=1, max_length=1_000_000)
+    file_id: str | None = Field(default=None, max_length=100)
+
+
+class ProjectFileSearchBody(BaseModel):
+    q: str = Field(min_length=1, max_length=200)
+
+
+class DriveImportBody(BaseModel):
+    export_mime: str = Field(default='text/plain', max_length=100)
+
+
 class DiscussionCreateBody(BaseModel):
     title: str = Field(min_length=1, max_length=180)
     content: str = Field(min_length=1, max_length=4000)
+    linked_item_type: str = Field(default='', pattern='^(|project_brief|task|file|milestone|proposal)$')
+    linked_item_id: str | None = Field(default=None, max_length=100)
+
+
+class DiscussionUpdateBody(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=180)
+    status: str | None = Field(default=None, pattern='^(open|resolved)$')
+    linked_item_type: str | None = Field(default=None, pattern='^(|project_brief|task|file|milestone|proposal)$')
+    linked_item_id: str | None = Field(default=None, max_length=100)
+    pinned_reply_id: str | None = Field(default=None, max_length=100)
+    followed: bool | None = None
 
 
 class DiscussionReplyBody(BaseModel):
@@ -243,6 +274,11 @@ def projects_router(runtime, store: ProjectStore):
         draft['milestones'] = [item.model_dump() for item in body.milestones]
         return {'project': store.create(**draft)}
 
+    @router.post('/walkthrough', status_code=201)
+    def create_walkthrough_project(pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        authenticate(pa_device, pa_token, write=True)
+        return {'project': store.create_walkthrough()}
+
     @router.get('/{project_id}')
     def get_project(project_id: str,
                     pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
@@ -303,6 +339,89 @@ def projects_router(runtime, store: ProjectStore):
         if not value:
             raise HTTPException(404, 'Task or project not found')
         return {'project': value}
+
+    @router.post('/{project_id}/tasks/{task_id}/execution', status_code=202)
+    def start_project_task_execution(project_id: str, task_id: str,
+                                     pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        authenticate(pa_device, pa_token, write=True)
+        project = project_or_404(project_id)
+        task = next((row for row in project['tasks'] if row['id'] == task_id), None)
+        if not task:
+            raise HTTPException(404, 'Project task not found')
+        if task.get('owner') != 'vishnu':
+            raise HTTPException(409, 'Assign this task to Vishnu before starting it')
+        engine = runtime.get('automations')
+        if engine is None or runtime.get('executor') is None:
+            raise HTTPException(503, 'Background task execution is not available on this installation')
+        context = current_trusted_request()
+        if context is None or context.device_id != pa_device:
+            raise HTTPException(401, 'A current trusted owner session is required to start work')
+        if task.get('execution_run_id') and task.get('status') == 'in_progress':
+            return {'project': project, 'run_id': task['execution_run_id'], 'workflow_id': task.get('execution_workflow_id'), 'status': 'already_running'}
+        indexed_files = []
+        for file_id in task.get('file_ids', []):
+            file_context = store.file_index(project_id, file_id)
+            if file_context and file_context['state'] == 'indexed':
+                indexed_files.append(f"[{file_context['title']}]\n{file_context['extracted_text'][:12000]}")
+        prompt = (
+            'Work only on the owner-approved project task described below. Use the project context included here. '
+            'Do not perform external or destructive actions without the existing approval system. '
+            'Produce a concise reviewable result and list any blockers.\n\n'
+            f"Project: {project['name']}\nGoal: {project.get('goal') or 'Not provided'}\n"
+            f"Task: {task['title']}\nDescription: {task.get('description') or 'Not provided'}\n"
+            f"Owner instructions: {project.get('instructions') or 'None'}\n"
+            f"Attached project files: {', '.join(next((f['title'] for f in project['files'] if f['id']==fid), fid) for fid in task.get('file_ids', [])) or 'None'}\n"
+            f"Indexed attached-file context:\n{chr(10).join(indexed_files) if indexed_files else 'No attached file has an available text index.'}"
+        )[:12000]
+        try:
+            workflow_id = engine.create_workflow(
+                f"Project task: {task['title']}", {'type': 'manual', 'source': 'project_task', 'project_id': project_id, 'task_id': task_id},
+                [{'kind': 'prompt', 'prompt': prompt, 'timeout_seconds': 900, 'retries': 1}],
+            )
+            run_id = engine.run_workflow(workflow_id, context={'project_id': project_id, 'task_id': task_id},
+                background=True, owner_id='owner', device_id=pa_device, session_id=context.session_id,
+                reauthenticated_at=context.reauthenticated_at, idempotency_key=f'project-task:{task_id}:{task.get("updated_at", "")}'
+            )
+        except Exception as exc:
+            raise HTTPException(503, 'The task could not be started by the background worker') from exc
+        value = store.set_task_execution(project_id, task_id, workflow_id=workflow_id, run_id=run_id, status='in_progress')
+        return {'project': value, 'run_id': run_id, 'workflow_id': workflow_id, 'status': 'queued'}
+
+    @router.get('/{project_id}/tasks/{task_id}/execution')
+    def project_task_execution(project_id: str, task_id: str,
+                               pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        authenticate(pa_device, pa_token)
+        project = project_or_404(project_id)
+        task = next((row for row in project['tasks'] if row['id'] == task_id), None)
+        if not task:
+            raise HTTPException(404, 'Project task not found')
+        run_id, workflow_id = task.get('execution_run_id'), task.get('execution_workflow_id')
+        if not run_id or not workflow_id:
+            return {'status': 'not_started', 'task': task}
+        engine = runtime.get('automations')
+        binding = engine.run_binding(run_id) if engine else None
+        trusted = current_trusted_request()
+        if not binding or binding.get('owner_id') != 'owner' or binding.get('device_id') != pa_device or not trusted or binding.get('session_id') != trusted.session_id:
+            raise HTTPException(404, 'Task execution not found')
+        run = next((row for row in engine.runs(workflow_id, 100) if row['id'] == run_id), None)
+        if not run:
+            raise HTTPException(404, 'Task execution not found')
+        status = run.get('status', 'queued')
+        result = ''
+        try:
+            payload = json.loads(run.get('result_json') or '{}')
+            steps = payload.get('completed_steps') or []
+            result = str((steps[-1].get('result') or {}).get('reply') or '') if steps else ''
+        except (ValueError, TypeError, AttributeError):
+            pass
+        if status == 'completed' and result and (task.get('status') != 'needs_review' or task.get('execution_result') != result):
+            project = store.set_task_execution(project_id, task_id, result=result, status='needs_review') or project
+        elif status in {'failed', 'budget_exceeded'} and task.get('status') != 'failed':
+            project = store.set_task_execution(project_id, task_id, result=run.get('error') or status, status='failed') or project
+        return {'status': status, 'run_id': run_id, 'workflow_id': workflow_id,
+                'current_step': run.get('current_step', 0), 'started_at': run.get('started_at'),
+                'updated_at': run.get('updated_at'), 'error': run.get('error'), 'result': result,
+                'task': next(row for row in project['tasks'] if row['id'] == task_id)}
 
     @router.post('/{project_id}/milestones', status_code=201)
     def add_milestone(project_id: str, body: MilestoneCreateBody,
@@ -409,6 +528,105 @@ def projects_router(runtime, store: ProjectStore):
             'Cache-Control': 'no-store',
         })
 
+    @router.get('/{project_id}/files/{file_id}/index')
+    def read_project_file_index(project_id: str, file_id: str,
+                                pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        authenticate(pa_device, pa_token)
+        project_or_404(project_id)
+        result = store.file_index(project_id, file_id)
+        if not result:
+            raise HTTPException(404, 'Project file not found')
+        result['extracted_text'] = result['extracted_text'][:100_000]
+        return result
+
+    @router.patch('/{project_id}/files/{file_id}')
+    def update_project_file(project_id: str, file_id: str, body: ProjectFileUpdateBody,
+                            pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        authenticate(pa_device, pa_token, write=True)
+        value = store.update_file(project_id, file_id, body.model_dump())
+        if not value:
+            raise HTTPException(404, 'Project file not found')
+        return {'project': value}
+
+    @router.get('/{project_id}/files/search')
+    def search_project_files(project_id: str, q: str = Query(min_length=1, max_length=200),
+                             pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        authenticate(pa_device, pa_token)
+        project_or_404(project_id)
+        return {'files': store.search_files(project_id, q)}
+
+    @router.get('/{project_id}/files/{file_id}/versions')
+    def project_file_versions(project_id: str, file_id: str,
+                              pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        authenticate(pa_device, pa_token)
+        project_or_404(project_id)
+        versions = store.file_versions(project_id, file_id)
+        if versions is None:
+            raise HTTPException(404, 'Project file not found')
+        return {'versions': versions}
+
+    @router.get('/{project_id}/files/{file_id}/versions/{version}/download')
+    def project_file_version_download(project_id: str, file_id: str, version: int,
+                                      pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        authenticate(pa_device, pa_token)
+        blob = store.file_version_blob(project_id, file_id, version)
+        if not blob:
+            raise HTTPException(404, 'Project file version not found')
+        return Response(blob['content'], media_type=blob['media_type'], headers={
+            'Content-Disposition': f'attachment; filename="{blob["title"].replace(chr(34), "")}"',
+            'Content-Length': str(blob['size_bytes']), 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store'})
+
+    @router.post('/{project_id}/deliverables', status_code=201)
+    def save_project_deliverable(project_id: str, body: DeliverableBody,
+                                 pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        authenticate(pa_device, pa_token, write=True)
+        try:
+            value = store.save_deliverable(project_id, title=body.title, content=body.content, file_id=body.file_id)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        if not value:
+            raise HTTPException(404, 'Project or deliverable not found')
+        return {'project': value}
+
+    @router.get('/{project_id}/sources/drive')
+    def list_project_drive_sources(project_id: str, q: str = Query(default='', max_length=200),
+                                  pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        authenticate(pa_device, pa_token)
+        project_or_404(project_id)
+        adapter = (runtime.get('integration_adapters') or {}).get('drive')
+        if adapter is None:
+            raise HTTPException(409, 'Google Drive is not connected. Configure the Google OAuth client and connect Drive in Integrations first.')
+        context = current_trusted_request()
+        try:
+            result = adapter.list_files(q=q, page_size=50, owner_id='owner', device_id=pa_device,
+                                        session_id=context.session_id if context else None)
+            return {'files': result.get('files', []), 'next_page_token': result.get('nextPageToken')}
+        except ConnectorError as exc:
+            raise HTTPException(exc.http_status, exc.safe_message) from exc
+
+    @router.post('/{project_id}/sources/drive/{source_id}', status_code=201)
+    def import_project_drive_source(project_id: str, source_id: str, body: DriveImportBody,
+                                    pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        authenticate(pa_device, pa_token, write=True)
+        project_or_404(project_id)
+        adapter = (runtime.get('integration_adapters') or {}).get('drive')
+        if adapter is None:
+            raise HTTPException(409, 'Google Drive is not connected. Configure OAuth and connect Drive first.')
+        context = current_trusted_request()
+        try:
+            item = adapter.read_file(source_id, export_mime=body.export_mime, owner_id='owner', device_id=pa_device,
+                                     session_id=context.session_id if context else None)
+            meta = item.get('metadata') or {}
+            value = store.add_drive_source(project_id, title=item['filename'], media_type=item['media_type'],
+                content=item['content'], provider_file_id=source_id, modified_at=meta.get('modifiedTime') or '')
+        except ConnectorError as exc:
+            raise HTTPException(exc.http_status, exc.safe_message) from exc
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        if not value:
+            raise HTTPException(404, 'Project not found')
+        return {'project': value, 'source_state': 'imported_snapshot'}
+
     @router.post('/{project_id}/discussions', status_code=201)
     def add_discussion(project_id: str, body: DiscussionCreateBody,
                        pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
@@ -426,6 +644,19 @@ def projects_router(runtime, store: ProjectStore):
         if not store.add_reply(project_id, thread_id, author=author, content=body.content):
             raise HTTPException(404, 'Discussion not found')
         return {'project': project_or_404(project_id)}
+
+    @router.patch('/{project_id}/discussions/{thread_id}')
+    def update_discussion(project_id: str, thread_id: str, body: DiscussionUpdateBody,
+                          pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        authenticate(pa_device, pa_token, write=True)
+        project_or_404(project_id)
+        try:
+            value = store.update_thread(project_id, thread_id, body.model_dump(exclude_unset=True))
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        if not value:
+            raise HTTPException(404, 'Discussion not found')
+        return {'project': value}
 
     @router.post('/{project_id}/conversation', status_code=201)
     def project_conversation(project_id: str,
