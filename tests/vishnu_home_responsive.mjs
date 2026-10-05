@@ -60,7 +60,7 @@ try {
       return {
         documentWidth: document.documentElement.scrollWidth,
         gridColumns: getComputedStyle(document.querySelector(".v-shortcuts")).gridTemplateColumns.split(" ").length,
-        greeting: rect("#homeGreeting"), sphere: rect("#homeSphereStage"), intro: rect("#homeIntro"),
+        greeting: rect("#homeGreeting"), sphere: rect("#homeSphereStage"), intro: rect("#homeIntro"), topbar: rect(".topbar"),
         cards: [...document.querySelectorAll(".v-card")].map(node => rect(`#${node.id}`)),
         dock: rect("#vChatDock"), newChat: rect("#vNewChat"), viewAll: rect("#vViewAllProjects"),
         sidebarButton: rect("#ownerButton"),
@@ -68,6 +68,9 @@ try {
         composer: rect("#composer"), home: rect("#homeIntro"),
         scrollbar: getComputedStyle(document.querySelector("#homeIntro")).scrollbarWidth,
         composerBackground: getComputedStyle(document.querySelector("#composer")).backgroundColor,
+        composerBackgroundImage: getComputedStyle(document.querySelector("#composer")).backgroundImage,
+        composerShadow: getComputedStyle(document.querySelector("#composer")).boxShadow,
+        dockBackground: getComputedStyle(document.querySelector("#vChatDock")).backgroundColor,
         homeScroll: { height: document.querySelector("#homeIntro").clientHeight, scrollHeight: document.querySelector("#homeIntro").scrollHeight, maxHeight: getComputedStyle(document.querySelector("#homeIntro")).maxHeight },
       };
     });
@@ -82,8 +85,12 @@ try {
       assert.equal(await page.locator("#vNewChat").getAttribute("aria-label"), "New chat");
       assert.ok(Math.max(...layout.cards.map(card => card.height)) - Math.min(...layout.cards.map(card => card.height)) <= 1, "all four mobile shortcuts have matching heights");
       assert.ok(layout.sidebarButton.width >= 44 && layout.sidebarButton.right <= width, "right timeline sidebar button is visible and usable");
+      assert.ok(layout.greeting.top >= layout.topbar.bottom && layout.greeting.top - layout.topbar.bottom <= 32, `mobile greeting should sit just below the header at ${width}px`);
       assert.equal(layout.scrollbar, "none", "Home scrolling works without a visible scrollbar");
-      assert.match(layout.composerBackground, /^rgb\(/, "composer uses an opaque background so content cannot show through");
+      assert.equal(layout.composerBackground, "rgba(0, 0, 0, 0)", "composer has no backing panel behind the input");
+      assert.equal(layout.composerBackgroundImage, "none", "composer has no background image or footer band");
+      assert.equal(layout.composerShadow, "none", "composer has no drop shadow that creates a background layer");
+      assert.equal(layout.dockBackground, "rgba(0, 0, 0, 0)", "New chat dock has no backing panel");
       assert.ok(layout.home.bottom <= layout.dock.top + 1, `Scrollable Home content extends under the fixed dock at ${width}px`);
       assert.ok(layout.home.bottom <= layout.composer.top + 1, `Scrollable Home content extends under the composer at ${width}px`);
       const headingVisible = layout.projectsHeading.bottom > layout.home.top && layout.projectsHeading.top < layout.home.bottom;
