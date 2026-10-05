@@ -179,9 +179,24 @@ class ProjectFileUploadBody(BaseModel):
     content_base64: str = Field(min_length=1, max_length=16_800_000)
 
 
+class ProjectFileUpdateBody(BaseModel):
+    is_pinned: bool
+
+
 class DiscussionCreateBody(BaseModel):
     title: str = Field(min_length=1, max_length=180)
     content: str = Field(min_length=1, max_length=4000)
+    linked_item_type: str = Field(default='', pattern='^(|project_brief|task|file|milestone|proposal)$')
+    linked_item_id: str | None = Field(default=None, max_length=100)
+
+
+class DiscussionUpdateBody(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=180)
+    status: str | None = Field(default=None, pattern='^(open|resolved)$')
+    linked_item_type: str | None = Field(default=None, pattern='^(|project_brief|task|file|milestone|proposal)$')
+    linked_item_id: str | None = Field(default=None, max_length=100)
+    pinned_reply_id: str | None = Field(default=None, max_length=100)
+    followed: bool | None = None
 
 
 class DiscussionReplyBody(BaseModel):
@@ -242,6 +257,11 @@ def projects_router(runtime, store: ProjectStore):
         draft['tasks'] = [item.model_dump() for item in body.tasks]
         draft['milestones'] = [item.model_dump() for item in body.milestones]
         return {'project': store.create(**draft)}
+
+    @router.post('/walkthrough', status_code=201)
+    def create_walkthrough_project(pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        authenticate(pa_device, pa_token, write=True)
+        return {'project': store.create_walkthrough()}
 
     @router.get('/{project_id}')
     def get_project(project_id: str,
@@ -409,6 +429,15 @@ def projects_router(runtime, store: ProjectStore):
             'Cache-Control': 'no-store',
         })
 
+    @router.patch('/{project_id}/files/{file_id}')
+    def update_project_file(project_id: str, file_id: str, body: ProjectFileUpdateBody,
+                            pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        authenticate(pa_device, pa_token, write=True)
+        value = store.update_file(project_id, file_id, body.model_dump())
+        if not value:
+            raise HTTPException(404, 'Project file not found')
+        return {'project': value}
+
     @router.post('/{project_id}/discussions', status_code=201)
     def add_discussion(project_id: str, body: DiscussionCreateBody,
                        pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
@@ -426,6 +455,19 @@ def projects_router(runtime, store: ProjectStore):
         if not store.add_reply(project_id, thread_id, author=author, content=body.content):
             raise HTTPException(404, 'Discussion not found')
         return {'project': project_or_404(project_id)}
+
+    @router.patch('/{project_id}/discussions/{thread_id}')
+    def update_discussion(project_id: str, thread_id: str, body: DiscussionUpdateBody,
+                          pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        authenticate(pa_device, pa_token, write=True)
+        project_or_404(project_id)
+        try:
+            value = store.update_thread(project_id, thread_id, body.model_dump(exclude_unset=True))
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        if not value:
+            raise HTTPException(404, 'Discussion not found')
+        return {'project': value}
 
     @router.post('/{project_id}/conversation', status_code=201)
     def project_conversation(project_id: str,
