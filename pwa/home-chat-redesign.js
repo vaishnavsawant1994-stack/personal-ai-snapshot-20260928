@@ -2,6 +2,22 @@
 (function(){
   const $ = window.$ || (id => document.getElementById(id));
   const folder = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h6l2 2h10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
+  function keepMobileHomeClearOfDock(){
+    if(document.getElementById('vMobileHomeViewportFix')) return;
+    const style=document.createElement('style');
+    style.id='vMobileHomeViewportFix';
+    style.textContent=`@media(max-width:760px){
+      body.v-ref.home-landing .home{overflow:hidden}
+      body.v-ref.home-landing .home-intro{max-height:calc(100dvh - 240px);padding-bottom:12px}
+      body.v-ref.home-landing .home-greeting{margin:8px 0 9px}
+      body.v-ref.home-landing .home-sphere-stage{height:148px;margin:0 0 5px}
+      body.v-ref.home-landing .home-sphere-stage .core-stage{width:142px!important;height:142px!important;min-width:142px!important;max-width:142px!important}
+      body.v-ref.home-landing .v-shortcuts{gap:8px;margin:6px 0 14px}
+      body.v-ref.home-landing .v-card{min-height:76px;padding:9px 10px}
+      body.v-ref.home-landing .v-recent-head{margin-bottom:6px}
+    }`;
+    document.head.append(style);
+  }
   function placeSphere(){
     const stage = document.querySelector('.core-stage');
     const homeStage = $('homeSphereStage');
@@ -276,6 +292,7 @@
   }
 
   function boot(){
+    keepMobileHomeClearOfDock();
     document.body.classList.add('v-ref');
     const originalHome = enterHomeLanding;
     enterHomeLanding = function(){
