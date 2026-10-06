@@ -115,7 +115,11 @@ try {
       const panelStyle = getComputedStyle(document.querySelector('#modulePanel'));
       return { viewport: innerWidth, projectClass: !!document.querySelector('#modulePanel.module-panel.open[data-surface=\"projects\"]'), shellLeft: shell.left, shellWidth: shell.width, panelWidth: panel.width, panelHeight: panel.height, panelLeft: panel.left, panelPosition: panelStyle.position, panelTransform: panelStyle.transform, pageLeft: page.left, bodyWidth: document.body.scrollWidth };
     });
-    assert.ok(projectSurface.panelWidth >= projectSurface.viewport - 1, `Projects should use the available workspace width: ${JSON.stringify(projectSurface)}`);
+    if (viewport.width > 900) {
+      assert.ok(projectSurface.panelLeft >= 200 && projectSurface.panelLeft + projectSurface.panelWidth >= projectSurface.viewport - 1, `Desktop Projects should begin beside the global navigation and fill the remaining width: ${JSON.stringify(projectSurface)}`);
+    } else {
+      assert.ok(projectSurface.panelWidth >= projectSurface.viewport - 1, `Mobile Projects should use the full available width: ${JSON.stringify(projectSurface)}`);
+    }
     assert.ok(projectSurface.panelHeight > 0, `Projects should fill the workspace height: ${JSON.stringify(projectSurface)}`);
     assert.ok(projectSurface.bodyWidth <= projectSurface.viewport + 1, `Projects should not overflow horizontally: ${JSON.stringify(projectSurface)}`);
     if (viewport.isMobile) assert.ok(projectSurface.pageLeft >= -1 && projectSurface.pageLeft < 20, `Mobile Projects should not sit inside an inset card: ${JSON.stringify(projectSurface)}`);
@@ -143,6 +147,27 @@ try {
     await page.locator('[data-wizard-next]').click();
     await page.locator('[data-wizard-create]').click();
     await page.getByRole('heading', { name: `Responsive workspace ${viewport.width}` }).waitFor();
+    const detailShell = await page.evaluate(() => {
+      const drawer = document.querySelector('#appDrawer').getBoundingClientRect();
+      const panel = document.querySelector('#modulePanel').getBoundingClientRect();
+      const projectNav = document.querySelector('.project-workspace-sidebar').getBoundingClientRect();
+      const main = document.querySelector('.project-workspace-main').getBoundingClientRect();
+      return { viewport: innerWidth, bodyWidth: document.body.scrollWidth, drawerLeft: drawer.left, drawerWidth: drawer.width, drawerDisplay: getComputedStyle(document.querySelector('#appDrawer')).display, panelLeft: panel.left, panelRight: panel.right, projectNavWidth: projectNav.width, projectNavDisplay: getComputedStyle(document.querySelector('.project-workspace-sidebar')).display, mainLeft: main.left, mainRight: main.right, mobileHeadDisplay: getComputedStyle(document.querySelector('.project-mobile-head')).display, mobileTitleDisplay: getComputedStyle(document.querySelector('.project-mobile-title')).display, mobileGoalDisplay: getComputedStyle(document.querySelector('.project-mobile-goal')).display, tabsDisplay: getComputedStyle(document.querySelector('.project-tabbar')).display };
+    });
+    assert.ok(detailShell.bodyWidth <= detailShell.viewport + 1, `Project detail must not overflow horizontally: ${JSON.stringify(detailShell)}`);
+    if (viewport.width > 900) {
+      assert.equal(detailShell.drawerDisplay, 'flex', `The existing global navigation should become the desktop rail: ${JSON.stringify(detailShell)}`);
+      assert.ok(detailShell.drawerLeft <= 0 && detailShell.drawerWidth >= 180, `The global rail should occupy the far left: ${JSON.stringify(detailShell)}`);
+      assert.ok(detailShell.panelLeft >= detailShell.drawerWidth - 1, `The project content should start after the global rail: ${JSON.stringify(detailShell)}`);
+      assert.ok(detailShell.projectNavWidth >= 180 && detailShell.mainLeft > detailShell.panelLeft + detailShell.projectNavWidth - 1, `Desktop project navigation should have its own column: ${JSON.stringify(detailShell)}`);
+    } else {
+      assert.equal(detailShell.mobileHeadDisplay, 'grid', `Mobile should show a compact project header: ${JSON.stringify(detailShell)}`);
+      assert.equal(detailShell.mobileTitleDisplay, 'grid', `Mobile project identity and status should remain visible: ${JSON.stringify(detailShell)}`);
+      assert.equal(detailShell.mobileGoalDisplay, 'block', `Mobile should show the collapsible project goal before workspace sections: ${JSON.stringify(detailShell)}`);
+      assert.equal(detailShell.tabsDisplay, 'flex', `Mobile should show its compact project section navigation: ${JSON.stringify(detailShell)}`);
+      assert.equal(detailShell.projectNavDisplay, 'block', `The mobile project shell should reflow instead of reserving a sidebar: ${JSON.stringify(detailShell)}`);
+    }
+    if (screenshotDir) await page.screenshot({ path: `${screenshotDir}/project-overview-${viewport.width}.png`, fullPage: false });
     await page.getByRole('button', { name: 'Add task' }).click();
     const taskDialog = page.locator('dialog.project-dialog');
     await taskDialog.locator('input[name="title"]').fill('Verify the responsive workspace');
@@ -162,11 +187,14 @@ try {
     await openProjectTab('plan');
     await page.getByText('Verify the responsive workspace').waitFor();
     await page.getByText('Workspace ready').first().waitFor();
+    await page.locator('.project-task-row').first().waitFor();
+    if (screenshotDir) await page.screenshot({ path: `${screenshotDir}/project-plan-${viewport.width}.png`, fullPage: false });
     await page.getByRole('button', { name: 'Ask Vishnu' }).first().click();
     await page.locator('#projectChatForm textarea').fill('Please make a safe implementation plan.');
     await page.locator('#projectChatForm button[type="submit"]').click();
     await page.getByText(/Vishnu plan for:/).waitFor();
     assert.equal(serverState.turns.at(-1).conversation_id, serverState.projects[0].conversation_id, 'Project chat must use its linked canonical conversation');
+    if (screenshotDir) await page.screenshot({ path: `${screenshotDir}/project-chat-${viewport.width}.png`, fullPage: false });
     await openProjectTab('files');
     await page.locator('[data-project-action="add-files"]:visible').first().click();
     const filesDialog = page.locator('dialog.project-files-dialog');
@@ -174,6 +202,8 @@ try {
     await filesDialog.getByText('project-notes.md').waitFor();
     await filesDialog.getByRole('button', { name: 'Add to project' }).click();
     await page.getByText('project-notes.md').waitFor();
+    await page.locator('[data-file-select]').click();
+    if (screenshotDir) await page.screenshot({ path: `${screenshotDir}/project-files-${viewport.width}.png`, fullPage: false });
     await openProjectTab('plan');
     await page.locator('[data-project-task-edit]').first().click();
     const editTaskDialog = page.locator('dialog.project-dialog');
@@ -193,6 +223,7 @@ try {
     await page.locator('[data-thread-reply-form] textarea').fill('The composer stays in the thread panel.');
     await page.locator('[data-thread-reply-form] button[type="submit"]').click();
     await page.getByText('The composer stays in the thread panel.').waitFor();
+    if (screenshotDir) await page.screenshot({ path: `${screenshotDir}/project-discussions-${viewport.width}.png`, fullPage: false });
     await page.getByRole('button', { name: 'Follow', exact: true }).click();
     await page.getByRole('button', { name: 'Following', exact: true }).waitFor();
     const decisionPin = page.locator('[data-thread-pin]').last();
