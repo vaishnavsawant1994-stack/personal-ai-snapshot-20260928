@@ -453,3 +453,14 @@ body:has(#modulePanel.module-panel.open[data-surface="projects"]) #modulePanel.m
   .project-thread-mobile-back{white-space:nowrap;font-size:.72rem}
 }
 .project-file-inspector-backdrop{display:none}
+
+/* Keep project overview metrics legible and centered on phone-sized screens. */
+@media(max-width:600px){
+ .project-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .project-stat-progress{grid-template-columns:44px minmax(0,1fr);align-items:center;justify-items:stretch;gap:9px;min-height:68px}
+ .project-stat-progress>span:not(.project-progress-donut){font-size:.7rem;line-height:1.35}
+ .project-progress-donut{flex:none;margin-top:0!important}
+ .project-progress-donut strong{position:absolute;inset:0;display:grid;place-items:center;margin:0!important;z-index:1;font-size:.68rem!important;line-height:1;color:#edf5ff}
+ body:has(#modulePanel.module-panel.open[data-surface="projects"]) #appDrawer{z-index:80}
+ body:has(#modulePanel.module-panel.open[data-surface="projects"]) .drawer-overlay{z-index:79}
+}

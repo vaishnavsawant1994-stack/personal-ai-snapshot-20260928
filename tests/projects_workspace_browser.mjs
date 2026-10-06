@@ -108,6 +108,11 @@ try {
     await page.locator('#historyButton').click();
     await page.locator('[data-app-module="projects"]').click();
     await page.locator('.project-list-page').waitFor();
+    await page.locator('#historyButton').click();
+    await page.locator('#appDrawer').waitFor({ state: 'visible' });
+    assert.equal(await page.locator('#appDrawer [data-app-module="projects"]').isVisible(), true, `The hamburger should open usable navigation from the Projects list at ${viewport.width}px`);
+    await page.locator('#closeAppDrawer').click();
+    await page.locator('#appDrawer').waitFor({ state: 'hidden' });
     const openProjectTab = async key => { let tab = page.locator(`[data-project-tab="${key}"]:visible`).first(); if (!(await tab.count())) { await page.locator('.project-more-tabs > summary').click(); tab = page.locator(`[data-project-tab="${key}"]:visible`).first(); } await tab.click(); };
     if (screenshotDir) await page.screenshot({ path: `${screenshotDir}/projects-${viewport.width}.png`, fullPage: false });
     const projectSurface = await page.evaluate(() => {
@@ -188,6 +193,18 @@ try {
     const savedProject = serverState.projects.find(item => item.name === `Responsive workspace ${viewport.width}`);
     assert.equal(savedProject.tasks[0].context_notes, 'Review the design brief before this task.');
     assert.deepEqual(savedProject.milestones[0].task_ids, [savedProject.tasks[0].id]);
+    if (viewport.isMobile) {
+      const metrics = await page.evaluate(() => {
+        const grid = document.querySelector('.project-stat-grid');
+        const donut = document.querySelector('.project-progress-donut');
+        const value = donut.querySelector('strong');
+        const a = donut.getBoundingClientRect(), b = value.getBoundingClientRect();
+        return { columns: getComputedStyle(grid).gridTemplateColumns.split(' ').length, donutCenterX: a.left + a.width / 2, valueCenterX: b.left + b.width / 2, donutCenterY: a.top + a.height / 2, valueCenterY: b.top + b.height / 2, bodyWidth: document.body.scrollWidth, viewport: innerWidth };
+      });
+      assert.equal(metrics.columns, 2, `Phone overview metrics should use readable two-column cards: ${JSON.stringify(metrics)}`);
+      assert.ok(Math.abs(metrics.donutCenterX - metrics.valueCenterX) < 1 && Math.abs(metrics.donutCenterY - metrics.valueCenterY) < 1, `Progress value should be centered in its donut: ${JSON.stringify(metrics)}`);
+      assert.ok(metrics.bodyWidth <= metrics.viewport + 1, `Phone overview should not overflow horizontally: ${JSON.stringify(metrics)}`);
+    }
     await openProjectTab('plan');
     await page.locator('.project-task-title').filter({ hasText: 'Verify the responsive workspace' }).first().waitFor();
     await page.getByText('Workspace ready').first().waitFor();
