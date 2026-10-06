@@ -299,7 +299,7 @@ try {
     await page.getByRole('heading', { name: '3D project structure' }).waitFor();
     await page.locator('[data-structure-view="2d"]').click();
     await page.locator('.pa-structure-graph.is-map').waitFor();
-    await page.locator('[data-structure-select="task:' + savedProject.tasks[0].id + '"]').click();
+    await page.locator('[data-structure-select="task:' + savedProject.tasks[0].id + '"]').first().click();
     await page.locator('.pa-structure-detail').getByRole('heading', { name: 'Verify the responsive workspace' }).waitFor();
     if (screenshotDir) await page.screenshot({ path: `${screenshotDir}/project-structure-${viewport.width}.png`, fullPage: false });
     await openProjectTab('live');
