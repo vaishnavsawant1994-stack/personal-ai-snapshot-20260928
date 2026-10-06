@@ -539,6 +539,15 @@ def test_home_uses_one_touch_voice_instead_of_four_test_buttons(tmp_path):
 
     assert page.status_code == 200
     assert 'id="micButton"' in page.text
+
+
+def test_reference_today_module_is_defined_and_loaded_as_a_page(tmp_path):
+    client, _ = make_client(tmp_path)
+    script = client.get('/iphone/reference-pages.js')
+    assert script.status_code == 200
+    assert 'function todayPage()' in script.text
+    assert "name==='today'?todayPage()" in script.text
+    assert 'function bindToday()' in script.text
     assert 'Tap once to talk continuously' in page.text
     assert '>Start Session<' not in page.text
     assert '>Start Listening<' not in page.text
