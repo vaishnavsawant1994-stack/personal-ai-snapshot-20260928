@@ -649,7 +649,7 @@ try {
   await page.waitForFunction(expected=>document.querySelectorAll(".conversations-row").length===expected,conversations.length);
   await page.click("#newConversation");
   await page.waitForFunction(()=>document.querySelector("#conversationDrawer").classList.contains("hidden")&&!document.body.classList.contains("home-landing"));
-  assert.equal(await page.evaluate(()=>currentConversationId),null,"Conversations New chat must clear the active historical conversation");
+  assert.equal(await page.evaluate(()=>currentConversationId),"new","Conversations New chat must bind the fresh conversation before its first message");
   assert.equal(await page.locator("#messageStream .message").count(),0,"Conversations New chat must start with an empty message history");
   await page.evaluate(()=>enterHomeLanding());
   await page.waitForFunction(()=>document.body.classList.contains("home-landing"));
