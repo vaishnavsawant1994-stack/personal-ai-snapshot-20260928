@@ -17,6 +17,8 @@ const server = createServer(async (req, res) => {
   if (req.method === 'GET' && url.pathname === '/iphone/') return send(200, await read('pwa/index.html'), 'text/html; charset=utf-8');
   if (req.method === 'GET' && url.pathname === '/iphone/projects-workspace.js') return send(200, await read('pwa/projects-workspace.js'), 'application/javascript');
   if (req.method === 'GET' && url.pathname === '/iphone/projects-workspace.css') return send(200, await read('pwa/projects-workspace.css'), 'text/css');
+  if (req.method === 'GET' && url.pathname === '/iphone/projects-workspace-views.css') return send(200, await read('pwa/projects-workspace-views.css'), 'text/css');
+  if (req.method === 'GET' && url.pathname === '/iphone/projects-workspace-views.js') return send(200, await read('pwa/projects-workspace-views.js'), 'application/javascript');
   if (req.method === 'GET' && url.pathname === '/iphone/v1-runtime.js') return send(200, await read('pwa/v1-runtime.js'), 'application/javascript');
   if (req.method === 'GET' && url.pathname === '/iphone/manifest.webmanifest') return send(200, '{}', 'application/manifest+json');
   if (req.method === 'GET' && url.pathname === '/iphone/sw.js') return send(200, await read('pwa/sw.js'), 'application/javascript');
@@ -273,11 +275,35 @@ try {
     assert.equal(savedProject.approvals[0].history.length, 3);
     assert.equal(savedProject.approvals[0].history[0].comments, 'Clarify the rollback scope.');
     await openProjectTab('activity');
+    await page.getByRole('heading', { name: 'Activity' }).waitFor();
     await page.getByText('asked Vishnu').waitFor();
+    await page.locator('[data-pa-query]').fill('Verify the responsive workspace');
+    await page.getByText('created task').waitFor();
+    await page.locator('[data-pa-category="tasks"]').click();
+    await page.locator('[data-pa-actor]').selectOption('you');
+    assert.equal(await page.locator('[data-pa-event]').count(), 1, 'Activity category, actor, and search filters should combine');
+    await page.locator('[data-pa-reset]').first().click();
+    if (screenshotDir) await page.screenshot({ path: `${screenshotDir}/project-activity-${viewport.width}.png`, fullPage: false });
     await openProjectTab('live');
-    await page.getByRole('button', { name: 'Review pending approvals' }).click();
-    await page.getByRole('heading', { name: 'No pending approvals' }).waitFor();
-    await page.getByRole('button', { name: 'Close approvals' }).click();
+    await page.getByRole('heading', { name: 'Live work' }).waitFor();
+    await page.getByText('Queue order is based on saved task creation time').waitFor();
+    await page.locator('[data-live-manage]').click();
+    await page.getByRole('heading', { name: 'Work plan' }).waitFor();
+    await openProjectTab('status');
+    await page.getByRole('heading', { name: '3D status' }).waitFor();
+    await page.locator('[data-status-view="2d"]').click();
+    await page.locator('.pa-status-visual.is-list').waitFor();
+    await page.locator('[data-status-task-select]').first().click();
+    await page.locator('.pa-status-detail').getByRole('heading', { name: 'Verify the responsive workspace' }).waitFor();
+    await openProjectTab('structure');
+    await page.getByRole('heading', { name: '3D project structure' }).waitFor();
+    await page.locator('[data-structure-view="2d"]').click();
+    await page.locator('.pa-structure-graph.is-map').waitFor();
+    await page.locator('[data-structure-select="task:' + savedProject.tasks[0].id + '"]').click();
+    await page.locator('.pa-structure-detail').getByRole('heading', { name: 'Verify the responsive workspace' }).waitFor();
+    if (screenshotDir) await page.screenshot({ path: `${screenshotDir}/project-structure-${viewport.width}.png`, fullPage: false });
+    await openProjectTab('live');
+    await page.getByText('No pending project proposals need review.').waitFor();
     await openProjectTab('plan');
     for (const mode of ['board', 'timeline', 'list']) {
       await page.locator(`[data-plan-view="${mode}"]`).click();
@@ -299,7 +325,7 @@ try {
   await preview.locator('.project-card-rich [data-project-open]').first().click();
   await preview.getByText(/Preview project only/).waitFor();
   await preview.close();
-  console.log('Projects workspace browser smoke passed at 390px, 820px, and 1440px: wizard, task-file links, proposal review/comments/resubmission, project chat, upload, activity, and no horizontal overflow.');
+  console.log('Projects workspace browser smoke passed at 390px, 820px, and 1440px: project CRUD, Activity filters, Live work, status and structure views, task/file links, proposal review, chat, and responsive overflow.');
 } finally {
   await browser.close();
   await new Promise(resolve => server.close(resolve));
