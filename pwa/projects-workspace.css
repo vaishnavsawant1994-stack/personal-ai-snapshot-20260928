@@ -464,3 +464,9 @@ body:has(#modulePanel.module-panel.open[data-surface="projects"]) #modulePanel.m
  body:has(#modulePanel.module-panel.open[data-surface="projects"]) #appDrawer{z-index:80}
  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .drawer-overlay{z-index:79}
 }
+
+/* Allow the shared app drawer to open over the Projects list on mobile. */
+@media(max-width:900px){
+ body:has(#modulePanel.module-panel.open[data-surface="projects"]) #appDrawer[aria-hidden="false"]{display:flex!important;z-index:80!important;pointer-events:auto}
+ body:has(#modulePanel.module-panel.open[data-surface="projects"]) .drawer-overlay{z-index:79}
+}
