@@ -185,7 +185,7 @@ try {
     assert.equal(savedProject.tasks[0].context_notes, 'Review the design brief before this task.');
     assert.deepEqual(savedProject.milestones[0].task_ids, [savedProject.tasks[0].id]);
     await openProjectTab('plan');
-    await page.getByText('Verify the responsive workspace').waitFor();
+    await page.locator('.project-task-title').filter({ hasText: 'Verify the responsive workspace' }).first().waitFor();
     await page.getByText('Workspace ready').first().waitFor();
     await page.locator('.project-task-row').first().waitFor();
     if (screenshotDir) await page.screenshot({ path: `${screenshotDir}/project-plan-${viewport.width}.png`, fullPage: false });
