@@ -204,6 +204,7 @@ try {
     await page.getByText('project-notes.md').waitFor();
     await page.locator('[data-file-select]').click();
     if (screenshotDir) await page.screenshot({ path: `${screenshotDir}/project-files-${viewport.width}.png`, fullPage: false });
+    if (viewport.isMobile) await page.locator('[data-file-inspector-close]').click();
     await openProjectTab('plan');
     await page.locator('[data-project-task-edit]').first().click();
     const editTaskDialog = page.locator('dialog.project-dialog');
