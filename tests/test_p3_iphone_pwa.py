@@ -553,7 +553,10 @@ def test_reference_today_module_is_defined_and_loaded_as_a_page(tmp_path):
     assert 'function todayPage()' in script.text
     assert "name==='today'?todayPage()" in script.text
     assert 'function bindToday()' in script.text
-    assert 'root.innerHTML=shell(name,labels[name],subtitles[name]||\'\',content)' in script.text
+    # Reference pages now return their complete shell, so render mounts the
+    # page directly instead of wrapping a second shell around its content.
+    assert "const page=name==='today'?todayPage()" in script.text
+    assert 'root.innerHTML=page' in script.text
 
 
 def test_client_tts_failure_is_recorded_as_voice_error(tmp_path):
