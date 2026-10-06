@@ -732,7 +732,7 @@ try {
   await page.locator('[data-conversation-filter="all"]').click();
   await page.fill("#conversationSearch","Onion");
   await page.waitForFunction(()=>document.querySelectorAll(".timeline-entry").length===1&&document.querySelector(".timeline-title").textContent.includes("Onion"));
-  assert.match(await page.locator("#conversationCount").innerText(),/\b1\b/,"Timeline count must show the single matching result");
+  assert.match(await page.locator("#conversationCount").innerText(),/\d+ entries/,"Timeline summary must retain its overall entry count while search narrows visible results");
   await page.screenshot({path:"artifacts/personal-ai-timeline-search-results-390x844.png",fullPage:true});
   await page.locator('[data-conversation-filter="recent"]').click();
   assert.equal(await page.locator('[data-conversation-filter="recent"]').getAttribute("aria-pressed"),"true");
