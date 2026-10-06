@@ -211,7 +211,7 @@ try {
     await editTaskDialog.locator('input[name="file_ids"]').check();
     await editTaskDialog.getByRole('button', { name: 'Save' }).click();
     assert.deepEqual(savedProject.tasks[0].file_ids, [savedProject.files[0].id]);
-    await page.getByText(/Files: project-notes.md/).waitFor();
+    await page.getByText(/Uses project-notes\.md/).waitFor();
     await openProjectTab('discussions');
     await page.locator('[data-project-action="new-discussion"]:visible').first().click();
     const discussionDialog = page.locator('dialog.project-dialog');
