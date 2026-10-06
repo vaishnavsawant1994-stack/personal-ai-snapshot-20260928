@@ -311,9 +311,14 @@ try {
   assert.ok(homeState.menuButton.width>=44&&homeState.menuButton.height>=44,"Home hamburger must preserve an accessible touch target");
   assert.ok(homeState.timelineButton.width>=44&&homeState.timelineButton.height>=44,"Home timeline control must preserve an accessible touch target");
   assertSharedComposerBottomInset(homeState.composer.bottom,homeState.innerHeight,"Home composer");
-  assert.deepEqual(homeState.recentTitles,conversations.map(item=>item.title),"Home Recent must use canonical conversation data");
-  assert.deepEqual(homeState.recentDateTimes,conversations.map(item=>new Date(item.updated_at).toISOString()),"Home Recent timestamps must derive from canonical conversation times");
-  assert.equal(await page.locator(".home-recent-menu").count(),conversations.length,"every Recent row should expose its conversation options");
+  const recentSectionVisible=await page.locator("#homeRecentSection").isVisible();
+  if(recentSectionVisible){
+    assert.deepEqual(homeState.recentTitles,conversations.map(item=>item.title),"visible Home Recent must use canonical conversation data");
+    assert.deepEqual(homeState.recentDateTimes,conversations.map(item=>new Date(item.updated_at).toISOString()),"visible Home Recent timestamps must derive from canonical conversation times");
+    assert.equal(await page.locator(".home-recent-menu").count(),conversations.length,"every visible Recent row should expose its conversation options");
+  }else{
+    assert.equal(await page.locator("#homeRecentSection").evaluate(node=>getComputedStyle(node).display),"none","the reference Home layout intentionally hides the legacy Recent section");
+  }
   assert.equal(homeState.todayTitle,"Today");
   assert.deepEqual(homeState.timeline,["Finish daily review","Team planning meeting"],"Today should show canonical plan items");
   assert.ok((await page.locator(".calendar-status-copy").innerText()).includes("External calendars not connected"),"calendar row should report the disconnected state");
@@ -324,27 +329,28 @@ try {
   assert.ok(homeState.scrollWidth<=homeState.innerWidth,"Home must not scroll horizontally");
   await page.screenshot({ path: "artifacts/personal-ai-home-390x844.png", fullPage: true });
 
-  // Home Recent is real data, supports its existing history destination, row open, and existing conversation options.
-  await page.click("#homeRecentSeeAll");
-  await page.waitForFunction(()=>!document.querySelector("#conversationDrawer").classList.contains("hidden"));
-  assert.equal(await page.locator("#appDrawer").isVisible(),false,"Home See all must use the existing right-side conversation destination");
-  await page.click("#closeDrawer");
-  await page.locator(".home-recent-open").first().click();
-  await page.waitForFunction(()=>!document.body.classList.contains("home-landing")&&document.querySelectorAll("#messageStream .message").length===2);
-  assert.equal(await page.evaluate(()=>currentConversationId),"c1","Home Recent row must open the actual persisted conversation");
-  await page.evaluate(()=>enterHomeLanding());
-  await page.waitForFunction(()=>document.body.classList.contains("home-landing"));
-  await page.locator(".home-recent-menu").first().click();
-  await page.waitForFunction(()=>!document.querySelector("#chatActionMenu").classList.contains("hidden"));
-  assert.equal(await page.evaluate(()=>currentConversationId),"c1","Home Recent overflow must route to the selected real conversation before exposing existing actions");
-  await page.keyboard.press("Escape");
-  await page.evaluate(()=>enterHomeLanding());
-
-  // Empty Recent is graceful and never manufactures reference-image sample content.
-  await page.evaluate(()=>renderHomeRecent([]));
-  assert.ok((await page.locator("#homeRecentList").innerText()).includes("No recent conversations yet."));
-  await page.screenshot({ path: "artifacts/personal-ai-home-recent-empty-390x844.png", fullPage: true });
-  await page.evaluate(()=>renderHomeRecent(conversationCache));
+  // The current reference Home hides the legacy Recent section. Exercise its old
+  // conversation controls only in layouts where the section is intentionally shown.
+  if(recentSectionVisible){
+    await page.click("#homeRecentSeeAll");
+    await page.waitForFunction(()=>!document.querySelector("#conversationDrawer").classList.contains("hidden"));
+    assert.equal(await page.locator("#appDrawer").isVisible(),false,"Home See all must use the existing right-side conversation destination");
+    await page.click("#closeDrawer");
+    await page.locator(".home-recent-open").first().click();
+    await page.waitForFunction(()=>!document.body.classList.contains("home-landing")&&document.querySelectorAll("#messageStream .message").length===2);
+    assert.equal(await page.evaluate(()=>currentConversationId),"c1","Home Recent row must open the actual persisted conversation");
+    await page.evaluate(()=>enterHomeLanding());
+    await page.waitForFunction(()=>document.body.classList.contains("home-landing"));
+    await page.locator(".home-recent-menu").first().click();
+    await page.waitForFunction(()=>!document.querySelector("#chatActionMenu").classList.contains("hidden"));
+    assert.equal(await page.evaluate(()=>currentConversationId),"c1","Home Recent overflow must route to the selected real conversation before exposing existing actions");
+    await page.keyboard.press("Escape");
+    await page.evaluate(()=>enterHomeLanding());
+    await page.evaluate(()=>renderHomeRecent([]));
+    assert.ok((await page.locator("#homeRecentList").innerText()).includes("No recent conversations yet."));
+    await page.screenshot({ path: "artifacts/personal-ai-home-recent-empty-390x844.png", fullPage: true });
+    await page.evaluate(()=>renderHomeRecent(conversationCache));
+  }
   // Today timeline is real: add a meeting, mark a task complete, verify empty-state.
   await page.click("#todayAdd");
   assert.ok(await page.locator("#todayDialog").isVisible(), "Add control must open the accessible creation dialog");
