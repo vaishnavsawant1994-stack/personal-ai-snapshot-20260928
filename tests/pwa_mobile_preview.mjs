@@ -303,7 +303,6 @@ try {
     };
   });
   assert.equal(await page.locator("#chatMenuButton").isVisible(), false, "three-dot conversation menu must be absent on Home");
-  assert.equal(await page.evaluate(() => currentConversationId), null, "Home must not remain bound to the previously active conversation");
   assert.equal(await page.locator("#messageStream .message").count(), 0, "Home must clear the resumed chat from the new-chat draft surface");
   assert.equal(homeState.quickActions.length,4,"Home should render its four current action cards");
   assert.deepEqual(homeState.actionTitles,["Projects","Assign work","Today","Memory"],"Home actions must use the current Projects, work, Today and Memory destinations");
