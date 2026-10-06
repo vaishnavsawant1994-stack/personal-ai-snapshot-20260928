@@ -2674,6 +2674,10 @@ button:active:focus-visible{transform:none!important;transition:none!important}
   .today-screen{height:100dvh;overflow:hidden!important;align-items:stretch;padding-bottom:var(--shared-composer-bottom)!important}
   .today-shell{height:100%;max-height:100%;min-height:0!important;display:flex;flex-direction:column;overflow:hidden;padding-bottom:0!important}
   .today-screen-content{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+  @media(max-width:600px){
+    .today-screen-footer{position:absolute;left:50%;bottom:var(--shared-composer-bottom);width:min(calc(100vw - 20px),820px);transform:translateX(-50%);padding-bottom:0!important}
+    .today-screen-content{padding-bottom:68px}
+  }
   .today-screen-footer{
     flex:0 0 auto;display:grid;grid-template-columns:minmax(104px,.72fr) minmax(0,1.28fr);gap:8px;
     padding:10px 14px 7px;
@@ -2955,6 +2959,7 @@ body.v-ref .message-actions button svg{width:19px;height:19px}
 
   </style>
   <link rel="stylesheet" href="/iphone/projects-workspace.css" />
+  <link rel="stylesheet" href="/iphone/projects-workspace-views.css" />
 </head>
 <body>
 <main class="app-shell">
@@ -4888,6 +4893,7 @@ function updateConversationSync(){if(conversationSyncTimer){clearInterval(conver
 $('messageStream').addEventListener('scroll',()=>{const stream=$('messageStream');conversationPinnedToBottom=stream.scrollHeight-stream.clientHeight-stream.scrollTop<32},{passive:true});window.addEventListener('resize',resizeCanvas);if('ResizeObserver'in window)new ResizeObserver(resizeCanvas).observe(canvas.parentElement);document.addEventListener('visibilitychange',updateConversationSync);window.addEventListener('pagehide',()=>{if(conversationSyncTimer){clearInterval(conversationSyncTimer);conversationSyncTimer=null}});resizeCanvas();if(synth){synth.getVoices();synth.onvoiceschanged=()=>synth.getVoices()}if('serviceWorker'in navigator)navigator.serviceWorker.register('/iphone/sw.js').catch(()=>{});check().finally(()=>requestAnimationFrame(resizeCanvas));updateConversationSync();
 </script>
 <script src="/iphone/projects-workspace.js"></script>
+<script src="/iphone/projects-workspace-views.js"></script>
 <script src="/iphone/home-chat-redesign.js"></script>
 </body>
 </html>

@@ -198,6 +198,10 @@ try {
   // The explicit demo mode shows realistic sample records without calling mutation APIs.
   await page.evaluate(async()=>{todayScreenDemo=true;await openTodayScreen()});
   await page.waitForFunction(()=>document.querySelectorAll("#todayTasksList .today-row").length===4);
+  await page.locator(".today-screen:not(.hidden)").evaluate(async element=>{
+    await Promise.all(element.getAnimations({subtree:true}).map(animation=>animation.finished.catch(()=>{})));
+    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  });
   assert.equal(await page.locator("#todayMeetingsList .today-row").count(),2,"Today demo must show two sample meetings");
   assert.equal(await page.locator("#todayPlansList .today-row").count(),1,"Today demo must show one sample plan");
   assert.equal(await page.locator("#todayDemoNotice").isVisible(),true,"sample data must be clearly labeled as preview-only");
