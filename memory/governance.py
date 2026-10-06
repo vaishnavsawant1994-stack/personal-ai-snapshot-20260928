@@ -152,6 +152,19 @@ class GovernedMemory:
             self._emit('memory.candidate.blocked', reason='sensitive_requires_explicit_owner_write', source=data['source'])
             return None
 
+        read_preferences = getattr(self._brain.store, 'preferences', None)
+        preferences = read_preferences() if callable(read_preferences) else {
+            'memory_enabled': True,
+            'review_before_saving': True,
+        }
+        if not preferences['memory_enabled']:
+            self._emit('memory.candidate.blocked', reason='memory_disabled', source=data['source'])
+            return None
+        if not preferences['review_before_saving']:
+            memory_id = self._brain.remember(candidate)
+            self._emit('memory.committed', memory_id=memory_id, source=data['source'], verified=False, review_skipped=True)
+            return memory_id
+
         fingerprint = self._fingerprint(data)
         stamp = time.time()
         candidate_id = str(uuid.uuid4())

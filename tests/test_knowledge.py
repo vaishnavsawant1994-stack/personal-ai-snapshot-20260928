@@ -40,3 +40,24 @@ def test_knowledge_rejects_unsafe_unsupported_or_empty_uploads(tmp_path):
             pass
         else:
             raise AssertionError('unsafe knowledge upload was accepted')
+
+
+def test_available_to_vishnu_gate_and_collection_lifecycle(tmp_path):
+    store = KnowledgeStore(tmp_path / 'knowledge.sqlite3', tmp_path / 'objects')
+    collection = store.create_collection('Project notes', 'Scoped project material')
+    document = store.ingest(
+        filename='project.txt', data=b'The private launch milestone is ready.',
+        metadata={'collection_id': collection['id'], 'available_to_vishnu': True},
+    )
+    assert store.collections()[0]['item_count'] == 1
+    assert store.search('private launch')
+
+    metadata = dict(document['metadata'])
+    metadata['available_to_vishnu'] = False
+    store.update(document['id'], metadata=metadata)
+    assert store.list()[0]['metadata']['available_to_vishnu'] is False
+    assert store.search('private launch') == []
+
+    store.delete_collection(collection['id'])
+    assert store.detail(document['id'])['metadata'].get('collection_id') is None
+    assert store.detail(document['id']) is not None

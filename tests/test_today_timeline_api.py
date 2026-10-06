@@ -80,6 +80,20 @@ def test_today_meeting_is_real_durable_everyday_commitment():
     )]
 
 
+def test_today_plan_uses_existing_durable_goal_record_without_new_store():
+    client, _, everyday = client_for_today()
+    result = client.post('/iphone/api/everyday/items', cookies=auth(), json={
+        'category': 'plan', 'title': 'Plan tomorrow',
+        'due_at': '2026-10-07', 'timezone': 'Asia/Kolkata',
+    })
+    assert result.status_code == 201, result.text
+    assert everyday.calls == [(
+        'goal', 'Plan tomorrow',
+        {'due_at': '2026-10-07', 'context': 'personal-ai:today:plan',
+         'source': 'today_ui', 'timezone_name': 'Asia/Kolkata'},
+    )]
+
+
 def test_today_rejects_untrusted_categories_malformed_dates_and_blank_titles():
     client, _, everyday = client_for_today()
     base = {'title': 'Review', 'due_at': '2026-09-30',
@@ -129,3 +143,34 @@ def test_individual_everyday_item_detail_is_owner_scoped_and_404s_missing_record
     assert result.status_code == 200
     assert result.json()['item']['description'] == 'Saved task detail'
     assert client.get('/iphone/api/everyday/items/missing', cookies=auth()).status_code == 404
+
+
+def test_selected_day_uses_the_requested_user_timezone_and_keeps_completed_items():
+    client, _, everyday = client_for_today()
+    everyday.items = lambda *, status, limit: [
+        {'id': 'in-day', 'kind': 'task', 'status': 'scheduled',
+         'due_at': '2026-10-05T23:30:00Z'},
+        {'id': 'next-local-day', 'kind': 'task', 'status': 'scheduled',
+         'due_at': '2026-10-06T22:30:00Z'},
+        {'id': 'completed', 'kind': 'task', 'status': 'completed',
+         'due_at': '2026-10-06T00:15:00Z', 'completed_at': '2026-10-06T01:00:00Z'},
+        {'id': 'all-day', 'kind': 'task', 'status': 'scheduled',
+         'due_at': '2026-10-06'},
+    ]
+    response = client.get(
+        '/iphone/api/everyday/timeline?day=2026-10-06&timezone=Europe%2FBerlin',
+        cookies=auth(),
+    )
+    assert response.status_code == 200, response.text
+    assert [item['id'] for item in response.json()['items']] == [
+        'in-day', 'completed', 'all-day',
+    ]
+
+
+def test_selected_day_rejects_unknown_timezone():
+    client, _, _ = client_for_today()
+    response = client.get(
+        '/iphone/api/everyday/timeline?day=2026-10-06&timezone=Invalid%2FZone',
+        cookies=auth(),
+    )
+    assert response.status_code == 422

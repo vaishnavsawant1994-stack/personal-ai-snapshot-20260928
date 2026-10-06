@@ -12,6 +12,7 @@ from memory.second_brain import SecondBrain
 from memory.store import MemoryStore
 from qualification.program import P3QualificationProgram
 from server.owner_product import owner_product_router
+from projects.store import ProjectStore
 from security.request_context import TrustedRequestContext, set_trusted_request, reset_trusted_request
 
 
@@ -82,6 +83,7 @@ def make_client(tmp_path, *, reauthenticated_at=None):
         'tools': Tools(),
         'integrations': SimpleNamespace(list=lambda: []),
         'future_intelligence': SimpleNamespace(status=lambda: {}),
+        'project_store': ProjectStore(tmp_path / 'projects.sqlite3'),
     }
     app = FastAPI()
     fresh_at = time.time() if reauthenticated_at is None else reauthenticated_at
@@ -122,7 +124,53 @@ def test_owner_memory_lifecycle_and_audit(tmp_path):
     actions = [row['action'] for row in runtime['memory'].audit_entries('owner-product')]
     assert 'memory.created' in actions
     assert 'memory.corrected' in actions
-    assert 'memory.deleted' in actions
+    assert 'memory.removed' in actions
+
+
+def test_owner_memory_preferences_removal_restore_and_context_gate(tmp_path):
+    client, runtime, _ = make_client(tmp_path)
+    created = client.post('/iphone/api/memory', json={
+        'type': 'preference', 'subject': 'Writing', 'content': 'Use clear steps',
+    })
+    memory_id = created.json()['id']
+    assert runtime['second_brain'].context('clear steps')
+    assert client.get('/iphone/api/memory/preferences').json() == {
+        'memory_enabled': True, 'review_before_saving': True,
+    }
+    assert client.patch('/iphone/api/memory/preferences', json={
+        'memory_enabled': False, 'review_before_saving': False,
+    }).json() == {'memory_enabled': False, 'review_before_saving': False}
+    assert runtime['second_brain'].context('clear steps') == []
+    assert client.get('/iphone/api/memory?q=clear').json()['memories'][0]['id'] == memory_id
+
+    assert client.delete(f'/iphone/api/memory/{memory_id}?confirm=true').status_code == 200
+    assert client.get('/iphone/api/memory').json()['memories'] == []
+    assert client.get('/iphone/api/memory/removed').json()['memories'][0]['id'] == memory_id
+    restored = client.post(f'/iphone/api/memory/{memory_id}/restore')
+    assert restored.status_code == 200
+    assert client.get('/iphone/api/memory').json()['memories'][0]['id'] == memory_id
+    assert client.delete(f'/iphone/api/memory/{memory_id}/permanent?confirm=true').status_code == 200
+    assert client.get('/iphone/api/memory/removed').json()['memories'] == []
+
+
+def test_project_memory_scope_is_validated_and_excluded_from_global_retrieval(tmp_path):
+    client, runtime, _ = make_client(tmp_path)
+    project = runtime['project_store'].create(name='Atlas')
+    created = client.post('/iphone/api/memory', json={
+        'type': 'decision', 'subject': 'Atlas decision',
+        'content': 'Keep Atlas workspace scoped.', 'scope': 'project',
+        'project_id': project['id'],
+    })
+    assert created.status_code == 200
+    memory_id = created.json()['id']
+    assert runtime['second_brain'].context('Keep Atlas workspace scoped.') == []
+    assert runtime['second_brain'].context('Keep Atlas workspace scoped.', project_id=project['id'])
+    assert client.patch(f'/iphone/api/memory/{memory_id}', json={
+        'scope': 'project', 'project_id': 'not-authorized-or-missing',
+    }).status_code == 404
+    assert runtime['second_brain'].context('Keep Atlas workspace scoped.') == []
+    assert client.patch(f'/iphone/api/memory/{memory_id}', json={'scope': 'personal'}).status_code == 200
+    assert runtime['second_brain'].context('Keep Atlas workspace scoped.')
 
 
 def test_owner_api_refuses_to_create_or_mark_durable_never_store_memory(tmp_path):
@@ -163,6 +211,46 @@ def test_owner_knowledge_lifecycle_and_citations(tmp_path):
     assert client.patch(f'/iphone/api/knowledge/{document_id}', json={'title': 'Launch facts'}).json()['title'] == 'Launch facts'
     assert client.delete(f'/iphone/api/knowledge/{document_id}').status_code == 409
     assert client.delete(f'/iphone/api/knowledge/{document_id}?confirm=true').status_code == 200
+
+
+def test_owner_knowledge_collections_availability_and_unfetched_links(tmp_path):
+    client, _, _ = make_client(tmp_path)
+    collection = client.post('/iphone/api/knowledge/collections', json={
+        'title': 'Personal AI project', 'description': 'Project reference files',
+    })
+    assert collection.status_code == 201, collection.text
+    collection_id = collection.json()['id']
+    document = client.post('/iphone/api/knowledge', json={
+        'filename': 'brief.txt', 'title': 'Launch brief',
+        'text': 'The launch brief includes the workspace review checklist.',
+        'item_kind': 'note', 'collection_id': collection_id,
+    })
+    assert document.status_code == 200, document.text
+    document_id = document.json()['id']
+    assert client.get('/iphone/api/knowledge/collections').json()['collections'][0]['item_count'] == 1
+    assert client.get('/iphone/api/knowledge/search?q=workspace+review').json()['results']
+    assert client.patch(f'/iphone/api/knowledge/{document_id}/availability', json={
+        'available_to_vishnu': False,
+    }).status_code == 200
+    assert client.get('/iphone/api/knowledge/search?q=workspace+review').json()['results'] == []
+    assert client.patch(f'/iphone/api/knowledge/{document_id}/availability', json={
+        'available_to_vishnu': True,
+    }).status_code == 200
+    assert client.get('/iphone/api/knowledge/search?q=workspace+review').json()['results']
+
+    link = client.post('/iphone/api/knowledge', json={
+        'filename': 'saved-link.txt', 'title': 'Vishnu reference', 'item_kind': 'link',
+        'link_url': 'https://example.com/reference',
+    })
+    assert link.status_code == 200, link.text
+    assert link.json()['metadata']['link_status'] == 'saved_only'
+    assert link.json()['metadata']['available_to_vishnu'] is False
+    assert client.patch(f"/iphone/api/knowledge/{link.json()['id']}/availability", json={
+        'available_to_vishnu': True,
+    }).status_code == 409
+    deleted = client.delete(f'/iphone/api/knowledge/collections/{collection_id}?confirm=true')
+    assert deleted.json()['items_retained'] is True
+    assert client.get(f'/iphone/api/knowledge/{document_id}').status_code == 200
 
 
 def test_owner_can_manage_other_device_and_revocation_is_immediate(tmp_path):
