@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 10232)
+Total output lines: 185
+
 /* Reference-led owner pages. Scoped to the five management surfaces. */
 body.reference-pages-mode .app-shell{display:block!important;height:100dvh;min-height:100dvh;padding:0!important;overflow:hidden}
 body.reference-pages-mode .module-panel.open{position:fixed!important;inset:0!important;z-index:50!important;transform:none!important;width:100vw!important;height:100dvh!important;max-width:none!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;background:#080e16!important;box-shadow:none!important;display:block!important;overflow:hidden!important}
@@ -48,17 +51,7 @@ body.reference-pages-mode .module-panel.open>.module-body{height:100%!important;
   body.reference-pages-mode .rp-focus .rp-progress{display:none}
   body.reference-pages-mode .rp-summary{grid-template-columns:repeat(3,minmax(0,1fr))}
   body.reference-pages-mode .rp-summary-card{min-width:0;padding-inline:4px}
-  body.reference-pages-mode .rp-conversation-layout{grid-template-columns:minmax(0,1fr)}
-  body.reference-pages-mode .rp-desktop-detail,body.reference-pages-mode .rp-grid .rp-detail.rp-selected-detail{display:none}
-}
-.rp-mobile-date{display:none}
-.rp-page[data-rp-page="conversations"] .rp-actions{justify-content:center}
-.rp-page[data-rp-page="conversations"] .rp-actions>[data-rp-new-chat]{display:none}
-.rp-page[data-rp-page="conversations"] .rp-actions-group{width:100%}
-.rp-page[data-rp-page="conversations"] .rp-actions-group .rp-button{width:100%;min-height:50px}
-@media(min-width:761px){.rp-conv-tools>.rp-search{flex:1 1 260px}.rp-conv-tools>.rp-filters{flex:0 1 auto}.rp-conv-tools>.rp-select{flex:0 0 170px}}
-@media(max-width:760px){.rp-conv-tools{display:grid;grid-template-columns:minmax(0,1fr)}.rp-conv-tools>.rp-search{width:100%;min-width:0}.rp-conv-tools>.rp-select{display:none}}
-@media(min-width:761px){.rp-conv-tools{flex-wrap:nowrap}.rp-conv-tools>.rp-filters{width:auto!important;max-width:none!important;flex:0 0 auto}}
+  body.reference-pages-mode .rp-conversation-layout{grid-template-co…232 tokens truncated…portant;max-width:none!important;flex:0 0 auto}}
 @media(max-width:390px){
   body.reference-pages-mode .rp-main{padding-left:13px;padding-right:13px}
   body.reference-pages-mode .rp-actions{left:7px;right:7px;gap:6px}
@@ -82,7 +75,7 @@ body.reference-pages-mode .module-panel.open>.module-body{height:100%!important;
 .rp-tool-icon svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8}
 .rp-tool-icon.create{background:rgba(22,168,140,.15);color:#4ed9bd}.rp-tool-icon.analyze{background:rgba(144,97,225,.18);color:#be9aff}.rp-tool-icon.plan{background:rgba(26,151,133,.17);color:#44d4bb}
 .rp-tool-desc{grid-column:1/-1;min-height:36px;color:#bdc9da;font-size:12.5px;line-height:1.45}
-.rp-tool-status{font-size:12px;font-weight:600}.rp-tool-status.good,.rp-service-copy .good{color:#67dfa1}.rp-tool-status.muted,.rp-service-copy .muted{color:#a1aec1}
+.rp-tool-status{font-size:12px;font-weight:600;white-space:nowrap;line-height:1.25}.rp-tool-status.good,.rp-service-copy .good{color:#67dfa1}.rp-tool-status.muted,.rp-service-copy .muted{color:#a1aec1}
 .rp-tool-card .tool-use{width:100%;margin-top:auto;min-height:36px;color:#7dc5ff;border-color:rgba(49,145,231,.55);background:rgba(20,93,158,.1)}
 .rp-tool-card .tool-use.primary{color:#fff;background:linear-gradient(110deg,#34a8f3,#1679ed)}
 .rp-tool-rail{display:grid;gap:14px;min-width:0}
