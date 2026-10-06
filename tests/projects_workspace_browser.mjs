@@ -283,25 +283,31 @@ try {
     await page.locator('[data-pa-actor]').selectOption('you');
     assert.equal(await page.locator('[data-pa-event]').count(), 1, 'Activity category, actor, and search filters should combine');
     await page.locator('[data-pa-reset]').first().click();
-    if (screenshotDir) await page.screenshot({ path: `${screenshotDir}/project-activity-${viewport.width}.png`, fullPage: false });
+    if (screenshotDir) {
+      await page.locator('#toast.show').waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+      await page.evaluate(() => { window.scrollTo(0, 0); const body = document.querySelector('#moduleBody'); if (body) body.scrollTop = 0; });
+      await page.screenshot({ path: `${screenshotDir}/project-activity-${viewport.width}.png`, fullPage: false });
+    }
     await openProjectTab('live');
     await page.getByRole('heading', { name: 'Live work' }).waitFor();
+    if (screenshotDir) { await page.evaluate(() => window.scrollTo(0, 0)); await page.screenshot({ path: `${screenshotDir}/project-live-${viewport.width}.png`, fullPage: false }); }
     await page.getByText('Queue order is based on saved task creation time').waitFor();
     await page.locator('[data-live-manage]').click();
     await page.getByRole('heading', { name: 'Work plan' }).waitFor();
     await openProjectTab('status');
     await page.getByRole('heading', { name: '3D status' }).waitFor();
+    if (screenshotDir) { await page.evaluate(() => window.scrollTo(0, 0)); await page.screenshot({ path: `${screenshotDir}/project-status-${viewport.width}.png`, fullPage: false }); }
     await page.locator('[data-status-view="2d"]').click();
     await page.locator('.pa-status-visual.is-list').waitFor();
     await page.locator('[data-status-task-select]').first().click();
     await page.locator('.pa-status-detail').getByRole('heading', { name: 'Verify the responsive workspace' }).waitFor();
     await openProjectTab('structure');
     await page.getByRole('heading', { name: '3D project structure' }).waitFor();
+    if (screenshotDir) { await page.evaluate(() => window.scrollTo(0, 0)); await page.screenshot({ path: `${screenshotDir}/project-structure-${viewport.width}.png`, fullPage: false }); }
     await page.locator('[data-structure-view="2d"]').click();
     await page.locator('.pa-structure-graph.is-map').waitFor();
     await page.locator('[data-structure-select="task:' + savedProject.tasks[0].id + '"]').first().click();
     await page.locator('.pa-structure-detail').getByRole('heading', { name: 'Verify the responsive workspace' }).waitFor();
-    if (screenshotDir) await page.screenshot({ path: `${screenshotDir}/project-structure-${viewport.width}.png`, fullPage: false });
     await openProjectTab('live');
     await page.getByText('No pending project proposals need review.').waitFor();
     await openProjectTab('plan');
