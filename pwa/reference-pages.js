@@ -70,7 +70,6 @@
   window.openModule=function(name){if(!pages.has(name)){document.body.classList.remove('reference-pages-mode');return originalOpenModule.call(this,name)};document.body.classList.add('reference-pages-mode');return originalOpenModule.call(this,name).then(()=>load(name))};
   const oldToday=window.openTodayScreen;window.openTodayScreen=function(){if(typeof todayScreenDemo!=='undefined'&&todayScreenDemo&&typeof oldToday==='function')return oldToday.call(this);return window.openModule('today')};
   if($('sidebarToday'))$('sidebarToday').onclick=()=>window.openModule('today');
-  if($('appConversations'))$('appConversations').onclick=()=>window.openModule('conversations');
-  document.addEventListener('click',event=>{const link=event.target.closest('[data-app-module],[data-module]');if(!link)return;const name=link.dataset.appModule||link.dataset.module;if(!pages.has(name))return;event.preventDefault();event.stopImmediatePropagation();window.openModule(name)},{capture:true});
+  document.addEventListener('click',event=>{const link=event.target.closest('[data-app-module],[data-module]');if(!link||link.id==='appConversations')return;const name=link.dataset.appModule||link.dataset.module;if(!pages.has(name))return;event.preventDefault();event.stopImmediatePropagation();window.openModule(name)},{capture:true});
   if(preview())document.body.dataset.referenceDemo='true';
 })();
