@@ -81,6 +81,11 @@ try {
     assert.equal(await page.locator('.rp-page[data-rp-page="conversations"] .rp-conversation-layout').count(), 1);
     assert.equal(await page.locator('.rp-conv-tools>.rp-search').count(), 1, 'Conversation search should share the toolbar with its filters');
     assert.equal(await page.locator('.rp-page[data-rp-page="conversations"] .rp-actions-group .rp-button').isVisible(), true);
+    if (viewport.width > 760) {
+      const toolbarRows = await page.locator('.rp-conv-tools').evaluate(el => [...el.children].map(child => Math.round(child.getBoundingClientRect().top)));
+      assert.ok(Math.max(...toolbarRows)-Math.min(...toolbarRows) <= 4, `Search, filters and sort should share one desktop toolbar row: ${toolbarRows}`);
+      assert.equal(await page.locator('.rp-page[data-rp-page="conversations"] .rp-actions>[data-rp-new-chat]').isVisible(), false, 'Conversation footer should not duplicate New chat actions');
+    }
     await page.close();
   }
   console.log('Reference-page browser checks passed at 390px, 768px, and 1440px: no page overflow, one header/hamburger, correct Today counts, and Conversations opens as a page from the menu.');
