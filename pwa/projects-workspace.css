@@ -473,12 +473,12 @@ body:has(#modulePanel.module-panel.open[data-surface="projects"]) #modulePanel.m
 
 /* Keep the shared mobile navigation reachable on the Projects list. */
 @media(max-width:900px){
- body:has(#modulePanel.module-panel.open[data-surface="projects"]) .topbar{display:grid!important;visibility:visible!important;opacity:1!important;position:relative!important;z-index:81!important}
+ body:has(#modulePanel.module-panel.open[data-surface="projects"]):not(:has(.project-detail-page)) .topbar{display:grid!important;visibility:visible!important;opacity:1!important;position:relative!important;z-index:81!important}
 }
 
 /* Keep the hamburger above the mobile Projects surface and tappable. */
 @media(max-width:900px){
- body:has(#modulePanel.module-panel.open[data-surface="projects"]) .app-shell>.topbar,
- body.focused-module:has(#modulePanel.module-panel.open[data-surface="projects"]) .app-shell>.topbar{display:grid!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;position:relative!important;z-index:85!important}
+ body:has(#modulePanel.module-panel.open[data-surface="projects"]):not(:has(.project-detail-page)) .app-shell>.topbar,
+ body.focused-module:has(#modulePanel.module-panel.open[data-surface="projects"]):not(:has(.project-detail-page)) .app-shell>.topbar{display:grid!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;position:relative!important;z-index:85!important}
  body:has(#modulePanel.module-panel.open[data-surface="projects"]) #historyButton{display:grid!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important}
 }
