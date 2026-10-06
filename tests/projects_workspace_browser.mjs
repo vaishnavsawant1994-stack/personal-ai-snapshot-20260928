@@ -276,7 +276,7 @@ try {
     assert.equal(savedProject.approvals[0].history[0].comments, 'Clarify the rollback scope.');
     await openProjectTab('activity');
     await page.getByRole('heading', { name: 'Activity' }).waitFor();
-    await page.getByText('asked Vishnu').waitFor();
+    await page.getByText('asked Vishnu', { exact: true }).waitFor();
     await page.locator('[data-pa-query]').fill('Verify the responsive workspace');
     await page.getByText('created task').waitFor();
     await page.locator('[data-pa-category="tasks"]').click();
