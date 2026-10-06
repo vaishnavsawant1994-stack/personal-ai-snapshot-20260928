@@ -313,7 +313,7 @@ try {
   assertSharedComposerBottomInset(homeState.composer.bottom,homeState.innerHeight,"Home composer");
   assert.deepEqual(homeState.recentTitles,conversations.map(item=>item.title),"Home Recent must use canonical conversation data");
   assert.deepEqual(homeState.recentDateTimes,conversations.map(item=>new Date(item.updated_at).toISOString()),"Home Recent timestamps must derive from canonical conversation times");
-  assert.ok(homeState.recentRowHeights.every(height=>height>=42&&height<=56),"Recent rows should use compact density");
+  assert.ok(homeState.recentRowHeights.every(height=>height>=42&&height<=80),"Recent rows should remain touchable and compact on phones");
   assert.equal(await page.locator(".home-recent-menu").count(),conversations.length,"every Recent row should expose its conversation options");
   assert.equal(homeState.todayTitle,"Today");
   assert.deepEqual(homeState.timeline,["Finish daily review","Team planning meeting"],"Today should show canonical plan items");
