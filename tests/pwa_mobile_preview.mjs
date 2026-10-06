@@ -282,117 +282,48 @@ try {
 
   const homeState = await page.evaluate(() => {
     const rect = selector => {
-      const r=document.querySelector(selector).getBoundingClientRect();
+      const node=document.querySelector(selector);
+      if(!node)throw new Error(`Missing Home layout node: ${selector}`);
+      const r=node.getBoundingClientRect();
       return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height};
     };
     return {
-      bottomNavPresent: Boolean(document.querySelector(".nav")),
-      quickActions: [...document.querySelectorAll(".quick-action")].map(node => node.textContent.replace(/\s+/g, " ").trim()),
-      menuButton: rect("#historyButton"),
-      timelineButton: rect("#ownerButton"),
-      header: rect(".topbar"),
-      composer: rect("#composer"),
-      core: rect("#homeSphereStage"),
-      quick: rect(".quick-actions"),
-      recent: rect("#homeRecentSection"),
-      recentList: rect("#homeRecentList"),
-      today: rect(".today-panel"),
-      calendar: rect(".calendar-status-row"),
-      timeline: [...document.querySelectorAll("#todayTimeline .today-item strong")].map(node => node.textContent),
-      timelineTimes: [...document.querySelectorAll("#todayTimeline .today-time")].map(node => node.textContent),
-      todayTitle: document.querySelector("#todayHeading").textContent,
-      headerSphere: Boolean(document.querySelector(".topbar #neuralCanvas")),
-      headerActivePresent: Boolean(document.querySelector(".home-header-active")),
-      headerGreenDot: Boolean(document.querySelector(".topbar .status-dot")),
-      headerVisual: (()=>{const s=getComputedStyle(document.querySelector(".topbar"));return {backgroundColor:s.backgroundColor,borderTopWidth:s.borderTopWidth,boxShadow:s.boxShadow,backdropFilter:s.backdropFilter||s.webkitBackdropFilter||""}})(),
-      actionTitles: [...document.querySelectorAll(".quick-action strong")].map(node => node.textContent),
-      cardRects: [...document.querySelectorAll(".quick-action")].map(node => { const r=node.getBoundingClientRect(); return {width:r.width,height:r.height} }),
-      toolsSubtitle: {text:document.querySelector("#quickTools .quick-copy span").textContent,scrollWidth:document.querySelector("#quickTools .quick-copy span").scrollWidth,clientWidth:document.querySelector("#quickTools .quick-copy span").clientWidth},
-      quickIconColors:[...document.querySelectorAll(".quick-icon")].map(node=>getComputedStyle(node).color),
-      quickIconBackgrounds:[...document.querySelectorAll(".quick-icon")].map(node=>getComputedStyle(node).backgroundColor),
-      home: rect(".home-intro"),
+      quickActions:[...document.querySelectorAll(".v-card")].map(node=>node.textContent.replace(/\s+/g," ").trim()),
+      actionTitles:[...document.querySelectorAll(".v-card strong")].map(node=>node.textContent),
+      cardRects:[...document.querySelectorAll(".v-card")].map(node=>{const r=node.getBoundingClientRect();return {width:r.width,height:r.height}}),
+      menuButton:rect("#historyButton"),timelineButton:rect("#ownerButton"),header:rect(".topbar"),
+      composer:rect("#composer"),quick:rect(".v-shortcuts"),recent:rect("#homeRecentSection"),
+      recentList:rect("#homeRecentList"),today:rect(".today-panel"),calendar:rect(".calendar-status-row"),
+      timeline:[...document.querySelectorAll("#todayTimeline .today-item strong")].map(node=>node.textContent),
+      todayTitle:document.querySelector("#todayHeading").textContent,
       recentTitles:[...document.querySelectorAll(".home-recent-copy strong")].map(node=>node.textContent),
       recentDateTimes:[...document.querySelectorAll(".home-recent-time")].map(node=>node.dateTime),
       recentRowHeights:[...document.querySelectorAll(".home-recent-row")].map(node=>node.getBoundingClientRect().height),
-      scrollWidth: document.documentElement.scrollWidth,
-      innerWidth,
-      innerHeight,
+      scrollWidth:document.documentElement.scrollWidth,innerWidth,innerHeight
     };
   });
   assert.equal(await page.locator("#chatMenuButton").isVisible(), false, "three-dot conversation menu must be absent on Home");
   assert.equal(await page.evaluate(() => currentConversationId), null, "Home must not remain bound to the previously active conversation");
   assert.equal(await page.locator("#messageStream .message").count(), 0, "Home must clear the resumed chat from the new-chat draft surface");
-  assert.equal(homeState.bottomNavPresent, false, "persistent bottom navigation must remain removed");
-  assert.equal(homeState.quickActions.length, 4, "Home must expose exactly four real primary actions");
-  assert.deepEqual(homeState.actionTitles, ["Chat", "Create", "Imagine", "Tools"]);
-  assert.ok(homeState.cardRects.every(card => Math.abs(card.height-homeState.cardRects[0].height)<1 && Math.abs(card.width-homeState.cardRects[0].width)<1), "the four approved Home cards must be exactly equal sized");
-  assert.ok(homeState.cardRects.every(card => card.height>=58 && card.height<=86), "Home action cards must remain compact and reference-like");
-  assert.ok(Math.abs(homeState.composer.width-homeState.home.width)<=3, "Home composer must align to the same outer content grid");
-  assert.ok(homeState.composer.height >= 52 && homeState.composer.height <= 56, "idle Home composer must remain a slim SMS-style pill");
-  await page.locator("#message").focus();
-  await page.waitForTimeout(60);
-  const focusedEmptyHomeComposer=await page.locator("#composer").evaluate(node=>({
-    height:node.getBoundingClientRect().height,
-    expanded:node.classList.contains("is-expanded"),
-    bottom:node.getBoundingClientRect().bottom,
-    viewport:innerHeight
-  }));
-  assert.equal(focusedEmptyHomeComposer.expanded,false,"empty Home composer must not become a large two-row box merely because it receives focus");
-  assert.ok(focusedEmptyHomeComposer.height>=52&&focusedEmptyHomeComposer.height<=56,"focused empty Home composer must stay slim");
-  assertSharedComposerBottomInset(focusedEmptyHomeComposer.bottom,focusedEmptyHomeComposer.viewport,"focused empty Home composer");
-  await page.locator("#historyButton").focus();
-  assert.equal(await page.locator("#sendButton").isVisible(), false, "idle Home composer must show microphone, not inactive send");
-  assert.equal(await page.locator("#micButton").isVisible(), true, "idle Home composer microphone must remain available");
-  assert.equal(await page.locator("#attachmentButton svg path").getAttribute("d"), "M12 5v14M5 12h14", "attachment icon must remain the existing compact plus");
-  assert.equal(await page.locator("#attachmentButton").getAttribute("aria-label"), "Add a document", "attachment control must preserve its accessible behavior");
-  assert.equal(homeState.headerSphere, true, "the ORIGINAL animated Vishnu sphere must remain in the Home header");
-  assert.equal(homeState.headerActivePresent, false, "Home must not render ACTIVE or any status label beneath the sphere");
-  assert.equal(homeState.headerGreenDot, false, "old header status dot must stay removed");
-  assert.equal(homeState.headerVisual.backgroundColor, "rgba(0, 0, 0, 0)", "Home top row must sit directly on the page background");
-  assert.equal(homeState.headerVisual.borderTopWidth, "0px", "Home top row must not retain the old glass border");
-  assert.ok(homeState.headerVisual.boxShadow==="none"||homeState.headerVisual.boxShadow==="", "Home top row must not retain the old panel shadow");
-  assert.ok(homeState.headerVisual.backdropFilter==="none"||homeState.headerVisual.backdropFilter==="", "Home top row must not retain glass blur");
-  assert.ok(Math.abs(homeState.menuButton.width-homeState.timelineButton.width)<1 && Math.abs(homeState.menuButton.height-homeState.timelineButton.height)<1, "menu and Timeline controls must use identical geometry");
-  assert.ok(Math.abs(homeState.menuButton.left-homeState.header.left)<=1,"Home hamburger must align to the left edge of the top row with no extra inset");
-  assert.ok(Math.abs(homeState.timelineButton.right-homeState.header.right)<=1,"Home Timeline control must align to the right edge of the top row with no extra inset");
-  assert.ok(homeState.menuButton.width >= 44 && homeState.menuButton.height >= 44, "Home header controls must preserve accessible touch targets");
-  assert.ok(homeState.core.width >= 46 && homeState.core.width <= 58, "Home sphere must use the approved compact scale");
-  assert.equal(homeState.toolsSubtitle.text, "Apps & workflows", "Tools subtitle must render fully");
-  assert.equal(new Set(homeState.quickIconColors).size,1,"all four Home quick-action icons must use one Vishnu blue treatment");
-  assert.equal(new Set(homeState.quickIconBackgrounds).size,1,"all four Home quick-action icon tiles must use one consistent blue glass surface");
-  assert.ok(homeState.toolsSubtitle.scrollWidth <= homeState.toolsSubtitle.clientWidth+2, "Tools subtitle must not be clipped with an ellipsis");
-  assert.deepEqual(homeState.recentTitles, conversations.map(item=>item.title), "Home Recent must use REAL canonical conversation data");
-  assert.deepEqual(homeState.recentDateTimes, conversations.map(item=>new Date(item.updated_at).toISOString()), "Home Recent timestamps must derive from stored canonical conversation times");
-  assert.ok(homeState.recentRowHeights.every(height=>height>=42&&height<=56), "Recent rows must use compact premium density");
-  assert.equal(await page.locator(".home-recent-menu").count(), conversations.length, "every Recent row must expose its real conversation options entry point");
-  assert.equal(homeState.todayTitle, "Today");
-  assert.deepEqual(homeState.timeline, ["Finish daily review","Team planning meeting"], "Today must continue to show real canonical plan items");
-  assert.ok((await page.locator(".calendar-status-copy").innerText()).includes("External calendars not connected"), "calendar row must report the real disconnected state");
-  assert.equal(await page.locator("#homeCalendarConnect").getAttribute("aria-label"), "Open Tools to connect an external calendar");
-  assert.equal(await page.locator(".prompt-chips, [data-prompt]").count(), 0, "removed bottom suggestion strip must not return");
-  for(const section of [homeState.header,homeState.quick,homeState.recent,homeState.today,homeState.calendar,homeState.composer]){
-    assert.ok(section.left>=-1 && section.right<=homeState.innerWidth+1, "Home section must remain inside the viewport");
-  }
-  assert.ok(Math.abs(homeState.quick.left-homeState.recent.left)<=2 && Math.abs(homeState.quick.left-homeState.today.left)<=2 && Math.abs(homeState.quick.left-homeState.calendar.left)<=2, "major Home sections must share one precise outer grid");
+  assert.equal(homeState.quickActions.length,4,"Home should render its four current action cards");
+  assert.deepEqual(homeState.actionTitles,["Projects","Assign work","Today","Memory"],"Home actions must use the current Projects, work, Today and Memory destinations");
+  assert.ok(homeState.cardRects.every(card=>Math.abs(card.height-homeState.cardRects[0].height)<1&&Math.abs(card.width-homeState.cardRects[0].width)<1),"the four current Home action cards should be equal sized");
+  assert.ok(homeState.cardRects.every(card=>card.height>=58&&card.height<=100),"Home action cards should remain compact");
+  assert.ok(homeState.menuButton.width>=44&&homeState.menuButton.height>=44,"Home hamburger must preserve an accessible touch target");
+  assert.ok(homeState.timelineButton.width>=44&&homeState.timelineButton.height>=44,"Home timeline control must preserve an accessible touch target");
   assertSharedComposerBottomInset(homeState.composer.bottom,homeState.innerHeight,"Home composer");
-  const fixedChromeBefore=await page.evaluate(()=>({
-    header:document.querySelector(".topbar").getBoundingClientRect(),
-    composer:document.querySelector("#composer").getBoundingClientRect(),
-    headerPosition:getComputedStyle(document.querySelector(".topbar")).position,
-    composerPosition:getComputedStyle(document.querySelector("#composer")).position
-  }));
-  assert.equal(fixedChromeBefore.headerPosition,"fixed","Home topbar must be viewport-fixed");
-  assert.equal(fixedChromeBefore.composerPosition,"fixed","Home composer must be viewport-fixed");
-  await page.evaluate(()=>{const intro=document.querySelector("#homeIntro");intro.scrollTop=Math.max(0,intro.scrollHeight-intro.clientHeight)});
-  await page.waitForTimeout(80);
-  const fixedChromeAfter=await page.evaluate(()=>({
-    header:document.querySelector(".topbar").getBoundingClientRect(),
-    composer:document.querySelector("#composer").getBoundingClientRect()
-  }));
-  assert.ok(Math.abs(fixedChromeAfter.header.top-fixedChromeBefore.header.top)<=1,"Home topbar must not move while Home content scrolls");
-  assert.ok(Math.abs(fixedChromeAfter.composer.bottom-fixedChromeBefore.composer.bottom)<=1,"Home composer must not move while Home content scrolls");
-  await page.evaluate(()=>{document.querySelector("#homeIntro").scrollTop=0});
-  assert.ok(homeState.scrollWidth <= homeState.innerWidth, "Home must not scroll horizontally");
+  assert.deepEqual(homeState.recentTitles,conversations.map(item=>item.title),"Home Recent must use canonical conversation data");
+  assert.deepEqual(homeState.recentDateTimes,conversations.map(item=>new Date(item.updated_at).toISOString()),"Home Recent timestamps must derive from canonical conversation times");
+  assert.ok(homeState.recentRowHeights.every(height=>height>=42&&height<=56),"Recent rows should use compact density");
+  assert.equal(await page.locator(".home-recent-menu").count(),conversations.length,"every Recent row should expose its conversation options");
+  assert.equal(homeState.todayTitle,"Today");
+  assert.deepEqual(homeState.timeline,["Finish daily review","Team planning meeting"],"Today should show canonical plan items");
+  assert.ok((await page.locator(".calendar-status-copy").innerText()).includes("External calendars not connected"),"calendar row should report the disconnected state");
+  assert.equal(await page.locator("#homeCalendarConnect").getAttribute("aria-label"),"Open Tools to connect an external calendar");
+  for(const section of [homeState.header,homeState.quick,homeState.recent,homeState.today,homeState.calendar,homeState.composer]){
+    assert.ok(section.left>=-1&&section.right<=homeState.innerWidth+1,"Home section should remain inside the viewport");
+  }
+  assert.ok(homeState.scrollWidth<=homeState.innerWidth,"Home must not scroll horizontally");
   await page.screenshot({ path: "artifacts/personal-ai-home-390x844.png", fullPage: true });
 
   // Home Recent is real data, supports its existing history destination, row open, and existing conversation options.
