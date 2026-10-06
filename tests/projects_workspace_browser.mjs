@@ -278,7 +278,7 @@ try {
     await page.getByRole('heading', { name: 'Activity' }).waitFor();
     await page.locator('[data-pa-event]').first().waitFor({ state: 'visible' });
     await page.locator('[data-pa-query]').fill('Verify the responsive workspace');
-    await page.getByText('created task').waitFor();
+    await page.locator('[data-pa-event]').filter({ hasText: 'created task' }).first().waitFor({ state: 'visible' });
     await page.locator('[data-pa-category="tasks"]').click();
     await page.locator('[data-pa-actor]').selectOption('you');
     assert.equal(await page.locator('[data-pa-event]').count(), 1, 'Activity category, actor, and search filters should combine');
