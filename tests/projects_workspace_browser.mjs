@@ -152,14 +152,16 @@ try {
       const panel = document.querySelector('#modulePanel').getBoundingClientRect();
       const projectNav = document.querySelector('.project-workspace-sidebar').getBoundingClientRect();
       const main = document.querySelector('.project-workspace-main').getBoundingClientRect();
-      return { viewport: innerWidth, bodyWidth: document.body.scrollWidth, drawerLeft: drawer.left, drawerWidth: drawer.width, drawerDisplay: getComputedStyle(document.querySelector('#appDrawer')).display, panelLeft: panel.left, panelRight: panel.right, projectNavWidth: projectNav.width, projectNavDisplay: getComputedStyle(document.querySelector('.project-workspace-sidebar')).display, mainLeft: main.left, mainRight: main.right, mobileHeadDisplay: getComputedStyle(document.querySelector('.project-mobile-head')).display, mobileTitleDisplay: getComputedStyle(document.querySelector('.project-mobile-title')).display, mobileGoalDisplay: getComputedStyle(document.querySelector('.project-mobile-goal')).display, tabsDisplay: getComputedStyle(document.querySelector('.project-tabbar')).display };
+      return { viewport: innerWidth, bodyWidth: document.body.scrollWidth, drawerLeft: drawer.left, drawerWidth: drawer.width, drawerDisplay: getComputedStyle(document.querySelector('#appDrawer')).display, panelLeft: panel.left, panelRight: panel.right, projectNavWidth: projectNav.width, projectNavDisplay: getComputedStyle(document.querySelector('.project-workspace-sidebar')).display, mainLeft: main.left, mainRight: main.right, mobileHeadDisplay: getComputedStyle(document.querySelector('.project-mobile-head')).display, mobileTitleDisplay: getComputedStyle(document.querySelector('.project-mobile-title')).display, mobileGoalDisplay: getComputedStyle(document.querySelector('.project-mobile-goal')).display, tabsDisplay: getComputedStyle(document.querySelector('.project-tabbar')).display, topbarDisplay: getComputedStyle(document.querySelector('.topbar')).display, globalBrand: document.querySelector('#appDrawer .sidebar-brand-copy strong') ? getComputedStyle(document.querySelector('#appDrawer .sidebar-brand-copy strong')).whiteSpace : 'hidden' };
     });
     assert.ok(detailShell.bodyWidth <= detailShell.viewport + 1, `Project detail must not overflow horizontally: ${JSON.stringify(detailShell)}`);
+    assert.equal(detailShell.topbarDisplay, 'none', `Project workspace should use its own header without overlapping the shared app header: ${JSON.stringify(detailShell)}`);
     if (viewport.width > 900) {
       assert.equal(detailShell.drawerDisplay, 'flex', `The existing global navigation should become the desktop rail: ${JSON.stringify(detailShell)}`);
       assert.ok(detailShell.drawerLeft <= 0 && detailShell.drawerWidth >= 180, `The global rail should occupy the far left: ${JSON.stringify(detailShell)}`);
       assert.ok(detailShell.panelLeft >= detailShell.drawerWidth - 1, `The project content should start after the global rail: ${JSON.stringify(detailShell)}`);
       assert.ok(detailShell.projectNavWidth >= 180 && detailShell.mainLeft > detailShell.panelLeft + detailShell.projectNavWidth - 1, `Desktop project navigation should have its own column: ${JSON.stringify(detailShell)}`);
+      assert.equal(detailShell.globalBrand, 'nowrap', `Desktop product identity must stay on one line: ${JSON.stringify(detailShell)}`);
     } else {
       assert.equal(detailShell.mobileHeadDisplay, 'grid', `Mobile should show a compact project header: ${JSON.stringify(detailShell)}`);
       assert.equal(detailShell.mobileTitleDisplay, 'grid', `Mobile project identity and status should remain visible: ${JSON.stringify(detailShell)}`);
@@ -204,7 +206,11 @@ try {
     await page.getByText('project-notes.md').waitFor();
     await page.locator('[data-file-select]').click();
     if (screenshotDir) await page.screenshot({ path: `${screenshotDir}/project-files-${viewport.width}.png`, fullPage: false });
-    if (viewport.isMobile) await page.locator('[data-file-inspector-close]').click();
+    if (viewport.isMobile) {
+      await page.locator('.project-file-inspector-backdrop').waitFor({ state: 'visible' });
+      await page.locator('.project-file-inspector-backdrop').click({ position: { x: 10, y: 10 } });
+      await page.locator('.project-file-inspector-backdrop').waitFor({ state: 'hidden' });
+    }
     await openProjectTab('plan');
     await page.locator('[data-project-task-edit]').first().click();
     const editTaskDialog = page.locator('dialog.project-dialog');

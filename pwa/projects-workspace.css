@@ -423,3 +423,34 @@ body:has(#modulePanel.module-panel.open[data-surface="projects"]).focused-module
  .project-chat-composer{grid-template-columns:1fr auto}
  .project-chat-composer .project-chat-note{grid-column:1/-1}
 }
+
+/* Final workspace fit: the Projects stylesheet must load after the legacy
+   app-shell styles so these route-scoped rules win over global chrome. */
+@media(min-width:901px){
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) #appDrawer .sidebar-brand-copy{display:block!important;width:max-content!important;min-width:0!important;white-space:nowrap!important;overflow:visible!important}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) #appDrawer .sidebar-brand-copy strong{display:block!important;white-space:nowrap!important;word-break:keep-all!important;overflow-wrap:normal!important}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-detail-head{grid-template-columns:minmax(0,1fr) auto;min-width:0}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-detail-title{min-width:0}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-detail-title h1{overflow-wrap:anywhere}
+}
+@media(max-width:900px){
+  body:has(#modulePanel.module-panel.open[data-surface="projects"] .project-detail-page) .topbar{display:none!important;visibility:hidden!important}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"] .project-detail-page) #modulePanel.module-panel.open[data-surface="projects"]{position:fixed!important;z-index:30!important;inset:0!important;width:100vw!important;height:100dvh!important;max-height:100dvh!important;margin:0!important;padding:0!important;transform:none!important}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"] .project-detail-page) .app-shell{height:100dvh!important;min-height:100dvh!important;padding:0!important;overflow:hidden!important}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"] .project-detail-page) .project-mobile-head{top:0!important;padding-top:max(6px,env(safe-area-inset-top))!important}
+  body:has(#modulePanel.module-panel.open[data-surface="projects"] .project-tabbar){top:calc(54px + env(safe-area-inset-top))!important}
+}
+@media(max-width:760px){
+  .project-files-layout.inspector-open .project-file-inspector-backdrop{position:fixed;z-index:71;inset:0;display:block;width:100%;height:100%;padding:0;border:0;border-radius:0;background:rgba(1,6,13,.66);backdrop-filter:blur(2px)}
+  .project-files-layout.inspector-open .project-file-inspector{z-index:72;background:#0a1422;border-color:rgba(93,136,194,.26)}
+  .project-file-inspector-backdrop:focus-visible{outline:2px solid #58a3ff;outline-offset:-4px}
+  .project-discussions-page{grid-template-rows:auto minmax(0,1fr);min-height:calc(100dvh - 140px)}
+  .project-discussions-mobile-top{min-height:42px}
+  .project-discussions-layout{min-height:0;height:calc(100dvh - 190px);max-height:none}
+  .project-discussion-thread{height:100%;min-height:0;grid-template-rows:auto auto minmax(0,1fr) auto}
+  .project-thread-head{gap:8px}
+  .project-thread-head>div:first-child{min-width:0}
+  .project-thread-actions{flex-wrap:wrap;justify-content:flex-end}
+  .project-thread-mobile-back{white-space:nowrap;font-size:.72rem}
+}
+.project-file-inspector-backdrop{display:none}
