@@ -208,7 +208,7 @@ try {
     if (screenshotDir) await page.screenshot({ path: `${screenshotDir}/project-files-${viewport.width}.png`, fullPage: false });
     if (viewport.isMobile) {
       await page.locator('.project-file-inspector-backdrop').waitFor({ state: 'visible' });
-      await page.locator('.project-file-inspector-backdrop').click({ position: { x: 10, y: 10 } });
+      await page.locator('.project-file-inspector .project-file-close').click();
       await page.locator('.project-file-inspector-backdrop').waitFor({ state: 'hidden' });
     }
     await openProjectTab('plan');
