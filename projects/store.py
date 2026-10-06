@@ -198,6 +198,23 @@ class ProjectStore:
                 FROM projects p WHERE '''+' AND '.join(clauses)+f' ORDER BY {order}', values).fetchall()
         return [dict(row) for row in rows]
 
+    def tasks_for_day(self, day: str, *, limit: int = 500):
+        with self.con() as con:
+            rows = con.execute('''SELECT t.*,p.name AS project_name,p.status AS project_status
+                FROM project_tasks t JOIN projects p ON p.id=t.project_id
+                WHERE t.due_date=? AND p.status NOT IN ('archived','completed')
+                ORDER BY t.due_date,t.created_at,t.id LIMIT ?''',
+                (str(day), max(1, min(int(limit), 500)))).fetchall()
+        return [dict(row) for row in rows]
+
+    def activity_feed(self, *, limit: int = 200):
+        with self.con() as con:
+            rows = con.execute('''SELECT a.*,p.name AS project_name
+                FROM project_activity a JOIN projects p ON p.id=a.project_id
+                ORDER BY a.created_at DESC,a.id DESC LIMIT ?''',
+                (max(1, min(int(limit), 500)),)).fetchall()
+        return [dict(row) for row in rows]
+
     def create(self, *, name, goal='', description='', target_date=None, project_type='software', success_criteria='', instructions='', context_notes='', tasks=None, milestones=None):
         project_id, stamp = str(uuid.uuid4()), _now()
         with self.lock, self.con() as con:

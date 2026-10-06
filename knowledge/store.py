@@ -99,6 +99,10 @@ class KnowledgeStore:
                     created_at TEXT NOT NULL,
                     FOREIGN KEY(document_id) REFERENCES knowledge_documents(id) ON DELETE CASCADE
                 );
+                CREATE TABLE IF NOT EXISTS knowledge_collections(
+                    id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+                );
                 """
             )
             self._ensure_column(con, 'knowledge_documents', 'lineage_id', 'TEXT')
@@ -409,6 +413,60 @@ class KnowledgeStore:
             documents = [item for item in documents if item['access_class'] in access_classes]
         return documents
 
+    def collections(self):
+        with self._con() as con:
+            rows = con.execute('SELECT * FROM knowledge_collections ORDER BY title COLLATE NOCASE,id').fetchall()
+        counts = {}
+        for item in self.list(limit=500):
+            collection_id = str((item.get('metadata') or {}).get('collection_id') or '')
+            if collection_id:
+                counts[collection_id] = counts.get(collection_id, 0) + 1
+        return [{**dict(row), 'item_count': counts.get(row['id'], 0), 'access_label': 'Private · Only you'} for row in rows]
+
+    def create_collection(self, title: str, description: str = ''):
+        clean = str(title or '').strip()
+        if not clean or len(clean) > 120:
+            raise KnowledgeError('Collection name must be 1–120 characters')
+        collection_id, stamp = str(uuid.uuid4()), now()
+        with self.lock, self._con() as con:
+            con.execute('INSERT INTO knowledge_collections(id,title,description,created_at,updated_at) VALUES(?,?,?,?,?)', (collection_id, clean, str(description or '').strip()[:500], stamp, stamp))
+        return next(item for item in self.collections() if item['id'] == collection_id)
+
+    def collection(self, collection_id: str):
+        return next((item for item in self.collections() if item['id'] == str(collection_id)), None)
+
+    def update_collection(self, collection_id: str, *, title: str | None = None, description: str | None = None):
+        changes = {}
+        if title is not None:
+            clean = str(title).strip()
+            if not clean or len(clean) > 120:
+                raise KnowledgeError('Collection name must be 1–120 characters')
+            changes['title'] = clean
+        if description is not None:
+            changes['description'] = str(description).strip()[:500]
+        if changes:
+            changes['updated_at'] = now()
+            with self.lock, self._con() as con:
+                cur = con.execute('UPDATE knowledge_collections SET ' + ','.join(f'{key}=?' for key in changes) + ' WHERE id=?', [*changes.values(), str(collection_id)])
+            if cur.rowcount != 1:
+                raise KeyError('Knowledge collection not found')
+        result = self.collection(collection_id)
+        if not result:
+            raise KeyError('Knowledge collection not found')
+        return result
+
+    def delete_collection(self, collection_id: str):
+        if not self.collection(collection_id):
+            return False
+        for item in self.list(limit=500):
+            metadata = dict(item.get('metadata') or {})
+            if metadata.get('collection_id') == str(collection_id):
+                metadata.pop('collection_id', None)
+                self.update(item['id'], metadata=metadata)
+        with self.lock, self._con() as con:
+            con.execute('DELETE FROM knowledge_collections WHERE id=?', (str(collection_id),))
+        return True
+
     def detail(self, document_id: str, *, include_history: bool = True):
         with self._con() as con:
             row = con.execute('SELECT * FROM knowledge_documents WHERE id=?', (document_id,)).fetchone()
@@ -430,6 +488,7 @@ class KnowledgeStore:
             return []
         tokens = [token.lower() for token in re.findall(r'[\w-]{2,}', query)[:12]]
         current_clause = '' if include_history else ' AND d.is_current=1'
+        current_clause += " AND COALESCE(json_extract(d.metadata_json,'$.available_to_vishnu'),1)=1"
         with self._con() as con:
             rows = con.execute(f'''SELECT c.id AS chunk_id,c.position,c.content,c.page_start,c.page_end,c.location_json,d.id AS document_id,d.lineage_id,d.version_number,d.title,d.filename,d.source,d.checksum,d.access_class,d.updated_at,d.ingested_at FROM knowledge_chunks c JOIN knowledge_documents d ON d.id=c.document_id WHERE (c.content LIKE ? OR d.title LIKE ?) {current_clause} ORDER BY d.updated_at DESC LIMIT 300''', (f'%{query}%', f'%{query}%')).fetchall()
             if not rows and tokens:

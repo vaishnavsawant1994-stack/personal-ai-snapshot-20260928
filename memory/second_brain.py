@@ -205,7 +205,20 @@ class SecondBrain:
         score *= multiplier
         return max(0.0, min(1.0, score)), decay, contributions, multiplier
 
-    def _visible_graph(self, allowed_sensitivities):
+    @staticmethod
+    def _project_scope_visible(row: dict, project_id: str | None) -> bool:
+        raw = row.get('metadata') or row.get('metadata_json') or '{}'
+        try:
+            metadata = raw if isinstance(raw, dict) else json.loads(raw)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            metadata = {}
+        scoped_project = metadata.get('project_id') if isinstance(metadata, dict) else None
+        scope = (metadata.get('scope') if isinstance(metadata, dict) else None) or ('project' if scoped_project else 'personal')
+        if scope != 'project':
+            return True
+        return bool(project_id and scoped_project and str(scoped_project) == str(project_id))
+
+    def _visible_graph(self, allowed_sensitivities, project_id: str | None = None):
         allowed = self._allowed(allowed_sensitivities)
         graph = self.store.graph()
         nodes = {
@@ -213,6 +226,7 @@ class SecondBrain:
             for node in graph.get('nodes', [])
             if str(node.get('sensitivity') or 'normal').strip().lower() in allowed
             and str(node.get('sensitivity') or 'normal').strip().lower() != 'never_store'
+            and self._project_scope_visible(node, project_id)
         }
         edges = [
             edge for edge in graph.get('edges', [])
@@ -220,10 +234,10 @@ class SecondBrain:
         ]
         return nodes, edges
 
-    def _relationship_context(self, combined: dict, *, allowed_sensitivities, max_related: int):
+    def _relationship_context(self, combined: dict, *, allowed_sensitivities, max_related: int, project_id: str | None = None):
         if not combined or max_related <= 0:
             return
-        nodes, edges = self._visible_graph(allowed_sensitivities)
+        nodes, edges = self._visible_graph(allowed_sensitivities, project_id)
         adjacency: dict[str, set[str]] = {}
         for edge in edges:
             source_id = str(edge.get('source_id') or '')
@@ -348,14 +362,17 @@ class SecondBrain:
         current_only: bool = False,
         include_related: bool = True,
         max_context_chars: int | None = None,
+        project_id: str | None = None,
     ) -> list[dict]:
+        if not self.store.preferences()['memory_enabled']:
+            return []
         query = str(query or '').strip()
         bounded_limit = max(1, min(int(limit), 500))
         allowed = self._allowed(allowed_sensitivities)
         combined = {}
         if self.vector_store and query:
             try:
-                graph_nodes, _ = self._visible_graph(allowed)
+                graph_nodes, _ = self._visible_graph(allowed, project_id)
                 for hit in self.vector_store.search(query, limit=max(bounded_limit * 3, 12)):
                     if hit['memory_id'] in graph_nodes:
                         combined[hit['memory_id']] = {
@@ -369,6 +386,8 @@ class SecondBrain:
             sensitivity = str(row.get('sensitivity') or 'normal').strip().lower()
             if sensitivity not in allowed or sensitivity == 'never_store':
                 continue
+            if not self._project_scope_visible(row, project_id):
+                continue
             combined.setdefault(row['id'], {**row, 'retrieval_mode': 'lexical'})
         if not combined and query:
             for word in [word for word in query.split() if len(word) > 3][:6]:
@@ -376,15 +395,17 @@ class SecondBrain:
                     sensitivity = str(row.get('sensitivity') or 'normal').strip().lower()
                     if sensitivity not in allowed or sensitivity == 'never_store':
                         continue
+                    if not self._project_scope_visible(row, project_id):
+                        continue
                     combined.setdefault(row['id'], {**row, 'retrieval_mode': 'lexical-fallback'})
 
         if include_related:
-            self._relationship_context(combined, allowed_sensitivities=allowed, max_related=max(bounded_limit * 2, 8))
+            self._relationship_context(combined, allowed_sensitivities=allowed, max_related=max(bounded_limit * 2, 8), project_id=project_id)
 
         ranked = []
         for row in combined.values():
             sensitivity = str(row.get('sensitivity') or 'normal').lower()
-            if sensitivity == 'never_store' or sensitivity not in allowed:
+            if sensitivity == 'never_store' or sensitivity not in allowed or not self._project_scope_visible(row, project_id):
                 continue
             if current_only and row.get('valid_to'):
                 continue
@@ -463,6 +484,7 @@ class SecondBrain:
         memory_type=None,
         limit=50,
         allowed_sensitivities: set[str] | None = None,
+        project_id: str | None = None,
     ):
         allowed = self._allowed(allowed_sensitivities)
         rows = self.store.temporal_search(query, start=start, end=end, memory_type=memory_type, limit=limit)
@@ -470,6 +492,8 @@ class SecondBrain:
         for row in rows:
             sensitivity = str(row.get('sensitivity') or 'normal').strip().lower()
             if sensitivity not in allowed or sensitivity == 'never_store':
+                continue
+            if not self._project_scope_visible(row, project_id):
                 continue
             score, decay, _, _ = self.salience(row)
             result.append({
@@ -490,12 +514,13 @@ class SecondBrain:
         memory_type=None,
         limit=50,
         allowed_sensitivities: set[str] | None = None,
+        project_id: str | None = None,
     ):
         at_dt = datetime.fromisoformat(str(at).replace('Z', '+00:00'))
         if at_dt.tzinfo is None:
             at_dt = at_dt.replace(tzinfo=timezone.utc)
         at_iso = at_dt.astimezone(timezone.utc).isoformat()
-        rows = self.temporal(query, end=at_iso, memory_type=memory_type, limit=max(limit * 4, 50), allowed_sensitivities=allowed_sensitivities)
+        rows = self.temporal(query, end=at_iso, memory_type=memory_type, limit=max(limit * 4, 50), allowed_sensitivities=allowed_sensitivities, project_id=project_id)
         visible = []
         for row in rows:
             valid_from = row.get('valid_from') or row.get('occurred_at') or row.get('created_at')

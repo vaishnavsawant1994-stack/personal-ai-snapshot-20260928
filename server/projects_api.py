@@ -279,6 +279,12 @@ def projects_router(runtime, store: ProjectStore):
         authenticate(pa_device, pa_token, write=True)
         return {'project': store.create_walkthrough()}
 
+    @router.get('/timeline')
+    def project_tasks_for_day(day: date = Query(), limit: int = Query(default=500, ge=1, le=500),
+                              pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        authenticate(pa_device, pa_token)
+        return {'items': store.tasks_for_day(day.isoformat(), limit=limit)}
+
     @router.get('/{project_id}')
     def get_project(project_id: str,
                     pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):

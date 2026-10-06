@@ -50,6 +50,8 @@ class MemoryStore:
                 CREATE TABLE IF NOT EXISTS memory_conflicts(
                   id TEXT PRIMARY KEY, older_id TEXT NOT NULL, newer_id TEXT NOT NULL,
                   resolution TEXT NOT NULL, reason TEXT, created_at TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS memory_preferences(
+                  key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL);
                 """
             )
             columns = {row['name'] for row in con.execute('PRAGMA table_info(memories)')}
@@ -63,6 +65,7 @@ class MemoryStore:
                 'superseded_by': 'TEXT',
                 'evidence_json': "TEXT NOT NULL DEFAULT '[]'",
                 'metadata_json': "TEXT NOT NULL DEFAULT '{}'",
+                'removed_at': 'TEXT',
             }
             for name, definition in additions.items():
                 if name not in columns:
@@ -79,6 +82,11 @@ class MemoryStore:
             con.execute('CREATE INDEX IF NOT EXISTS idx_memories_subject_type ON memories(type,subject)')
             con.execute('CREATE INDEX IF NOT EXISTS idx_memories_temporal ON memories(occurred_at,created_at)')
             con.execute('CREATE INDEX IF NOT EXISTS idx_memory_usage_memory ON memory_usage(memory_id,used_at)')
+            con.execute('CREATE INDEX IF NOT EXISTS idx_memories_removed_updated ON memories(removed_at,updated_at)')
+            con.executemany(
+                'INSERT OR IGNORE INTO memory_preferences(key,value,updated_at) VALUES(?,?,?)',
+                [('memory_enabled', 'true', now()), ('review_before_saving', 'true', now())],
+            )
             con.execute('CREATE INDEX IF NOT EXISTS idx_messages_conversation_created ON messages(conversation_id,created_at)')
 
     def add_message(self, role, content, *, conversation_id=None, device_id=None, metadata=None):
@@ -157,13 +165,43 @@ class MemoryStore:
             )
         return memory_id
 
-    def get(self, memory_id: str):
+    def get(self, memory_id: str, *, include_removed: bool = False):
+        removed_clause = '' if include_removed else ' AND removed_at IS NULL'
         with self.con() as con:
             row = con.execute(
-                f'SELECT * FROM memories WHERE id=? AND {self.STORABLE_SQL}',
+                f'SELECT * FROM memories WHERE id=? AND {self.STORABLE_SQL}{removed_clause}',
                 (memory_id,),
             ).fetchone()
         return dict(row) if row else None
+
+    def preferences(self):
+        with self.con() as con:
+            rows = {row['key']: row['value'] for row in con.execute('SELECT key,value FROM memory_preferences')}
+        return {key: rows.get(key, 'true') == 'true' for key in ('memory_enabled', 'review_before_saving')}
+
+    def update_preferences(self, *, memory_enabled: bool | None = None, review_before_saving: bool | None = None):
+        values = {'memory_enabled': memory_enabled, 'review_before_saving': review_before_saving}
+        stamp = now()
+        with self.lock, self.con() as con:
+            for key, value in values.items():
+                if value is not None:
+                    con.execute('INSERT INTO memory_preferences(key,value,updated_at) VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at', (key, 'true' if value else 'false', stamp))
+        return self.preferences()
+
+    def soft_delete(self, memory_id: str):
+        with self.lock, self.con() as con:
+            cur = con.execute('UPDATE memories SET removed_at=?,updated_at=? WHERE id=? AND removed_at IS NULL AND ' + self.STORABLE_SQL, (now(), now(), memory_id))
+        return cur.rowcount == 1
+
+    def restore(self, memory_id: str):
+        with self.lock, self.con() as con:
+            cur = con.execute('UPDATE memories SET removed_at=NULL,updated_at=? WHERE id=? AND removed_at IS NOT NULL AND ' + self.STORABLE_SQL, (now(), memory_id))
+        return cur.rowcount == 1
+
+    def recently_removed(self, limit=100):
+        with self.con() as con:
+            rows = con.execute(f'SELECT * FROM memories WHERE removed_at IS NOT NULL AND {self.STORABLE_SQL} ORDER BY removed_at DESC LIMIT ?', (max(1, min(int(limit), 500)),)).fetchall()
+        return [dict(row) for row in rows]
 
     def update_memory(self, memory_id: str, **changes):
         require_storable(
@@ -205,7 +243,7 @@ class MemoryStore:
         active_clause = ' AND valid_to IS NULL' if active_only else ''
         with self.con() as con:
             rows = con.execute(
-                f'''SELECT * FROM memories WHERE {self.STORABLE_SQL} AND (subject LIKE ? OR content LIKE ?){active_clause}
+                f'''SELECT * FROM memories WHERE {self.STORABLE_SQL} AND removed_at IS NULL AND (subject LIKE ? OR content LIKE ?){active_clause}
                     ORDER BY updated_at DESC LIMIT ?''',
                 (term, term, limit),
             ).fetchall()
@@ -214,7 +252,7 @@ class MemoryStore:
     def active_subject(self, type: str, subject: str, limit=20):
         with self.con() as con:
             rows = con.execute(
-                f'''SELECT * FROM memories WHERE {self.STORABLE_SQL} AND lower(type)=lower(?) AND lower(subject)=lower(?) AND valid_to IS NULL
+                f'''SELECT * FROM memories WHERE {self.STORABLE_SQL} AND removed_at IS NULL AND lower(type)=lower(?) AND lower(subject)=lower(?) AND valid_to IS NULL
                    ORDER BY updated_at DESC LIMIT ?''',
                 (type, subject, limit),
             ).fetchall()
@@ -288,7 +326,7 @@ class MemoryStore:
             return [dict(row) for row in con.execute('SELECT * FROM memory_usage WHERE memory_id=? ORDER BY used_at DESC LIMIT ?', (memory_id, limit))]
 
     def temporal_search(self, q='', *, start=None, end=None, memory_type=None, limit=100):
-        clauses = [self.STORABLE_SQL]
+        clauses = [self.STORABLE_SQL, 'removed_at IS NULL']
         params = []
         if q:
             clauses.append('(subject LIKE ? OR content LIKE ?)')
@@ -315,7 +353,7 @@ class MemoryStore:
         with self.con() as con:
             nodes = [
                 dict(row)
-                for row in con.execute(f'SELECT * FROM memories WHERE {self.STORABLE_SQL}').fetchall()
+                for row in con.execute(f'SELECT * FROM memories WHERE {self.STORABLE_SQL} AND removed_at IS NULL').fetchall()
             ]
             allowed = {row['id'] for row in nodes}
             edges = [
@@ -360,7 +398,7 @@ class MemoryStore:
     def apply_retention(self, *, older_than_days: int, sensitivity: str | None = None, dry_run: bool = True):
         days = max(1, min(int(older_than_days), 36500))
         cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-        clauses = [self.STORABLE_SQL, 'COALESCE(occurred_at,created_at)<?']
+        clauses = [self.STORABLE_SQL, 'removed_at IS NULL', 'COALESCE(occurred_at,created_at)<?']
         params = [cutoff]
         if sensitivity:
             clauses.append('sensitivity=?')
@@ -375,7 +413,7 @@ class MemoryStore:
 
     def export(self, *, include_sensitive: bool = True):
         with self.con() as con:
-            clauses = [self.STORABLE_SQL]
+            clauses = [self.STORABLE_SQL, 'removed_at IS NULL']
             if not include_sensitive:
                 clauses.append("sensitivity NOT IN ('sensitive','secret')")
             where = ' WHERE ' + ' AND '.join(clauses)

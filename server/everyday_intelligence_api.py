@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from typing import Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Cookie, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -9,7 +10,7 @@ from pydantic import BaseModel, Field
 
 class TodayItemBody(BaseModel):
     """Create a real owner-controlled everyday item for the Today timeline."""
-    category: Literal['task', 'work', 'meeting', 'reminder']
+    category: Literal['task', 'work', 'meeting', 'reminder', 'plan']
     title: str = Field(min_length=1, max_length=160)
     due_at: str = Field(min_length=10, max_length=80)
     timezone: str = Field(min_length=1, max_length=80)
@@ -57,6 +58,8 @@ def everyday_intelligence_router(runtime):
     @router.get('/timeline')
     def timeline(
         limit: int = Query(default=500, ge=1, le=500),
+        day: date | None = Query(default=None),
+        timezone: str = Query(default='UTC', min_length=1, max_length=80),
         pa_device: str | None = Cookie(default=None),
         pa_token: str | None = Cookie(default=None),
     ):
@@ -66,7 +69,31 @@ def everyday_intelligence_router(runtime):
         meeting attendance or reconstruct historical actions without audit proof.
         """
         authenticate(pa_device, pa_token)
-        return {'items': everyday.items(status='all', limit=limit)}
+        items = everyday.items(status='all', limit=limit)
+        if day is None:
+            return {'items': items}
+        try:
+            zone = ZoneInfo(timezone)
+        except ZoneInfoNotFoundError as exc:
+            raise HTTPException(422, 'Unknown timezone') from exc
+        selected = []
+        for item in items:
+            raw = item.get('due_at') or item.get('scheduled_at') or item.get('start_at')
+            if not raw:
+                continue
+            try:
+                if len(str(raw)) == 10:
+                    matches = date.fromisoformat(str(raw)) == day
+                else:
+                    instant = datetime.fromisoformat(str(raw).replace('Z', '+00:00'))
+                    if instant.tzinfo is None or instant.utcoffset() is None:
+                        continue
+                    matches = instant.astimezone(zone).date() == day
+            except ValueError:
+                continue
+            if matches:
+                selected.append(item)
+        return {'items': selected}
 
     @router.get('/items/{item_id}')
     def get_today_item(
@@ -101,7 +128,8 @@ def everyday_intelligence_router(runtime):
                 if due.tzinfo is None or due.utcoffset() is None:
                     raise HTTPException(422, 'Provide a timezone-aware date and time')
             category = {'task': 'task', 'work': 'task',
-                        'meeting': 'commitment', 'reminder': 'reminder'}[body.category]
+                        'meeting': 'commitment', 'reminder': 'reminder',
+                        'plan': 'goal'}[body.category]
             item_id = everyday.add(
                 category, title, due_at=body.due_at,
                 context='personal-ai:today:' + body.category,

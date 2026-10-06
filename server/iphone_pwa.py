@@ -310,6 +310,14 @@ def iphone_pwa_router(runtime, settings, *, include_legacy_runtime_routes: bool 
     def home_chat_redesign_script():
         return Response((web_dir / 'home-chat-redesign.js').read_text(encoding='utf-8'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
 
+    @router.get('/reference-pages.js', include_in_schema=False)
+    def reference_pages_script():
+        return Response((web_dir / 'reference-pages.js').read_text(encoding='utf-8'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+    @router.get('/reference-pages.css', include_in_schema=False)
+    def reference_pages_styles():
+        return Response((web_dir / 'reference-pages.css').read_text(encoding='utf-8'), media_type='text/css', headers={'Cache-Control': 'no-cache'})
+
     @router.get('/projects-workspace.css', include_in_schema=False)
     def projects_workspace_styles():
         return Response((web_dir / 'projects-workspace.css').read_text(encoding='utf-8'), media_type='text/css', headers={'Cache-Control': 'no-cache'})
@@ -799,6 +807,7 @@ def iphone_pwa_router(runtime, settings, *, include_legacy_runtime_routes: bool 
     def conversation_list(
         q: str = '',
         limit: int = 50,
+        include_closed: bool = False,
         pa_device: str | None = Cookie(default=None),
         pa_token: str | None = Cookie(default=None),
     ):
@@ -808,7 +817,9 @@ def iphone_pwa_router(runtime, settings, *, include_legacy_runtime_routes: bool 
         active = continuity.active_for_device(device_id)
         return {
             'active_conversation_id': active['id'] if active else None,
-            'conversations': continuity.list_threads(q, limit=max(1, min(limit, 100))),
+            'conversations': continuity.list_threads(
+                q, limit=max(1, min(limit, 100)), include_closed=include_closed,
+            ),
         }
 
     @router.post('/api/conversations')

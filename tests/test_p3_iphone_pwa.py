@@ -546,6 +546,19 @@ def test_home_uses_one_touch_voice_instead_of_four_test_buttons(tmp_path):
     assert 'Continue here' in page.text
 
 
+def test_reference_today_module_is_defined_and_loaded_as_a_page(tmp_path):
+    client, _ = make_client(tmp_path)
+    script = client.get('/iphone/reference-pages.js')
+    assert script.status_code == 200
+    assert 'function todayPage()' in script.text
+    assert "name==='today'?todayPage()" in script.text
+    assert 'function bindToday()' in script.text
+    # Reference pages now return their complete shell, so render mounts the
+    # page directly instead of wrapping a second shell around its content.
+    assert "const page=name==='today'?todayPage()" in script.text
+    assert 'root.innerHTML=page' in script.text
+
+
 def test_client_tts_failure_is_recorded_as_voice_error(tmp_path):
     client, runtime = make_client(tmp_path)
     errors = []

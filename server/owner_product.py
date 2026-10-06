@@ -6,6 +6,7 @@ import json
 import time
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Cookie, HTTPException
 from pydantic import BaseModel, Field
@@ -27,6 +28,8 @@ class MemoryCreateBody(BaseModel):
     importance: float = Field(default=.7, ge=0, le=1)
     occurred_at: str | None = None
     parent_id: str | None = None
+    scope: Literal['personal', 'project'] = 'personal'
+    project_id: str | None = None
 
 
 class MemoryUpdateBody(BaseModel):
@@ -40,6 +43,8 @@ class MemoryUpdateBody(BaseModel):
     importance: float | None = Field(default=None, ge=0, le=1)
     occurred_at: str | None = None
     parent_id: str | None = None
+    scope: Literal['personal', 'project'] | None = None
+    project_id: str | None = None
 
 
 class RetentionBody(BaseModel):
@@ -48,12 +53,34 @@ class RetentionBody(BaseModel):
     confirm_delete: bool = False
 
 
+class MemoryPreferencesBody(BaseModel):
+    memory_enabled: bool | None = None
+    review_before_saving: bool | None = None
+
+
+class KnowledgeAvailabilityBody(BaseModel):
+    available_to_vishnu: bool
+
+
+class KnowledgeCollectionBody(BaseModel):
+    title: str = Field(min_length=1, max_length=120)
+    description: str = Field(default='', max_length=500)
+
+
+class KnowledgeCollectionUpdateBody(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=500)
+
+
 class KnowledgeUploadBody(BaseModel):
     filename: str = Field(min_length=1, max_length=180)
     title: str | None = Field(default=None, max_length=240)
     media_type: str = Field(default='application/octet-stream', max_length=160)
     source: str = Field(default='owner-upload', max_length=500)
     access_class: Literal['owner', 'trusted-devices', 'private'] = 'owner'
+    item_kind: Literal['document', 'note', 'link'] = 'document'
+    collection_id: str | None = None
+    link_url: str | None = Field(default=None, max_length=2048)
     content_base64: str | None = Field(default=None, max_length=14_000_000)
     text: str | None = Field(default=None, max_length=10_000_000)
     metadata: dict = Field(default_factory=dict)
@@ -63,6 +90,7 @@ class KnowledgeUpdateBody(BaseModel):
     title: str | None = Field(default=None, max_length=240)
     source: str | None = Field(default=None, max_length=500)
     access_class: Literal['owner', 'trusted-devices', 'private'] | None = None
+    collection_id: str | None = None
     metadata: dict | None = None
 
 
@@ -98,6 +126,11 @@ class WorkflowCreateBody(BaseModel):
     steps: list[dict] = Field(min_length=1, max_length=50)
     next_run_at: str | None = None
     interval_seconds: int | None = Field(default=None, ge=1)
+
+
+class WorkflowPauseBody(BaseModel):
+    workflow_id: str = Field(min_length=1, max_length=200)
+    paused: bool
 
 
 class WorkflowRunBody(BaseModel):
@@ -269,8 +302,52 @@ def owner_product_router(runtime):
         pa_token: str | None = Cookie(default=None),
     ):
         device_id = authenticate(pa_device, pa_token, 'memory:read')
-        rows = second_brain.context(q, min(limit, 100)) if q.strip() else memory.temporal_search(limit=min(limit, 100))
+        rows = memory.temporal_search(q=q.strip(), limit=min(limit, 100))
         return {'memories': filter_memories(rows, device_id)}
+
+    @router.get('/memory/preferences')
+    def memory_preferences_get(pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'memory:read')
+        return memory.preferences()
+
+    @router.patch('/memory/preferences')
+    def memory_preferences_update(body: MemoryPreferencesBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'memory:write')
+        changes = body.model_dump(exclude_none=True)
+        if not changes:
+            raise HTTPException(422, 'Provide at least one memory preference')
+        result = memory.update_preferences(**changes)
+        audit('memory.preferences.updated', device_id=device_id, preferences=changes)
+        return result
+
+    @router.get('/memory/removed')
+    def memory_removed(limit: int = 100, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'memory:read')
+        return {'memories': filter_memories(memory.recently_removed(limit), device_id)}
+
+    @router.post('/memory/{memory_id}/restore')
+    def memory_restore(memory_id: str, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'memory:write')
+        existing = memory.get(memory_id, include_removed=True)
+        if not existing or not filter_memories([existing], device_id):
+            raise HTTPException(404, 'Removed memory not found')
+        if not memory.restore(memory_id):
+            raise HTTPException(404, 'Removed memory not found')
+        audit('memory.restored', device_id=device_id, memory_id=memory_id)
+        return {'ok': True, 'memory': second_brain.memory_detail(memory_id)}
+
+    @router.delete('/memory/{memory_id}/permanent')
+    def memory_permanent_delete(memory_id: str, confirm: bool = False, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'memory:write')
+        if not confirm:
+            raise HTTPException(409, 'Permanent deletion requires confirm=true')
+        existing = memory.get(memory_id, include_removed=True)
+        if not existing or not filter_memories([existing], device_id):
+            raise HTTPException(404, 'Memory not found')
+        if not second_brain.delete(memory_id):
+            raise HTTPException(404, 'Memory not found')
+        audit('memory.permanently_deleted', device_id=device_id, memory_id=memory_id)
+        return {'ok': True, 'memory_id': memory_id}
 
     @router.get('/memory/graph')
     def memory_graph(pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
@@ -325,6 +402,12 @@ def owner_product_router(runtime):
             raise HTTPException(409, 'NEVER_STORE content cannot be written to durable memory')
         if body.sensitivity in {'sensitive', 'secret'} and not can_read_sensitive_memory(device_id):
             raise HTTPException(403, 'This device cannot create sensitive memory')
+        if body.scope == 'project':
+            project_store = runtime.get('project_store')
+            if not body.project_id or project_store is None or not project_store.get(body.project_id):
+                raise HTTPException(404, 'Authorized project not found')
+        elif body.project_id:
+            raise HTTPException(422, 'Personal memories cannot include a project ID')
         memory_id = second_brain.remember(MemoryCandidate(
             type=body.type,
             subject=body.subject,
@@ -336,6 +419,7 @@ def owner_product_router(runtime):
             importance=body.importance,
             sensitivity=body.sensitivity,
             occurred_at=body.occurred_at,
+            metadata={'scope': body.scope, **({'project_id': body.project_id} if body.project_id else {})},
         ))
         if body.parent_id:
             memory.update_memory(memory_id, parent_id=body.parent_id)
@@ -365,7 +449,24 @@ def owner_product_router(runtime):
             raise HTTPException(409, 'Delete this memory instead of marking durable content NEVER_STORE')
         if body.sensitivity in {'sensitive', 'secret'} and not can_read_sensitive_memory(device_id):
             raise HTTPException(403, 'This device cannot mark memory sensitive')
-        changes = body.model_dump(exclude_none=True)
+        changes = body.model_dump(exclude_unset=True, exclude_none=True)
+        if 'scope' in changes or 'project_id' in changes:
+            metadata_raw = existing.get('metadata_json') or '{}'
+            try:
+                metadata = json.loads(metadata_raw) if isinstance(metadata_raw, str) else dict(metadata_raw)
+            except (TypeError, ValueError, json.JSONDecodeError):
+                metadata = {}
+            scope = changes.pop('scope', metadata.get('scope') or ('project' if metadata.get('project_id') else 'personal'))
+            project_id = changes.pop('project_id', metadata.get('project_id'))
+            if scope == 'project':
+                project_store = runtime.get('project_store')
+                if not project_id or project_store is None or not project_store.get(project_id):
+                    raise HTTPException(404, 'Authorized project not found')
+                metadata.update({'scope': 'project', 'project_id': project_id})
+            else:
+                metadata.update({'scope': 'personal'})
+                metadata.pop('project_id', None)
+            changes['metadata'] = metadata
         if not memory.update_memory(memory_id, **changes):
             raise HTTPException(404, 'Memory not found or no supported changes supplied')
         audit('memory.corrected', device_id=device_id, memory_id=memory_id, fields=sorted(changes))
@@ -384,10 +485,56 @@ def owner_product_router(runtime):
         existing = memory.get(memory_id)
         if not existing or not filter_memories([existing], device_id):
             raise HTTPException(404, 'Memory not found')
-        if not second_brain.delete(memory_id):
+        if not memory.soft_delete(memory_id):
             raise HTTPException(404, 'Memory not found')
-        audit('memory.deleted', device_id=device_id, memory_id=memory_id)
+        audit('memory.removed', device_id=device_id, memory_id=memory_id)
         return {'ok': True, 'memory_id': memory_id}
+
+    @router.get('/knowledge/collections')
+    def knowledge_collections(pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        authenticate(pa_device, pa_token, 'knowledge:read')
+        return {'collections': knowledge.collections()}
+
+    @router.get('/knowledge/sources')
+    def knowledge_sources(pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'knowledge:read')
+        sources = knowledge.sources(limit=100)
+        return {'sources': [{key: item.get(key) for key in ('id', 'source_type', 'display_name', 'status', 'sync_status', 'last_sync_at', 'last_error_code', 'project_id')} for item in sources]}
+
+    @router.post('/knowledge/collections', status_code=201)
+    def knowledge_collection_create(body: KnowledgeCollectionBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'knowledge:write')
+        try:
+            item = knowledge.create_collection(body.title, body.description)
+        except KnowledgeError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        audit('knowledge.collection.created', device_id=device_id, collection_id=item['id'])
+        return item
+
+    @router.patch('/knowledge/collections/{collection_id}')
+    def knowledge_collection_update(collection_id: str, body: KnowledgeCollectionUpdateBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'knowledge:write')
+        changes = body.model_dump(exclude_none=True)
+        if not changes:
+            raise HTTPException(422, 'Provide a collection name or description')
+        try:
+            item = knowledge.update_collection(collection_id, **changes)
+        except KeyError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        except KnowledgeError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        audit('knowledge.collection.updated', device_id=device_id, collection_id=collection_id)
+        return item
+
+    @router.delete('/knowledge/collections/{collection_id}')
+    def knowledge_collection_delete(collection_id: str, confirm: bool = False, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'knowledge:write')
+        if not confirm:
+            raise HTTPException(409, 'Deleting a collection requires confirm=true')
+        if not knowledge.delete_collection(collection_id):
+            raise HTTPException(404, 'Knowledge collection not found')
+        audit('knowledge.collection.deleted', device_id=device_id, collection_id=collection_id)
+        return {'ok': True, 'collection_id': collection_id, 'items_retained': True}
 
     @router.get('/knowledge')
     def knowledge_list(
@@ -425,12 +572,29 @@ def owner_product_router(runtime):
         if body.access_class == 'private' and 'private' not in knowledge_access(device_id):
             raise HTTPException(403, 'This device cannot create private knowledge')
         try:
-            if body.content_base64 is not None:
+            if body.collection_id and not knowledge.collection(body.collection_id):
+                raise KnowledgeError('Knowledge collection not found')
+            if body.item_kind == 'link':
+                parsed = urlparse(str(body.link_url or '').strip())
+                if parsed.scheme not in {'http', 'https'} or not parsed.netloc:
+                    raise KnowledgeError('Enter a valid http or https link')
+                body.filename = (body.filename or 'Saved link.txt')
+                body.title = body.title or parsed.netloc
+                data = f'Saved link (not fetched): {parsed.geturl()}'.encode('utf-8')
+            elif body.content_base64 is not None:
                 data = base64.b64decode(body.content_base64, validate=True)
             elif body.text is not None:
                 data = body.text.encode('utf-8')
             else:
                 raise KnowledgeError('File content is required')
+            metadata = _bounded_mapping(body.metadata)
+            metadata.update({
+                'knowledge_kind': body.item_kind,
+                'available_to_vishnu': body.item_kind != 'link',
+                'link_url': urlparse(body.link_url).geturl() if body.item_kind == 'link' and body.link_url else None,
+                'link_status': 'saved_only' if body.item_kind == 'link' else None,
+                'collection_id': body.collection_id or None,
+            })
             document = knowledge.ingest(
                 filename=body.filename,
                 data=data,
@@ -438,7 +602,7 @@ def owner_product_router(runtime):
                 media_type=body.media_type,
                 source=body.source,
                 access_class=body.access_class,
-                metadata=_bounded_mapping(body.metadata),
+                metadata={key: value for key, value in metadata.items() if value is not None},
             )
         except (KnowledgeError, binascii.Error) as exc:
             raise HTTPException(400, str(exc)) from exc
@@ -468,8 +632,18 @@ def owner_product_router(runtime):
             raise HTTPException(403, 'This device cannot mark knowledge private')
         try:
             changes = body.model_dump(exclude_none=True)
+            collection_id = changes.pop('collection_id', None)
             if 'metadata' in changes:
                 changes['metadata'] = _bounded_mapping(changes['metadata'])
+            if collection_id is not None:
+                if collection_id and not knowledge.collection(collection_id):
+                    raise KnowledgeError('Knowledge collection not found')
+                metadata = dict(existing.get('metadata') or {})
+                if collection_id:
+                    metadata['collection_id'] = collection_id
+                else:
+                    metadata.pop('collection_id', None)
+                changes['metadata'] = metadata
             document = knowledge.update(document_id, **changes)
         except KeyError as exc:
             raise HTTPException(404, str(exc)) from exc
@@ -477,6 +651,20 @@ def owner_product_router(runtime):
             raise HTTPException(400, str(exc)) from exc
         audit('knowledge.updated', device_id=device_id, document_id=document_id)
         return document
+
+    @router.patch('/knowledge/{document_id}/availability')
+    def knowledge_availability(document_id: str, body: KnowledgeAvailabilityBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'knowledge:write')
+        existing = knowledge.detail(document_id)
+        if not existing or existing['access_class'] not in knowledge_access(device_id):
+            raise HTTPException(404, 'Knowledge document not found')
+        metadata = dict(existing.get('metadata') or {})
+        if body.available_to_vishnu and metadata.get('link_status') == 'saved_only':
+            raise HTTPException(409, 'This saved link has not been fetched or indexed; it cannot be used by Vishnu yet')
+        metadata['available_to_vishnu'] = body.available_to_vishnu
+        result = knowledge.update(document_id, metadata=metadata)
+        audit('knowledge.availability.updated', device_id=device_id, document_id=document_id, available_to_vishnu=body.available_to_vishnu)
+        return result
 
     @router.delete('/knowledge/{document_id}')
     def knowledge_delete(
@@ -504,7 +692,26 @@ def owner_product_router(runtime):
         pa_token: str | None = Cookie(default=None),
     ):
         authenticate(pa_device, pa_token, 'activities:read')
-        return {'activities': memory.audit_entries(category, min(limit, 500))}
+        bounded = max(1, min(limit, 500))
+        rows = memory.audit_entries(category, bounded)
+        project_store = runtime.get('project_store')
+        if project_store is not None and (category is None or category in {'project', 'projects'}):
+            for item in project_store.activity_feed(limit=bounded):
+                payload = {
+                    'project_id': item['project_id'],
+                    'project_name': item['project_name'],
+                    'target_type': item['target_type'],
+                    'target_id': item.get('target_id'),
+                }
+                if item['target_type'] == 'task' and item.get('target_id'):
+                    payload['task_id'] = item['target_id']
+                rows.append({
+                    'id': item['id'], 'category': 'project', 'action': item['action'],
+                    'actor': item['actor'], 'created_at': item['created_at'],
+                    'payload': payload, 'status': 'recorded',
+                })
+        rows.sort(key=lambda item: str(item.get('created_at') or ''), reverse=True)
+        return {'activities': rows[:bounded]}
 
     @router.get('/devices')
     def devices(pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
@@ -601,14 +808,43 @@ def owner_product_router(runtime):
         try:
             trigger = _bounded_mapping(body.trigger)
             steps = [_bounded_mapping(step, max_bytes=32768) for step in body.steps]
+            embedded_policy = trigger.pop('policy', None)
             workflow_id = runtime['automations'].create_workflow(
                 body.title, trigger, steps,
                 next_run_at=body.next_run_at, interval_seconds=body.interval_seconds,
+                policy=_bounded_mapping(embedded_policy) if embedded_policy is not None else None,
             )
         except (TypeError, ValueError) as exc:
             raise HTTPException(400, str(exc)) from exc
         audit('workflow.created', device_id=device_id, workflow_id=workflow_id)
         return runtime['automations'].workflow(workflow_id)
+
+    @router.put('/workflows/{workflow_id}')
+    def workflow_update(workflow_id: str, body: WorkflowCreateBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'workflow:write')
+        try:
+            trigger = _bounded_mapping(body.trigger)
+            steps = [_bounded_mapping(step, max_bytes=32768) for step in body.steps]
+            result = runtime['automations'].update_workflow(
+                workflow_id, title=body.title, trigger=trigger, steps=steps,
+                next_run_at=body.next_run_at, interval_seconds=body.interval_seconds,
+            )
+        except KeyError as exc:
+            raise HTTPException(404, 'Workflow not found') from exc
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(400, str(exc)) from exc
+        audit('workflow.updated', device_id=device_id, workflow_id=workflow_id)
+        return result
+
+    @router.post('/workflows/pause')
+    def workflow_pause(body: WorkflowPauseBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'workflow:write')
+        try:
+            result = runtime['automations'].pause_workflow(body.workflow_id, body.paused)
+        except KeyError as exc:
+            raise HTTPException(404, 'Workflow not found') from exc
+        audit('workflow.paused' if body.paused else 'workflow.resumed', device_id=device_id, workflow_id=body.workflow_id)
+        return result
 
     @router.post('/workflows/{workflow_id}/run')
     def workflow_run(workflow_id: str, body: WorkflowRunBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
