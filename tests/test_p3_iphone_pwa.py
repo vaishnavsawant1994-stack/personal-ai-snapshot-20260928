@@ -539,6 +539,11 @@ def test_home_uses_one_touch_voice_instead_of_four_test_buttons(tmp_path):
 
     assert page.status_code == 200
     assert 'id="micButton"' in page.text
+    assert 'Tap once to talk continuously' in page.text
+    assert '>Start Session<' not in page.text
+    assert '>Start Listening<' not in page.text
+    assert '>Interrupt<' not in page.text
+    assert 'Continue here' in page.text
 
 
 def test_reference_today_module_is_defined_and_loaded_as_a_page(tmp_path):
@@ -548,11 +553,7 @@ def test_reference_today_module_is_defined_and_loaded_as_a_page(tmp_path):
     assert 'function todayPage()' in script.text
     assert "name==='today'?todayPage()" in script.text
     assert 'function bindToday()' in script.text
-    assert 'Tap once to talk continuously' in page.text
-    assert '>Start Session<' not in page.text
-    assert '>Start Listening<' not in page.text
-    assert '>Interrupt<' not in page.text
-    assert 'Continue here' in page.text
+    assert 'root.innerHTML=shell(name,labels[name],subtitles[name]||\'\',content)' in script.text
 
 
 def test_client_tts_failure_is_recorded_as_voice_error(tmp_path):
