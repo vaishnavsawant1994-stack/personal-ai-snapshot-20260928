@@ -470,3 +470,8 @@ body:has(#modulePanel.module-panel.open[data-surface="projects"]) #modulePanel.m
  body:has(#modulePanel.module-panel.open[data-surface="projects"]) #appDrawer:not(.hidden){display:flex!important;z-index:80!important;pointer-events:auto}
  body:has(#modulePanel.module-panel.open[data-surface="projects"]) .drawer-overlay{z-index:79}
 }
+
+/* Keep the shared mobile navigation reachable on the Projects list. */
+@media(max-width:900px){
+ body:has(#modulePanel.module-panel.open[data-surface="projects"] .project-list-page) .topbar{display:grid!important;visibility:visible!important;position:relative!important;z-index:81!important}
+}
