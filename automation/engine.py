@@ -6,8 +6,9 @@ import sqlite3
 import threading
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from agent.executor import ConfirmationRequired, ExecutionCancelled
 from automation.budget import DEFAULT_POLICY, WorkflowBudgetError, WorkflowBudgetManager, WorkflowRecoveryRequired, normalize_policy
@@ -127,6 +128,7 @@ class AutomationEngine:
         if t=='schedule' and not next_run_at:
             next_run_at=str(trigger.get('next_run_at') or '')
             if not next_run_at: raise ValueError('scheduled workflow requires next_run_at')
+        self._validate_schedule_trigger(trigger)
         wid=str(uuid.uuid4()); stamp=now()
         with self._con() as con: con.execute('''INSERT INTO workflows(id,title,trigger_json,steps_json,enabled,paused,next_run_at,interval_seconds,created_at,updated_at,last_run_at,policy_json) VALUES(?,?,?,?,1,0,?,?,?,?,NULL,?)''',(wid,str(title),json.dumps(trigger),json.dumps(normalized),next_run_at,interval_seconds,stamp,stamp,json.dumps(policy)))
         self._emit('workflow.created',workflow_id=wid,title=title); return wid
@@ -141,6 +143,34 @@ class AutomationEngine:
         if kind=='emit' and not str(row.get('event','')).strip(): raise ValueError('emit workflow step requires event')
         return row
 
+    @staticmethod
+    def _validate_schedule_trigger(trigger):
+        repeat=str(trigger.get('repeat','once'))
+        if repeat not in {'once','weekdays','weekly'}: raise ValueError('schedule repeat must be once, weekdays or weekly')
+        if repeat=='once': return
+        try:
+            ZoneInfo(str(trigger.get('timezone') or 'UTC'))
+            hour,minute=map(int,str(trigger.get('local_time') or '').split(':',1))
+            if not (0<=hour<=23 and 0<=minute<=59): raise ValueError
+            if repeat=='weekly' and not 0<=int(trigger.get('weekday',6))<=6: raise ValueError
+        except (ValueError,TypeError,ZoneInfoNotFoundError) as exc:
+            raise ValueError('recurring schedule requires a valid timezone, local_time, and weekday') from exc
+
+    @staticmethod
+    def _next_recurring_run(trigger, after=None):
+        repeat=str(trigger.get('repeat','once'))
+        if repeat not in {'weekdays','weekly'}: return None
+        zone=ZoneInfo(str(trigger.get('timezone') or 'UTC'))
+        hour,minute=map(int,str(trigger['local_time']).split(':',1))
+        current=(after or datetime.now(timezone.utc)).astimezone(zone)
+        allowed=set(range(5)) if repeat=='weekdays' else {int(trigger.get('weekday',6))}
+        for offset in range(8):
+            day=(current+timedelta(days=offset)).date()
+            candidate=datetime(day.year,day.month,day.day,hour,minute,tzinfo=zone)
+            if candidate.weekday() in allowed and candidate>current:
+                return candidate.astimezone(timezone.utc).isoformat()
+        return None
+
     def workflows(self):
         with self._con() as con: rows=[dict(r) for r in con.execute('SELECT * FROM workflows ORDER BY created_at DESC')]
         for r in rows: r['trigger']=json.loads(r.pop('trigger_json') or '{}'); r['steps']=json.loads(r.pop('steps_json') or '[]'); r['policy']=normalize_policy(json.loads(r.pop('policy_json') or '{}'))
@@ -153,6 +183,27 @@ class AutomationEngine:
         with self._con() as con: cur=con.execute('UPDATE workflows SET paused=?,updated_at=? WHERE id=?',(int(paused),now(),workflow_id))
         if cur.rowcount!=1: raise KeyError('workflow not found')
         self._emit('workflow.paused' if paused else 'workflow.resumed',workflow_id=workflow_id); return {'workflow_id':workflow_id,'paused':bool(paused)}
+    def update_workflow(self,workflow_id,*,title,trigger,steps,next_run_at=None,interval_seconds=None):
+        title=str(title or '').strip()
+        if not title or len(title)>200: raise ValueError('workflow title must be between 1 and 200 characters')
+        trigger=dict(trigger or {}); embedded_policy=trigger.pop('policy',None)
+        current=self.workflow(workflow_id)
+        policy=normalize_policy(embedded_policy) if embedded_policy is not None else current['policy']
+        if policy['approval_threshold'] not in {'read_only','consequential'}:
+            raise ValueError('workflow approval threshold may only be read_only or consequential')
+        kind=str(trigger.get('type','event'))
+        if kind not in {'event','schedule','manual'}: raise ValueError('workflow trigger type must be event, schedule or manual')
+        if not isinstance(steps,list) or not steps: raise ValueError('workflow requires at least one step')
+        normalized=[self._normalize_step(step,i) for i,step in enumerate(steps)]
+        if len(normalized)>50: raise ValueError('workflow may contain at most 50 steps')
+        if kind=='schedule' and not (next_run_at or trigger.get('next_run_at')): raise ValueError('scheduled workflow requires next_run_at')
+        self._validate_schedule_trigger(trigger)
+        next_run_at=next_run_at or trigger.get('next_run_at')
+        with self._con() as con:
+            cur=con.execute('UPDATE workflows SET title=?,trigger_json=?,steps_json=?,next_run_at=?,interval_seconds=?,policy_json=?,updated_at=? WHERE id=?',(title,json.dumps(trigger),json.dumps(normalized),next_run_at,interval_seconds,json.dumps(policy),now(),workflow_id))
+        if cur.rowcount!=1: raise KeyError('workflow not found')
+        self._emit('workflow.updated',workflow_id=workflow_id,title=title)
+        return self.workflow(workflow_id)
     def enable_workflow(self,workflow_id,enabled=True):
         with self._con() as con: cur=con.execute('UPDATE workflows SET enabled=?,updated_at=? WHERE id=?',(int(enabled),now(),workflow_id))
         if cur.rowcount!=1: raise KeyError('workflow not found')
@@ -470,7 +521,9 @@ class AutomationEngine:
                 nxt=datetime.fromtimestamp(now_ts()+int(row['interval_seconds']),timezone.utc).isoformat()
                 with self._con() as con: con.execute('UPDATE workflows SET next_run_at=?,updated_at=? WHERE id=?',(nxt,now(),row['id']))
             else:
-                with self._con() as con: con.execute('UPDATE workflows SET next_run_at=NULL,updated_at=? WHERE id=?',(now(),row['id']))
+                trigger=json.loads(row['trigger_json'] or '{}')
+                nxt=self._next_recurring_run(trigger)
+                with self._con() as con: con.execute('UPDATE workflows SET next_run_at=?,updated_at=? WHERE id=?',(nxt,now(),row['id']))
     def _run_one(self,row):
         result={'executed':False}
         try:

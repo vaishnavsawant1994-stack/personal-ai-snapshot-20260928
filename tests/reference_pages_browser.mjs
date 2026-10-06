@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 
@@ -7,10 +6,8 @@ const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 const root = new URL('../', import.meta.url);
 const read = path => readFile(new URL(path, root));
-const server = createServer(async (req, res) => {
-  const url = new URL(req.url, 'http://localhost');
-  const send = (body, type = 'application/javascript') => { res.writeHead(200, { 'content-type': type, 'cache-control': 'no-store' }); res.end(body); };
-  if (url.pathname === '/') return send(`<!doctype html><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="/reference-pages.css"><div class="app-shell"><header class="topbar">Vishnu</header><nav class="nav">Home</nav><section class="module-panel open"><header class="module-head">Old module header</header><div class="module-body" id="moduleBody"></div></section></div><script>
+const [css, source] = await Promise.all([read('pwa/reference-pages.css'), read('pwa/reference-pages.js')]);
+const fixture = `
     window.escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     window.sectionIcon = () => '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>';
     window.showToast = () => {};
@@ -34,19 +31,15 @@ const server = createServer(async (req, res) => {
       return { items: [], memories: [], collections: [], sources: [], activities: [] };
     };
     window.openModule = () => { window.closeAllDrawers(); return Promise.resolve(); };
-  </script><script src="/reference-pages.js"></script>`,'text/html; charset=utf-8');
-  if (url.pathname === '/reference-pages.css') return send(await read('pwa/reference-pages.css'), 'text/css');
-  if (url.pathname === '/reference-pages.js') return send(await read('pwa/reference-pages.js'));
-  res.writeHead(404); res.end();
-});
-
-await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-const address = server.address();
+`;
 const browser = await chromium.launch({ headless: true });
 try {
   for (const viewport of [{ width: 390, height: 844 }, { width: 768, height: 1024 }, { width: 1440, height: 900 }]) {
     const page = await browser.newPage({ viewport, isMobile: viewport.width < 500, hasTouch: viewport.width < 500 });
-    await page.goto(`http://127.0.0.1:${address.port}/?uiDemo=1`, { waitUntil: 'domcontentloaded' });
+    await page.setContent('<!doctype html><meta name="viewport" content="width=device-width, initial-scale=1"><div class="app-shell"><header class="topbar">Vishnu</header><nav class="nav">Home</nav><section class="module-panel open"><header class="module-head">Old module header</header><div class="module-body" id="moduleBody"></div></section></div>');
+    await page.addStyleTag({ content: css });
+    await page.addScriptTag({ content: fixture });
+    await page.addScriptTag({ content: source.replace("const preview=()=>new URLSearchParams(location.search).get('uiDemo')==='1';", 'const preview=()=>true;') });
     await page.evaluate(() => window.openModule('today'));
     await page.locator('.rp-page[data-rp-page="today"]').waitFor();
     await page.getByRole('button', { name: /3 Tasks/ }).waitFor();
@@ -86,10 +79,38 @@ try {
       assert.ok(Math.max(...toolbarRows)-Math.min(...toolbarRows) <= 4, `Search, filters and sort should share one desktop toolbar row: ${toolbarRows}`);
       assert.equal(await page.locator('.rp-page[data-rp-page="conversations"] .rp-actions>[data-rp-new-chat]').isVisible(), false, 'Conversation footer should not duplicate New chat actions');
     }
+    await page.evaluate(() => window.openModule('tools'));
+    await page.locator('.rp-page[data-rp-page="tools"]').waitFor();
+    assert.equal(await page.locator('.rp-page[data-rp-page="tools"] .rp-heading').count(), 1, 'Tools should have one page heading and shell');
+    await page.getByRole('heading', { name: 'Web research' }).waitFor();
+    assert.equal(await page.locator('.rp-tool-card').count(), 5, 'Tools page should show all five reference capabilities');
+    assert.equal(await page.getByText('Tools run when you ask Vishnu to use them.').count(), 1);
+    await page.getByPlaceholder('Search tools').fill('image');
+    assert.equal(await page.locator('.rp-tool-card').count(), 1, 'Tools search should filter tool cards');
+    await page.getByPlaceholder('Search tools').fill('');
+    await page.getByRole('button', { name: 'Plan', exact: true }).click();
+    assert.equal(await page.locator('.rp-tool-card').count(), 1, 'Tools category chips should filter by category');
+    await page.getByPlaceholder('Search tools').fill('no such capability');
+    await page.getByRole('button', { name: 'Clear search and filters' }).first().click();
+    assert.equal(await page.locator('.rp-tool-card').count(), 5, 'Tools empty-state reset should restore the full list');
+    if (viewport.width <= 760) {
+      await page.locator('[data-rp-tool-select="web-research"]').click();
+      assert.equal(await page.locator('.rp-mobile-tool-detail.open').count(), 1, 'Mobile tool details should open as a detail view');
+      await page.locator('[data-rp-tool-back]').click();
+    }
+    assert.equal(await page.locator('.rp-page[data-rp-page="tools"] .rp-actions').isVisible(), true);
+    await page.evaluate(() => window.openModule('workflows'));
+    await page.locator('.rp-page[data-rp-page="workflows"]').waitFor();
+    assert.equal(await page.locator('.rp-page[data-rp-page="workflows"] .rp-heading').count(), 1, 'Workflows should have one page heading and shell');
+    assert.equal(await page.locator('.rp-workflow-card').count(), 5, 'Workflow preview includes fifth active item for truthful summary totals');
+    assert.match(await page.locator('.rp-workflow-summary').innerText(), /3\s+active[\s\S]*1\s+paused[\s\S]*1\s+needs review/);
+    await page.getByPlaceholder('Search workflows').fill('weekly planning');
+    assert.equal(await page.locator('.rp-workflow-card').count(), 1, 'Workflow search should filter the persisted/demo source list');
+    await page.getByPlaceholder('Search workflows').fill('');
+    assert.equal(await page.locator('.rp-page[data-rp-page="workflows"] .rp-actions').isVisible(), true);
     await page.close();
   }
   console.log('Reference-page browser checks passed at 390px, 768px, and 1440px: no page overflow, one header/hamburger, correct Today counts, and Conversations opens as a page from the menu.');
 } finally {
   await browser.close();
-  await new Promise(resolve => server.close(resolve));
 }

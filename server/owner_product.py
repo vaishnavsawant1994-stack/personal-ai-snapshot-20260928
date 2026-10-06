@@ -128,6 +128,11 @@ class WorkflowCreateBody(BaseModel):
     interval_seconds: int | None = Field(default=None, ge=1)
 
 
+class WorkflowPauseBody(BaseModel):
+    workflow_id: str = Field(min_length=1, max_length=200)
+    paused: bool
+
+
 class WorkflowRunBody(BaseModel):
     context: dict = Field(default_factory=dict)
     idempotency_key: str = Field(min_length=16, max_length=160)
@@ -803,14 +808,43 @@ def owner_product_router(runtime):
         try:
             trigger = _bounded_mapping(body.trigger)
             steps = [_bounded_mapping(step, max_bytes=32768) for step in body.steps]
+            embedded_policy = trigger.pop('policy', None)
             workflow_id = runtime['automations'].create_workflow(
                 body.title, trigger, steps,
                 next_run_at=body.next_run_at, interval_seconds=body.interval_seconds,
+                policy=_bounded_mapping(embedded_policy) if embedded_policy is not None else None,
             )
         except (TypeError, ValueError) as exc:
             raise HTTPException(400, str(exc)) from exc
         audit('workflow.created', device_id=device_id, workflow_id=workflow_id)
         return runtime['automations'].workflow(workflow_id)
+
+    @router.put('/workflows/{workflow_id}')
+    def workflow_update(workflow_id: str, body: WorkflowCreateBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'workflow:write')
+        try:
+            trigger = _bounded_mapping(body.trigger)
+            steps = [_bounded_mapping(step, max_bytes=32768) for step in body.steps]
+            result = runtime['automations'].update_workflow(
+                workflow_id, title=body.title, trigger=trigger, steps=steps,
+                next_run_at=body.next_run_at, interval_seconds=body.interval_seconds,
+            )
+        except KeyError as exc:
+            raise HTTPException(404, 'Workflow not found') from exc
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(400, str(exc)) from exc
+        audit('workflow.updated', device_id=device_id, workflow_id=workflow_id)
+        return result
+
+    @router.post('/workflows/pause')
+    def workflow_pause(body: WorkflowPauseBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'workflow:write')
+        try:
+            result = runtime['automations'].pause_workflow(body.workflow_id, body.paused)
+        except KeyError as exc:
+            raise HTTPException(404, 'Workflow not found') from exc
+        audit('workflow.paused' if body.paused else 'workflow.resumed', device_id=device_id, workflow_id=body.workflow_id)
+        return result
 
     @router.post('/workflows/{workflow_id}/run')
     def workflow_run(workflow_id: str, body: WorkflowRunBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):

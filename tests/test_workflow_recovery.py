@@ -73,3 +73,76 @@ def test_cancelled_run_cannot_be_overwritten_as_completed(tmp_path):
     run_id=engine.run_workflow(workflow_id,background=True);assert executor.started.wait(2)
     engine.cancel_run(run_id);executor.release.set();time.sleep(.05)
     assert engine._run(run_id)['status']=='cancelled'
+
+
+def test_workflow_update_persists_valid_configuration_and_rejects_invalid_input(tmp_path):
+    path = tmp_path / 'workflows.sqlite3'
+    engine = AutomationEngine(path, executor=ImmediateExecutor())
+    workflow_id = engine.create_workflow(
+        'First title', {'type': 'manual'}, [{'kind': 'prompt', 'prompt': 'old step'}]
+    )
+    updated = engine.update_workflow(
+        workflow_id,
+        title='Updated title',
+        trigger={'type': 'schedule', 'timezone': 'Asia/Kolkata'},
+        steps=[{'kind': 'prompt', 'prompt': 'new step'}],
+        next_run_at='2026-10-07T08:00:00+05:30',
+    )
+    assert updated['title'] == 'Updated title'
+    assert updated['trigger']['timezone'] == 'Asia/Kolkata'
+    assert updated['steps'][0]['prompt'] == 'new step'
+    assert AutomationEngine(path, executor=ImmediateExecutor()).workflow(workflow_id)['title'] == 'Updated title'
+    try:
+        engine.update_workflow(
+            workflow_id, title='Invalid', trigger={'type': 'schedule'},
+            steps=[{'kind': 'prompt', 'prompt': 'step'}],
+        )
+    except ValueError as exc:
+        assert 'next_run_at' in str(exc)
+    else:
+        raise AssertionError('schedule without next run must be rejected')
+    assert engine.workflow(workflow_id)['title'] == 'Updated title'
+
+
+def test_workflow_recurring_weekday_schedule_uses_timezone_and_weekdays_only():
+    from datetime import datetime, timezone
+
+    trigger = {
+        'type': 'schedule', 'repeat': 'weekdays', 'timezone': 'Asia/Kolkata', 'local_time': '08:00'
+    }
+    after = datetime.fromisoformat('2026-10-09T03:00:00+00:00')  # Friday, 8:30 AM IST
+    next_run = datetime.fromisoformat(AutomationEngine._next_recurring_run(trigger, after))
+    assert next_run.astimezone(timezone.utc).isoformat() == '2026-10-12T02:30:00+00:00'
+
+
+def test_workflow_update_persists_review_policy(tmp_path):
+    engine = AutomationEngine(tmp_path / 'workflows.sqlite3', executor=ImmediateExecutor())
+    workflow_id = engine.create_workflow(
+        'Review policy', {'type': 'manual'}, [{'kind': 'prompt', 'prompt': 'summarize'}]
+    )
+    updated = engine.update_workflow(
+        workflow_id, title='Review policy',
+        trigger={'type': 'manual', 'policy': {'approval_threshold': 'read_only'}},
+        steps=[{'kind': 'prompt', 'prompt': 'summarize'}],
+    )
+    assert updated['policy']['approval_threshold'] == 'read_only'
+    try:
+        engine.update_workflow(
+            workflow_id, title='Review policy',
+            trigger={'type': 'manual', 'policy': {'approval_threshold': 'destructive'}},
+            steps=[{'kind': 'prompt', 'prompt': 'summarize'}],
+        )
+    except ValueError as exc:
+        assert 'read_only or consequential' in str(exc)
+    else:
+        raise AssertionError('weaker approval threshold must be rejected')
+
+
+def test_workflow_create_persists_review_policy(tmp_path):
+    engine = AutomationEngine(tmp_path / 'workflows.sqlite3', executor=ImmediateExecutor())
+    workflow_id = engine.create_workflow(
+        'Review on create', {'type': 'manual'},
+        [{'kind': 'prompt', 'prompt': 'summarize'}],
+        policy={'approval_threshold': 'read_only'},
+    )
+    assert engine.workflow(workflow_id)['policy']['approval_threshold'] == 'read_only'
