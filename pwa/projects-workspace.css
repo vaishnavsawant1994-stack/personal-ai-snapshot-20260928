@@ -473,5 +473,5 @@ body:has(#modulePanel.module-panel.open[data-surface="projects"]) #modulePanel.m
 
 /* Keep the shared mobile navigation reachable on the Projects list. */
 @media(max-width:900px){
- body:has(#modulePanel.module-panel.open[data-surface="projects"] .project-list-page) .topbar{display:grid!important;visibility:visible!important;position:relative!important;z-index:81!important}
+ body:has(#modulePanel.module-panel.open[data-surface="projects"]) .topbar{display:grid!important;visibility:visible!important;opacity:1!important;position:relative!important;z-index:81!important}
 }
