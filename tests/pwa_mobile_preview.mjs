@@ -721,7 +721,7 @@ try {
   await page.locator('[data-conversation-filter="task"]').click();
   assert.ok((await page.locator(".timeline-title").allTextContents()).includes("Finish daily review"),"Tasks filter must isolate actual task events");
   await page.locator('.timeline-entry[data-category="task"] .timeline-title').first().click();
-  assert.equal(await page.locator('#timelineRecordTitle').innerText(),"Finish daily review","task rows must open their saved details in the Timeline detail view");
+  assert.equal(await page.locator('#timelineRecordTitle').innerText(),"Complete weekly report","task rows must open the currently saved task details in the Timeline detail view");
   assert.match(new URL(page.url()).hash,/^#task\//,"task details must have an addressable in-app detail route");
   await page.locator('#timelineRecordClose').click();
   await page.waitForFunction(()=>location.hash==='');
