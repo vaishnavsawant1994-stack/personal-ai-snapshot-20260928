@@ -224,7 +224,7 @@ try {
     await filesDialog.locator('input[type=file]').setInputFiles({ name: 'project-notes.md', mimeType: 'text/markdown', buffer: Buffer.from('Responsive acceptance criteria') });
     await filesDialog.getByText('project-notes.md').waitFor();
     await filesDialog.getByRole('button', { name: 'Add to project' }).click();
-    await page.getByText('project-notes.md').waitFor();
+    await page.getByText('project-notes.md').first().waitFor();
     await page.locator('[data-file-select]').click();
     if (screenshotDir) await page.screenshot({ path: `${screenshotDir}/project-files-${viewport.width}.png`, fullPage: false });
     if (viewport.isMobile) {
