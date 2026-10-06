@@ -9,6 +9,7 @@ on:
       - 'pwa/**'
       - 'tests/pwa_mobile_preview.mjs'
       - 'tests/standalone_pwa_responsive.mjs'
+      - 'tests/projects_workspace_browser.mjs'
       - 'personal-ai/pwa/**'
       - '.github/workflows/pwa-mobile-preview.yml'
   pull_request:
@@ -16,6 +17,7 @@ on:
       - 'pwa/**'
       - 'tests/pwa_mobile_preview.mjs'
       - 'tests/standalone_pwa_responsive.mjs'
+      - 'tests/projects_workspace_browser.mjs'
       - 'personal-ai/pwa/**'
       - '.github/workflows/pwa-mobile-preview.yml'
 
@@ -48,12 +50,14 @@ jobs:
           done
           curl --fail --silent http://127.0.0.1:4173/iphone/ >/dev/null
           curl --fail --silent http://127.0.0.1:4173/standalone/ >/dev/null
+          mkdir -p artifacts/project-workspace
+          PROJECT_SCREENSHOT_DIR=artifacts/project-workspace node tests/projects_workspace_browser.mjs
           node tests/pwa_mobile_preview.mjs
           node tests/standalone_pwa_responsive.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: personal-ai-mobile-preview
-          path: artifacts/*.png
+          path: artifacts/**/*.png
           if-no-files-found: warn
           retention-days: 7
