@@ -108,6 +108,12 @@ try {
     await page.locator('#historyButton').click();
     await page.locator('[data-app-module="projects"]').click();
     await page.locator('.project-list-page').waitFor();
+    const menuLayout = await page.evaluate(() => {
+      const button = document.querySelector('#historyButton'), topbar = button.closest('.topbar'), shell = button.closest('.app-shell');
+      const describe = node => { const style = getComputedStyle(node), rect = node.getBoundingClientRect(); return {display:style.display,visibility:style.visibility,opacity:style.opacity,zIndex:style.zIndex,rect:{x:rect.x,y:rect.y,width:rect.width,height:rect.height}}; };
+      return {bodyClass:document.body.className,moduleOpen:document.querySelector('#modulePanel').className,hasList:!!document.querySelector('.project-list-page'),hasDetail:!!document.querySelector('.project-detail-page'),topbar:describe(topbar),button:describe(button),shell:describe(shell)};
+    });
+    console.log('PROJECT_MENU_DEBUG '+JSON.stringify(menuLayout));
     await page.locator('#historyButton').click();
     await page.locator('#appDrawer').waitFor({ state: 'visible' });
     assert.equal(await page.locator('#appDrawer [data-app-module="projects"]').isVisible(), true, `The hamburger should open usable navigation from the Projects list at ${viewport.width}px`);
