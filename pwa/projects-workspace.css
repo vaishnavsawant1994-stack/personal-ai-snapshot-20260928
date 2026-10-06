@@ -94,7 +94,6 @@ body:has(#modulePanel.module-panel.open[data-surface="projects"]) #modulePanel.m
   body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-page>.project-breadcrumb{display:flex;flex:none;padding:8px 16px;border-bottom:1px solid var(--pr-border)}
   body:has(#modulePanel.module-panel.open[data-surface="projects"]) .project-wizard-heading h1{font-size:clamp(1.65rem,6vw,2rem)}
 }
-body:has(#modulePanel.module-panel.open[data-surface="projects"]).focused-module .topbar{display:grid!important;visibility:visible!important;opacity:1!important}
 @media(max-width:900px){body:has(#modulePanel.module-panel.open[data-surface="projects"]).focused-module .topbar{display:grid!important;visibility:visible!important;opacity:1!important}}
 @media(max-width:900px){
   body:has(#modulePanel.module-panel.open[data-surface="projects"]) .topbar{grid-template-columns:48px minmax(0,1fr) 48px;align-items:center}
