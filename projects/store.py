@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 15121)
-Total output lines: 813
-
 from __future__ import annotations
 
 import json
@@ -404,7 +401,15 @@ class ProjectStore:
 
     def set_task_execution(self, project_id, task_id, *, workflow_id=None, run_id=None, result=None, status=None):
         fields = {'execution_workflow_id': workflow_id, 'execution_run_id': run_id, 'execution_result': result}
-        with self.lock…121 tokens truncated…tes)+',updated_at=? WHERE id=? AND project_id=?',
+        with self.lock, self.con() as con:
+            row = con.execute('SELECT title FROM project_tasks WHERE id=? AND project_id=?', (task_id, project_id)).fetchone()
+            if not row:
+                return None
+            updates = {key: value for key, value in fields.items() if value is not None}
+            if status is not None:
+                updates['status'] = status
+            if updates:
+                con.execute('UPDATE project_tasks SET '+','.join(f'{key}=?' for key in updates)+',updated_at=? WHERE id=? AND project_id=?',
                             (*updates.values(), _now(), task_id, project_id))
                 action = 'started Vishnu task' if run_id else 'updated Vishnu task execution'
                 self._activity(con, project_id, action, 'task', task_id, row['title'])
