@@ -68,15 +68,19 @@ try {
     assert.equal(layout.topbarDisplay, 'none', 'Global app header should not duplicate reference page header');
     if (viewport.width <= 760) {
       assert.equal(await page.locator('.rp-page[data-rp-page="today"] .rp-top-mobile strong').evaluate(el => getComputedStyle(el).display), 'block');
-      assert.equal(await page.locator('.rp-page[data-rp-page="today"] .rp-heading h1').evaluate(el => getComputedStyle(el).display), 'none');
+      assert.equal(await page.locator('.rp-page[data-rp-page="today"] .rp-heading h1 .rp-mobile-date').evaluate(el => getComputedStyle(el).display), 'inline');
       const filters = await page.locator('.rp-filters').first().evaluate(el => ({ width: el.clientWidth, scrollWidth: el.scrollWidth }));
       assert.ok(filters.width <= layout.width + 1, 'Filter row should stay within the viewport');
+      const order = await page.evaluate(() => ['.rp-summary','.rp-focus','.rp-timeline-wrap','.rp-sidebar>.rp-panel:not(.rp-focus)'].map(selector => document.querySelector(selector)?.getBoundingClientRect().top));
+      assert.ok(order[0] < order[1] && order[1] < order[2] && order[2] < order[3], `Today mobile content should follow the reference order: ${order}`);
     }
     await page.locator('[data-rp-menu]').click();
     await page.locator('#appConversations').click();
     await page.locator('.rp-page[data-rp-page="conversations"]').waitFor();
     assert.equal(await page.locator('#fixtureDrawer').isVisible(), false, 'Conversation navigation should leave the drawer and open the page');
     assert.equal(await page.locator('.rp-page[data-rp-page="conversations"] .rp-conversation-layout').count(), 1);
+    assert.equal(await page.locator('.rp-conv-tools>.rp-search').count(), 1, 'Conversation search should share the toolbar with its filters');
+    assert.equal(await page.locator('.rp-page[data-rp-page="conversations"] .rp-actions-group .rp-button').isVisible(), true);
     await page.close();
   }
   console.log('Reference-page browser checks passed at 390px, 768px, and 1440px: no page overflow, one header/hamburger, correct Today counts, and Conversations opens as a page from the menu.');

@@ -52,6 +52,12 @@ body.reference-pages-mode .module-panel.open>.module-body{height:100%!important;
   body.reference-pages-mode .rp-desktop-detail,body.reference-pages-mode .rp-grid .rp-detail.rp-selected-detail{display:none}
 }
 .rp-mobile-date{display:none}
+.rp-page[data-rp-page="conversations"] .rp-actions{justify-content:center}
+.rp-page[data-rp-page="conversations"] .rp-actions>[data-rp-new-chat]{display:none}
+.rp-page[data-rp-page="conversations"] .rp-actions-group{width:100%}
+.rp-page[data-rp-page="conversations"] .rp-actions-group .rp-button{width:100%;min-height:50px}
+@media(min-width:761px){.rp-conv-tools>.rp-search{flex:1 1 260px}.rp-conv-tools>.rp-filters{flex:0 1 auto}.rp-conv-tools>.rp-select{flex:0 0 170px}}
+@media(max-width:760px){.rp-conv-tools{display:grid;grid-template-columns:minmax(0,1fr)}.rp-conv-tools>.rp-search{width:100%;min-width:0}.rp-conv-tools>.rp-select{display:none}}
 @media(max-width:390px){
   body.reference-pages-mode .rp-main{padding-left:13px;padding-right:13px}
   body.reference-pages-mode .rp-actions{left:7px;right:7px;gap:6px}
