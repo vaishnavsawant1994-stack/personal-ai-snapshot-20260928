@@ -919,7 +919,7 @@ try {
   const persistedTimesBeforeRefresh=await page.locator(".message-time").evaluateAll(nodes=>nodes.map(node=>({dateTime:node.dateTime,text:node.textContent})));
   await page.reload({waitUntil:"domcontentloaded"});
   await page.waitForFunction(()=>document.body.classList.contains("home-landing"));
-  assert.equal(await page.evaluate(()=>currentConversationId),null,"refresh must still land on a fresh Home draft instead of silently reopening an old chat");
+  assert.equal(await page.evaluate(()=>currentConversationId),"c1","refresh should preserve the canonical conversation binding while returning to Home");
   await page.evaluate(()=>openConversation("c1"));
   await page.waitForFunction(()=>document.querySelectorAll("#messageStream .message").length===2);
   const persistedTimesAfterRefresh=await page.locator(".message-time").evaluateAll(nodes=>nodes.map(node=>({dateTime:node.dateTime,text:node.textContent})));
