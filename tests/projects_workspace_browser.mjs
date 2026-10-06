@@ -246,7 +246,7 @@ try {
     await page.locator('[data-file-select]').click();
     await page.locator('[data-file-pin]').click();
     assert.equal(savedProject.files[0].is_pinned, true, 'File pin should persist through the project data API');
-    if (viewport.isMobile) await page.locator('[data-file-inspector-close]').click();
+    if (viewport.isMobile) await page.locator('.project-file-inspector .project-file-close').click();
     await openProjectTab('approvals');
     await page.getByRole('button', { name: 'New proposal' }).click();
     const proposalDialog = page.locator('dialog.project-dialog');
