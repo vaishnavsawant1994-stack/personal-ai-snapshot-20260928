@@ -638,10 +638,13 @@ try {
 
   await page.click("#appConversations");
   await page.waitForFunction(() => {
-    const panel=document.querySelector("#conversationDrawer"),rect=panel.getBoundingClientRect();
-    return panel.dataset.mode==="conversations" && !panel.classList.contains("hidden") &&
-      rect.left>=innerWidth-370 && rect.right<=innerWidth+1 && rect.width>=330;
+    const panel=document.querySelector("#conversationDrawer");
+    return panel.dataset.mode==="conversations" && !panel.classList.contains("hidden");
   });
+  await page.waitForTimeout(300);
+  const conversationsOpenState=await page.evaluate(()=>{const panel=document.querySelector("#conversationDrawer"),rect=panel.getBoundingClientRect();return{mode:panel.dataset.mode,hidden:panel.classList.contains("hidden"),rect:{left:rect.left,right:rect.right,width:rect.width},viewport:innerWidth,appDrawerHidden:document.querySelector("#appDrawer").classList.contains("hidden")}});
+  console.log("Conversations drawer opened from the main navigation",JSON.stringify(conversationsOpenState));
+  assert.ok(conversationsOpenState.rect.left>=-1&&conversationsOpenState.rect.right<conversationsOpenState.viewport-20,"Conversations drawer must open on the left and leave a visible strip on the right");
   await page.waitForFunction(expected => document.querySelectorAll(".conversations-row").length === expected, conversations.length);
   assert.equal(await page.locator("#appDrawer").isVisible(),false,"Conversations must replace the open main drawer on mobile");
   assert.equal(await page.locator("#closeDrawer").getAttribute("aria-label"),"Close conversations");
@@ -665,7 +668,7 @@ try {
     bodyOverflow:getComputedStyle(document.body).overflow,
   }));
   assert.ok(conversationsState.rect.width>=330&&conversationsState.rect.width<=370,"390px Conversations drawer must preserve the approved ~88% mobile width");
-  assert.ok(conversationsState.rect.left>=20&&conversationsState.rect.right<=conversationsState.viewport+1,"Right-edge Conversations drawer must leave a visible strip of the underlying app on its left");
+  assert.ok(conversationsState.rect.left>=-1&&conversationsState.rect.right<=conversationsState.viewport-20,"Conversations drawer must leave a visible strip of the underlying app on the right");
   assert.ok(conversationsState.close.width>=44&&conversationsState.close.height>=44,"close control must preserve touch target");
   assert.ok(conversationsState.newChat.height>=46&&conversationsState.newChat.height<=50,"bottom New chat action must match the left sidebar control height");
   assert.equal(conversationsState.newChatStyle.sidebarButton,true,"Conversations New chat must reuse left sidebar button styling");
@@ -1101,7 +1104,7 @@ try {
         search:document.querySelector("#conversationManagerSearch").closest(".conversations-search-wrap").getBoundingClientRect(),
         rows:[...document.querySelectorAll(".conversations-row")].map(node=>node.getBoundingClientRect())
       }));
-      assert.ok(conversations320.drawer.left>=15&&conversations320.drawer.right<=conversations320.width+1,"320px right-edge Conversations drawer must preserve a left backdrop strip");
+      assert.ok(conversations320.drawer.left>=-1&&conversations320.drawer.right<conversations320.width,"320px Conversations drawer must leave a visible backdrop strip on the right");
       assert.ok(conversations320.close.width>=44&&conversations320.search.width>220,"320px Conversations controls must remain usable");
       assert.ok(conversations320.rows.every(row=>row.right<=conversations320.drawer.right+1),"320px conversation rows must not clip horizontally");
       await page.screenshot({ path: "artifacts/personal-ai-conversations-approved-320x568.png", fullPage: true });
