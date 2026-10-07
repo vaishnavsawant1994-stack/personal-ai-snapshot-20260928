@@ -4411,9 +4411,9 @@ function openConversationsDrawer(){
  const fromSidebar=!$('appDrawer').classList.contains('hidden');
  lastFocusedElement=fromSidebar?$('historyButton'):document.activeElement;
  conversationDrawerReturnToMain=false;
- if(fromSidebar)closeAppDrawer();
  setConversationDrawerMode('conversations');
  $('conversationDrawer').classList.remove('hidden');$('conversationDrawer').setAttribute('aria-hidden','false');
+ if(fromSidebar)closeAppDrawer();
  syncDrawerOverlay();syncConversationViewport();
  refreshConversationsDrawer($('conversationManagerSearch').value).catch(()=>{});
  requestAnimationFrame(()=>$('closeDrawer').focus({preventScroll:true}))
