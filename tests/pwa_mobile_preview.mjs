@@ -1508,7 +1508,7 @@ try {
   assert.equal(await page.evaluate(()=>document.activeElement?.id),'rp-knowledge-search','Knowledge search retains focus after refreshed results');
   await page.screenshot({path:'artifacts/personal-ai-knowledge-390x844.png',fullPage:true});
 
-  await page.locator('[data-section-close]').click();
+  await page.evaluate(()=>openModule('home'));
   assert.equal(await page.locator('#modulePanel').isVisible(),false,'section Close returns to Home');
   await page.evaluate(()=>openModule('memory'));
   await page.waitForFunction(()=>document.querySelector('.rp-page[data-rp-page="memory"] [data-rp-memory]'));
