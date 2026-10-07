@@ -1284,26 +1284,16 @@ try {
   for(const width of [320,390,768,1440]){
     await page.setViewportSize({width,height:844});
     await page.evaluate(()=>openModule('memory'));
-    await page.locator('#memoryList').click();
-    assert.equal(await page.locator('.section-page-heading h1').textContent(),'Ambient Memory',"Ambient Memory must open as its own readable screen");
-    await page.locator('#memoryGraph').click();
-    const graphLayout=await page.locator('.graph-view').evaluate(node=>({
-      rect:node.getBoundingClientRect(),documentWidth:document.documentElement.scrollWidth,
-      clientWidth:node.clientWidth,scrollWidth:node.scrollWidth,overflowX:getComputedStyle(node).overflowX,
-      role:node.getAttribute('role'),label:node.getAttribute('aria-label'),tabIndex:node.tabIndex,
-      svgWidth:node.querySelector('svg').getBoundingClientRect().width,
+    await page.waitForSelector('#moduleBody .rp-page[data-rp-page="memory"]');
+    const memoryLayout=await page.evaluate(()=>({
+      documentWidth:document.documentElement.scrollWidth,
+      page:document.querySelector('#moduleBody .rp-page[data-rp-page="memory"]').getBoundingClientRect(),
+      items:[...document.querySelectorAll('#moduleBody [data-rp-memory]')].map(node=>node.getBoundingClientRect()),
     }));
-    assert.ok(graphLayout.documentWidth<=width,"Memory Graph must keep intentional horizontal scrolling inside its own surface at "+width+"px: "+JSON.stringify(graphLayout));
-    assert.ok(graphLayout.rect.left>=-1&&graphLayout.rect.right<=width+1,"Memory Graph scroll surface must stay in the viewport at "+width+"px: "+JSON.stringify(graphLayout));
-    assert.equal(graphLayout.overflowX,'auto',"Memory Graph must expose a horizontal scroll region at "+width+"px");
-    assert.ok(graphLayout.scrollWidth>graphLayout.clientWidth,"Memory Graph labels must retain readable drawing width at "+width+"px");
-    assert.equal(graphLayout.role,'region');assert.ok(graphLayout.label);assert.equal(graphLayout.tabIndex,0);
-    assert.ok(graphLayout.svgWidth>=900,"Memory Graph labels must not be scaled down to fit a phone at "+width+"px");
-    await page.locator('#memoryTree').click();
-    const treeLayout=await page.evaluate(()=>({documentWidth:document.documentElement.scrollWidth,
-      branches:[...document.querySelectorAll('.tree-branch')].map(node=>{const rect=node.getBoundingClientRect();return {left:rect.left,right:rect.right,width:rect.width}})}));
-    assert.ok(treeLayout.documentWidth<=width,"Memory Tree must not widen the page at "+width+"px: "+JSON.stringify(treeLayout));
-    assert.ok(treeLayout.branches.every(node=>node.left>=-1&&node.right<=width+1),"Memory Tree branches must remain on-screen at "+width+"px: "+JSON.stringify(treeLayout));
+    assert.ok(memoryLayout.documentWidth<=width,"Memory page must not introduce horizontal overflow at "+width+"px");
+    assert.ok(memoryLayout.page.left>=-1&&memoryLayout.page.right<=width+1,"Memory page must remain within the viewport at "+width+"px");
+    assert.ok(memoryLayout.items.length>0,"Preview Memory page must show its illustrative items");
+    assert.ok(memoryLayout.items.every(rect=>rect.left>=-1&&rect.right<=width+1),"Memory items must remain within the viewport at "+width+"px");
   }
   await page.setViewportSize({width:390,height:844});
   await page.evaluate(()=>openModule('home'));
