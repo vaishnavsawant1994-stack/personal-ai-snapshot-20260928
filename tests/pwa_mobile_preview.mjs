@@ -665,7 +665,7 @@ try {
     bodyOverflow:getComputedStyle(document.body).overflow,
   }));
   assert.ok(conversationsState.rect.width>=330&&conversationsState.rect.width<=370,"390px Conversations drawer must preserve the approved ~88% mobile width");
-  assert.ok(conversationsState.rect.right<=conversationsState.viewport-20,"Conversations drawer must leave a visible strip of the underlying app");
+  assert.ok(conversationsState.rect.left>=20&&conversationsState.rect.right<=conversationsState.viewport+1,"Right-edge Conversations drawer must leave a visible strip of the underlying app on its left");
   assert.ok(conversationsState.close.width>=44&&conversationsState.close.height>=44,"close control must preserve touch target");
   assert.ok(conversationsState.newChat.height>=46&&conversationsState.newChat.height<=50,"bottom New chat action must match the left sidebar control height");
   assert.equal(conversationsState.newChatStyle.sidebarButton,true,"Conversations New chat must reuse left sidebar button styling");
