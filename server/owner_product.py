@@ -15,7 +15,7 @@ from urllib.parse import urlparse
 
 from fastapi import APIRouter, Cookie, HTTPException
 from fastapi.responses import JSONResponse, Response
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from starlette.background import BackgroundTask
 
 from knowledge.store import KnowledgeError
@@ -154,6 +154,7 @@ class EmergencyStopBody(BaseModel):
 
 
 class UiPreferencesBody(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     profile_display_name: str = Field(default='', max_length=80)
     continuous_voice: bool = True
     voice_rate: float = Field(default=1.0, ge=0.75, le=1.35)
@@ -224,6 +225,7 @@ class WeeklySummaryPreference(NotificationSummaryPreference):
 
 
 class NotificationPreferencesBody(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     events: dict[Literal['task_reminders', 'work_completed', 'needs_review', 'blocked_work', 'workflow_updates', 'product_updates'], NotificationEventPreference]
     quiet_hours: NotificationQuietHours
     allow_urgent_reviews: bool
@@ -406,6 +408,8 @@ def owner_product_router(runtime):
     ):
         device_id = authenticate(pa_device, pa_token, 'ai:chat')
         value = body.model_dump()
+        if value['privacy_allow_project_context_general'] or value['chat_project_context_enabled'] or value['chat_new_context'] == 'project':
+            raise HTTPException(422, 'Project context is not available for general chats in this installation')
         if not registry.set_metadata(device_id, 'ui.preferences', json.dumps(value, separators=(',', ':'))):
             raise HTTPException(404, 'Active device not found')
         app_preferences = runtime.get('preferences')

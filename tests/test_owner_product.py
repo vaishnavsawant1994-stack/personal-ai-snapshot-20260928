@@ -376,7 +376,9 @@ def test_profile_metadata_account_id_and_photo_use_authenticated_owner_services(
     uploaded = client.put('/iphone/api/profile/avatar', json={'media_type': 'image/png', 'data_base64': pixel})
     assert uploaded.status_code == 200
     assert client.get('/iphone/api/profile/metadata').json()['avatar_available'] is True
-    assert client.get('/iphone/api/profile/avatar').headers['content-type'] == 'image/png'
+    avatar_response = client.get('/iphone/api/profile/avatar')
+    assert avatar_response.status_code == 200, avatar_response.text
+    assert avatar_response.headers['content-type'] == 'image/png'
 
     unauthorized = TestClient(client.app, base_url='https://testserver')
     assert unauthorized.get('/iphone/api/profile/metadata').status_code == 401
