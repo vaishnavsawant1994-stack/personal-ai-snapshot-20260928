@@ -1101,7 +1101,7 @@ try {
         search:document.querySelector("#conversationManagerSearch").closest(".conversations-search-wrap").getBoundingClientRect(),
         rows:[...document.querySelectorAll(".conversations-row")].map(node=>node.getBoundingClientRect())
       }));
-      assert.ok(conversations320.drawer.left>=-1&&conversations320.drawer.right<conversations320.width,"320px Conversations drawer must leave a visible backdrop strip");
+      assert.ok(conversations320.drawer.left>=15&&conversations320.drawer.right<=conversations320.width+1,"320px right-edge Conversations drawer must preserve a left backdrop strip");
       assert.ok(conversations320.close.width>=44&&conversations320.search.width>220,"320px Conversations controls must remain usable");
       assert.ok(conversations320.rows.every(row=>row.right<=conversations320.drawer.right+1),"320px conversation rows must not clip horizontally");
       await page.screenshot({ path: "artifacts/personal-ai-conversations-approved-320x568.png", fullPage: true });
