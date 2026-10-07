@@ -636,6 +636,8 @@ try {
   await page.click("#sidebarSearchToggle");
   assert.equal(await page.locator("#sidebarSearchPanel").isVisible(), false, "search must collapse cleanly");
 
+  const conversationsClickTarget=await page.locator("#appConversations").evaluate(button=>{const rect=button.getBoundingClientRect();return{visible:rect.width>0&&rect.height>0,rect:{left:rect.left,right:rect.right,top:rect.top,bottom:rect.bottom},handler:String(button.onclick),hitTarget:document.elementFromPoint(rect.left+rect.width/2,rect.top+rect.height/2)?.id}});
+  console.log("Conversations navigation click target",JSON.stringify(conversationsClickTarget));
   await page.click("#appConversations");
   await page.waitForTimeout(500);
   const conversationsOpenState=await page.evaluate(()=>{const panel=document.querySelector("#conversationDrawer"),rect=panel.getBoundingClientRect();return{mode:panel.dataset.mode,hidden:panel.classList.contains("hidden"),rect:{left:rect.left,right:rect.right,width:rect.width},viewport:innerWidth,appDrawerHidden:document.querySelector("#appDrawer").classList.contains("hidden")}});
