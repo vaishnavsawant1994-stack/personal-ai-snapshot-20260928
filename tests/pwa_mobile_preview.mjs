@@ -504,12 +504,12 @@ try {
   await page.waitForFunction(() => document.querySelector("#localePreviewDate")?.textContent.length > 0);
   assert.ok((await page.locator("#moduleBody").innerText()).includes("App language changes interface labels"), "Language & region must explain its boundary from chat response language");
   await page.screenshot({path:"artifacts/personal-ai-language-region-390x844.png",fullPage:true});
-  await page.setViewportSize({width:1440,height:900});
+  await page.setViewportSize({width:1504,height:1045});
   await page.waitForTimeout(250);
   const localeDesktopLayout=await page.evaluate(()=>({width:innerWidth,documentWidth:document.documentElement.scrollWidth,preview:document.querySelector('.locale-preview-card')?.getBoundingClientRect().width,settings:document.querySelector('.locale-settings-card')?.getBoundingClientRect().width}));
   assert.ok(localeDesktopLayout.documentWidth<=localeDesktopLayout.width,"Language & region must not overflow at desktop width");
   assert.ok(localeDesktopLayout.preview>0&&localeDesktopLayout.settings>0,"Desktop must show both the settings card and format preview");
-  await page.screenshot({path:"artifacts/personal-ai-language-region-1440x900.png",fullPage:true});
+  await page.screenshot({path:"artifacts/personal-ai-language-region-1504x1045.png",fullPage:true});
   await page.setViewportSize({width:390,height:844});
   await page.locator('#settingsBack').click();
   await page.locator('[data-settings-section="appearance"]').click();
