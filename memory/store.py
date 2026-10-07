@@ -99,6 +99,13 @@ class MemoryStore:
             )
         return message_id
 
+    def clear_conversation_messages(self) -> int:
+        """Delete stored chat transcripts while preserving durable memories and audit rows."""
+        with self.lock, self.con() as con:
+            count = int(con.execute('SELECT COUNT(*) FROM messages').fetchone()[0])
+            con.execute('DELETE FROM messages')
+        return count
+
     def recent_messages(self, limit=20, *, conversation_id=None):
         with self.con() as con:
             if conversation_id:

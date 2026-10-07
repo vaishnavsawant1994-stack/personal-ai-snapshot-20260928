@@ -3,13 +3,20 @@ from __future__ import annotations
 import base64
 import binascii
 import json
+import os
+import shutil
 import time
+import uuid
+from io import BytesIO
 from pathlib import Path
 from typing import Literal
+from io import BytesIO
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Cookie, HTTPException
-from pydantic import BaseModel, Field
+from fastapi.responses import FileResponse, JSONResponse
+from pydantic import BaseModel, Field, field_validator
+from starlette.background import BackgroundTask
 
 from knowledge.store import KnowledgeError
 from memory.second_brain import MemoryCandidate
@@ -102,6 +109,10 @@ class ConfirmBody(BaseModel):
     confirm: Literal[True]
 
 
+class DeleteAccountBody(BaseModel):
+    confirm: Literal['DELETE']
+
+
 class QualificationSessionBody(BaseModel):
     stage: Literal['P3.2', 'P3.3', 'P3.4', 'P3.5', 'P3.6', 'P3.7', 'P3.8']
     evidence_class: Literal['real_device', 'production_like', 'competitive']
@@ -143,10 +154,103 @@ class EmergencyStopBody(BaseModel):
 
 
 class UiPreferencesBody(BaseModel):
+    profile_display_name: str = Field(default='', max_length=80)
     continuous_voice: bool = True
     voice_rate: float = Field(default=1.0, ge=0.75, le=1.35)
     quiet_hours: bool = True
     pinned_sidebar_items: list[str] = Field(default_factory=list, max_length=40)
+    pinned_sidebar_items: list[str] = Field(default_factory=list, max_length=40)
+
+
+
+class ProfileAvatarBody(BaseModel):
+    media_type: Literal['image/jpeg', 'image/png', 'image/webp']
+    data_base64: str = Field(min_length=1, max_length=2_800_000)
+
+
+class ProfileUpdateBody(BaseModel):
+    first_name: str = Field(min_length=1, max_length=80)
+    last_name: str = Field(min_length=1, max_length=80)
+    display_name: str = Field(min_length=1, max_length=80)
+
+    @field_validator('first_name', 'last_name', 'display_name')
+    @classmethod
+    def non_blank_profile_name(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError('Name fields cannot be blank')
+        return value
+
+
+class NotificationEventPreference(BaseModel):
+    enabled: bool
+    channels: list[Literal['in_app', 'push', 'email']] = Field(max_length=3)
+
+
+class NotificationQuietHours(BaseModel):
+    enabled: bool
+    start: str = Field(pattern=r'^([01]\d|2[0-3]):[0-5]\d$')
+    end: str = Field(pattern=r'^([01]\d|2[0-3]):[0-5]\d$')
+    timezone: str = Field(min_length=1, max_length=80)
+
+
+class NotificationSummaryPreference(BaseModel):
+    enabled: bool
+    time: str = Field(pattern=r'^([01]\d|2[0-3]):[0-5]\d$')
+
+
+class WeeklySummaryPreference(NotificationSummaryPreference):
+    weekday: int = Field(ge=0, le=6)
+
+
+class NotificationPreferencesBody(BaseModel):
+    events: dict[Literal['task_reminders', 'work_completed', 'needs_review', 'blocked_work', 'workflow_updates', 'product_updates'], NotificationEventPreference]
+    quiet_hours: NotificationQuietHours
+    allow_urgent_reviews: bool
+    daily_summary: NotificationSummaryPreference
+    weekly_summary: WeeklySummaryPreference
+
+    @classmethod
+    def _check_timezone(cls, value):
+        from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+        try:
+            ZoneInfo(value)
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            raise ValueError('Choose a valid time zone') from exc
+        return value
+
+    @field_validator('quiet_hours')
+    @classmethod
+    def valid_timezone(cls, value):
+        cls._check_timezone(value.timezone)
+        return value
+
+
+def stage_owner_data_deletion(data_dir: Path) -> Path:
+    """Atomically detach this single-owner installation's complete data directory."""
+    target = Path(data_dir)
+    if target.is_symlink() or not target.exists() or not target.is_dir():
+        raise ValueError('Owner data directory is unavailable')
+    resolved = target.resolve(strict=True)
+    if resolved in {Path('/'), Path.home(), Path.cwd().resolve()}:
+        raise ValueError('Refusing to delete an unsafe data directory')
+    tombstone = resolved.with_name(f'.{resolved.name}.deleted-{uuid.uuid4().hex}')
+    os.replace(resolved, tombstone)
+    return tombstone
+
+
+
+def stage_owner_data_deletion(data_dir: Path) -> Path:
+    """Atomically detach this single-owner installation's complete data directory."""
+    target = Path(data_dir)
+    if target.is_symlink() or not target.exists() or not target.is_dir():
+        raise ValueError('Owner data directory is unavailable')
+    resolved = target.resolve(strict=True)
+    if resolved in {Path('/'), Path.home(), Path.cwd().resolve()}:
+        raise ValueError('Refusing to delete an unsafe data directory')
+    tombstone = resolved.with_name(f'.{resolved.name}.deleted-{uuid.uuid4().hex}')
+    os.replace(resolved, tombstone)
+    return tombstone
 
 
 def _bounded_mapping(value, *, max_bytes=65536, max_depth=8, max_items=256, max_string=12000):
@@ -253,6 +357,9 @@ def owner_product_router(runtime):
             stored = json.loads(registry.metadata(device_id).get('ui.preferences', '{}'))
         except (TypeError, ValueError, json.JSONDecodeError):
             stored = {}
+        app_preferences = runtime.get('preferences')
+        if app_preferences is not None:
+            stored = {**stored, 'privacy_memory_enabled': bool(app_preferences.get('memory_enabled', True)), 'profile_display_name': str(app_preferences.get('preferred_name', '') or '')}
         try:
             return UiPreferencesBody(**{**defaults, **stored}).model_dump()
         except (TypeError, ValueError):
@@ -273,8 +380,205 @@ def owner_product_router(runtime):
         value = body.model_dump()
         if not registry.set_metadata(device_id, 'ui.preferences', json.dumps(value, separators=(',', ':'))):
             raise HTTPException(404, 'Active device not found')
+        app_preferences = runtime.get('preferences')
+        if app_preferences is not None:
+            app_preferences.set('memory_enabled', value['privacy_memory_enabled'])
+            app_preferences.set('preferred_name', value['profile_display_name'].strip())
         audit('device.preferences.updated', device_id=device_id)
         return value
+
+    @router.get('/notifications/preferences')
+    def notification_preferences_get(pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'ai:chat')
+        service = runtime.get('notifications')
+        if service is None:
+            raise HTTPException(503, 'Notification preferences are unavailable')
+        return {'preferences': service.preferences(device_id), 'availability': service.status(device_id)}
+
+    @router.put('/notifications/preferences')
+    def notification_preferences_update(body: NotificationPreferencesBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'ai:chat')
+        service = runtime.get('notifications')
+        if service is None:
+            raise HTTPException(503, 'Notification preferences are unavailable')
+        value = body.model_dump()
+        # Reject channels that cannot actually deliver in this installation.
+        supported_events = set(service.status(device_id).get('supported_events', []))
+        for category, rule in value['events'].items():
+            if category not in supported_events and (rule['enabled'] or rule['channels']):
+                raise HTTPException(422, f'{category.replace("_", " ").title()} events are not available in this installation')
+        for rule in value['events'].values():
+            if 'email' in rule['channels']:
+                raise HTTPException(422, 'Email delivery is not configured on this installation')
+        if not service.status(device_id)['push'] and any('push' in rule['channels'] for rule in value['events'].values()):
+            raise HTTPException(422, 'Push delivery is not configured for this trusted device')
+        try:
+            saved = service.save_preferences(device_id, value)
+        except KeyError as exc:
+            raise HTTPException(404, 'Active device not found') from exc
+        audit('notifications.preferences.updated', device_id=device_id)
+        return {'preferences': saved, 'availability': service.status(device_id)}
+
+    @router.get('/notifications/inbox')
+    def notification_inbox(pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'ai:chat')
+        service = runtime.get('notifications')
+        if service is None:
+            raise HTTPException(503, 'Notification inbox is unavailable')
+        items = service.list(device_id)
+        return {'notifications': items, 'unread_count': sum(1 for item in items if not item['read_at'])}
+
+    @router.post('/notifications/inbox/{notification_id}/read')
+    def notification_mark_read(notification_id: str, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'ai:chat')
+        service = runtime.get('notifications')
+        if service is None:
+            raise HTTPException(503, 'Notification inbox is unavailable')
+        if not service.mark_read(device_id, notification_id):
+            raise HTTPException(404, 'Notification not found')
+        return {'marked_read': True}
+
+    def profile_avatar_path():
+        preferences = runtime.get('preferences')
+        if preferences is None:
+            raise HTTPException(503, 'Profile storage is unavailable')
+        directory = Path(preferences.path).parent / 'profile'
+        directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+        try:
+            os.chmod(directory, 0o700)
+        except OSError:
+            pass
+        return directory / 'owner-avatar'
+
+    @router.get('/profile/metadata')
+    def profile_metadata(pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'ai:chat')
+        preferences = runtime.get('preferences')
+        if preferences is None:
+            raise HTTPException(503, 'Owner profile metadata is unavailable')
+        account_id = str(preferences.get('owner_account_id', '') or '')
+        if not account_id:
+            raise HTTPException(503, 'Owner account identifier is unavailable')
+        settings = runtime.get('settings')
+        email = str(getattr(settings, 'owner_google_email', '') or '').strip()
+        verified = bool(email and getattr(settings, 'google_signin_client_id', ''))
+        avatar = profile_avatar_path()
+        return {
+            'display_name': str(preferences.get('preferred_name', '') or ''),
+            'first_name': str(preferences.get('profile_first_name', '') or ''),
+            'last_name': str(preferences.get('profile_last_name', '') or ''),
+            'email': email if verified else '',
+            'email_verified': verified,
+            'account_created_at': preferences.get('owner_account_created_at'),
+            'account_id_masked': '•••• ' + account_id[-4:],
+            'avatar_available': any(avatar.parent.glob('owner-avatar.*')),
+        }
+
+    @router.put('/profile')
+    def profile_update(body: ProfileUpdateBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'ai:chat')
+        preferences = runtime.get('preferences')
+        if preferences is None:
+            raise HTTPException(503, 'Owner profile storage is unavailable')
+        preferences.update(profile_first_name=body.first_name, profile_last_name=body.last_name, preferred_name=body.display_name)
+        audit('profile.updated', device_id=device_id)
+        return {'saved': True, 'first_name': body.first_name, 'last_name': body.last_name, 'display_name': body.display_name}
+
+    @router.post('/profile/account-id/copy')
+    def profile_account_id_copy(pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'ai:chat')
+        preferences = runtime.get('preferences')
+        account_id = str(preferences.get('owner_account_id', '') or '') if preferences else ''
+        if not account_id:
+            raise HTTPException(503, 'Owner account identifier is unavailable')
+        audit('profile.account_id_copied', device_id=device_id)
+        return {'account_id': account_id}
+
+    @router.get('/profile/avatar')
+    def profile_avatar(pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        authenticate(pa_device, pa_token, 'ai:chat')
+        path = profile_avatar_path()
+        if not path.is_file():
+            raise HTTPException(404, 'No profile photo has been uploaded')
+        media_type = {'png': 'image/png', 'jpeg': 'image/jpeg', 'webp': 'image/webp'}.get(path.suffix.lstrip('.'), 'application/octet-stream')
+        return FileResponse(path, media_type=media_type, headers={'Cache-Control': 'no-store, private'})
+
+    @router.put('/profile/avatar')
+    def profile_avatar_upload(body: ProfileAvatarBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'ai:chat')
+        try:
+            image = base64.b64decode(body.data_base64, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise HTTPException(422, 'Profile image must be valid base64 data') from exc
+        if len(image) > 2 * 1024 * 1024:
+            raise HTTPException(413, 'Profile images must be 2 MB or smaller')
+        signatures = {
+            'image/png': image.startswith(b'\x89PNG\r\n\x1a\n'),
+            'image/jpeg': image.startswith(b'\xff\xd8\xff'),
+            'image/webp': len(image) >= 12 and image[:4] == b'RIFF' and image[8:12] == b'WEBP',
+        }
+        if not signatures.get(body.media_type, False):
+            raise HTTPException(415, 'The selected file does not match a supported image type')
+        try:
+            from PIL import Image
+            with Image.open(BytesIO(image)) as decoded:
+                if decoded.format not in {'PNG', 'JPEG', 'WEBP'} or decoded.width < 1 or decoded.height < 1 or decoded.width * decoded.height > 16_000_000:
+                    raise HTTPException(415, 'The selected image dimensions or format are not supported')
+                decoded.verify()
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(415, 'The selected file is not a valid supported image') from exc
+        base = profile_avatar_path()
+        extension = {'image/png': '.png', 'image/jpeg': '.jpeg', 'image/webp': '.webp'}[body.media_type]
+        path = base.with_suffix(extension)
+        temp = path.with_suffix(path.suffix + '.tmp')
+        temp.write_bytes(image)
+        os.chmod(temp, 0o600)
+        temp.replace(path)
+        for old in base.parent.glob('owner-avatar.*'):
+            if old != path and old.is_file():
+                old.unlink(missing_ok=True)
+        audit('profile.avatar_updated', device_id=device_id)
+        return {'saved': True, 'avatar_available': True}
+
+    @router.delete('/profile/avatar')
+    def profile_avatar_delete(pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'ai:chat')
+        base = profile_avatar_path()
+        for path in base.parent.glob('owner-avatar.*'):
+            if path.is_file():
+                path.unlink(missing_ok=True)
+        audit('profile.avatar_removed', device_id=device_id)
+        return {'saved': True, 'avatar_available': False}
+
+    @router.get('/privacy/export')
+    def privacy_export(pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'memory:read')
+        if hasattr(registry, 'authorize') and not registry.authorize(device_id, 'ai:chat'):
+            raise HTTPException(403, 'This device cannot export conversation history')
+        if hasattr(registry, 'authorize') and not registry.authorize(device_id, 'knowledge:read'):
+            raise HTTPException(403, 'This device cannot export Knowledge data')
+        if not can_read_sensitive_memory(device_id):
+            raise HTTPException(403, 'This device cannot export sensitive memory')
+        continuity = runtime.get('continuity')
+        conversations = []
+        if continuity:
+            for conversation_id in continuity.all_thread_ids(include_closed=True):
+                try:
+                    conversations.append(continuity.export_thread(conversation_id))
+                except KeyError:
+                    continue
+        export = {
+            'format': 'vishnu-account-data-v1',
+            'exported_at': time.time(),
+            'preferences': ui_preferences(device_id),
+            'memories': memory.export(include_sensitive=True),
+            'knowledge': knowledge.export(access_classes=knowledge_access(device_id)),
+            'conversations': conversations,
+        }
+        audit('privacy.exported', device_id=device_id, conversation_count=len(conversations))
+        return export
 
     def can_read_sensitive_memory(device_id: str):
         return not hasattr(registry, 'authorize') or registry.authorize(device_id, 'memory:sensitive')
@@ -790,6 +1094,36 @@ def owner_product_router(runtime):
             'cancelled_turns': cancelled_turns,
             'cancelled_workflows': cancelled_workflows,
         }
+
+    @router.delete('/privacy/account')
+    def delete_owner_account(body: DeleteAccountBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'ai:chat')
+        require_fresh_reauthentication()
+        settings = runtime.get('settings')
+        data_dir = getattr(settings, 'data_dir', None) if settings is not None else None
+        if data_dir is None:
+            raise HTTPException(503, 'This installation cannot delete owner data')
+        try:
+            tombstone = stage_owner_data_deletion(Path(data_dir))
+        except (OSError, ValueError) as exc:
+            raise HTTPException(500, 'Owner data could not be safely deleted') from exc
+        # Stop background writers after the atomic rename; any already-open DB
+        # handles now point at detached files and the trusted-device database is
+        # no longer reachable at its configured location.
+        try:
+            if runtime.get('notifications'):
+                runtime['notifications'].close()
+            if runtime.get('automations'):
+                runtime['automations'].stop()
+            if runtime.get('apns'):
+                runtime['apns'].close()
+        except Exception:
+            pass
+        return JSONResponse(
+            {'deleted': True},
+            background=BackgroundTask(shutil.rmtree, tombstone, ignore_errors=True),
+            headers={'Cache-Control': 'no-store'},
+        )
 
     @router.get('/workflows')
     def workflows(pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):

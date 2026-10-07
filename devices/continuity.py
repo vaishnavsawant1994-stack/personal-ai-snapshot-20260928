@@ -103,6 +103,12 @@ class ContinuityService:
             output.append(item)
         return output
 
+    def all_thread_ids(self, *, include_closed: bool = True) -> list[str]:
+        where = '' if include_closed else 'WHERE closed_at IS NULL'
+        with self.lock, self._con() as con:
+            rows = con.execute(f'SELECT id FROM continuity_threads {where} ORDER BY updated_at DESC').fetchall()
+        return [str(row['id']) for row in rows]
+
     def rename_thread(self, thread_id: str, title: str):
         clean = ' '.join(str(title or '').split())[:120]
         if not clean:
@@ -375,6 +381,21 @@ class ContinuityService:
             con.execute('DELETE FROM continuity_threads WHERE id=?', (thread_id,))
         self._emit('continuity.thread.deleted', thread_id=thread_id)
         return True
+
+    def delete_all_threads(self) -> int:
+        """Remove all conversation history atomically for this single-owner store."""
+        with self.lock, self._con() as con:
+            ids = [row['id'] for row in con.execute('SELECT id FROM continuity_threads').fetchall()]
+            if not ids:
+                return 0
+            con.execute(
+                'UPDATE continuity_device_state SET active_thread_id=NULL,last_event_id=0,updated_at=?',
+                (now(),),
+            )
+            con.execute('DELETE FROM continuity_events')
+            con.execute('DELETE FROM continuity_threads')
+        self._emit('continuity.history.cleared', count=len(ids))
+        return len(ids)
 
     def export_thread(self, thread_id: str) -> dict:
         thread = self.thread(thread_id)

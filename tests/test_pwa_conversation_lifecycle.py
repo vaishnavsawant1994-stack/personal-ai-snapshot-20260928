@@ -56,3 +56,19 @@ def test_delete_conversation_requires_session_and_removes_state(tmp_path):
     deleted = client.delete(f'/iphone/api/conversations/{thread}')
     assert deleted.status_code == 200
     assert continuity.thread(thread) is None
+
+
+def test_clear_history_requires_explicit_confirmation_and_removes_all_threads(tmp_path):
+    client, continuity = make_client(tmp_path)
+    first = continuity.create_thread('First', device_id='device-1')
+    second = continuity.create_thread('Second', device_id='device-1')
+    continuity.append(first, device_id='device-1', kind='user_message', payload={'text': 'private'})
+
+    assert client.delete('/iphone/api/conversations/').status_code == 401
+    client.post('/iphone/api/access/password/login')
+    assert client.delete('/iphone/api/conversations/').status_code == 422
+    cleared = client.delete('/iphone/api/conversations/?confirm=true')
+    assert cleared.status_code == 200
+    assert cleared.json()['deleted_count'] == 2
+    assert continuity.thread(first) is None
+    assert continuity.thread(second) is None

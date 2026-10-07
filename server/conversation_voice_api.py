@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request
@@ -136,6 +137,16 @@ def conversation_voice_router(runtime, executor):
             })
         transcript = body.transcript.strip()
         modality = input_modality(request)
+        try:
+            saved_preferences = json.loads(registry.metadata(context.device_id).get('ui.preferences', '{}'))
+        except (TypeError, ValueError, json.JSONDecodeError):
+            saved_preferences = {}
+        response_detail = saved_preferences.get('chat_response_detail', 'detailed')
+        if response_detail not in {'concise', 'balanced', 'detailed'}:
+            response_detail = 'detailed'
+        response_style = saved_preferences.get('chat_response_style', 'clear_step_by_step')
+        if response_style not in {'clear_step_by_step', 'warm_conversational', 'technical', 'direct'}:
+            response_style = 'clear_step_by_step'
         cancel_event = transport_state.begin_turn(context.device_id)
         emit(
             'voice.transcript',
@@ -153,6 +164,8 @@ def conversation_voice_router(runtime, executor):
                 cancel_event=cancel_event,
                 conversation_id=body.conversation_id,
                 input_modality=modality,
+                response_detail=response_detail,
+                response_style=response_style,
             )
         except ExecutionCancelled:
             emit('voice.turn.cancelled', request_id=body.request_id, device_id=context.device_id, source='iphone-pwa')

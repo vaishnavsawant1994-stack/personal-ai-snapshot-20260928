@@ -37,6 +37,12 @@ class CanonicalTurnRuntime:
     def attach_autonomy(self, autonomy): self.autonomy = autonomy
     def _con(self):
         con = sqlite3.connect(self.path, timeout=30); con.row_factory = sqlite3.Row; return con
+    def clear_conversation_history(self):
+        with self._con() as con:
+            active = con.execute("SELECT COUNT(*) FROM canonical_turns WHERE status NOT IN ('completed','failed','cancelled')").fetchone()[0]
+            if active:
+                raise RuntimeError('Wait for active assistant work to finish before clearing chat history.')
+            return con.execute('DELETE FROM canonical_turns').rowcount
     def __getattr__(self, name): return getattr(self._executor, name)
     def _emit(self, event, **payload):
         if self.events: self.events.emit(event, **payload)
