@@ -37,6 +37,25 @@ def pwa_conversation_router(runtime):
             raise HTTPException(404, 'Conversation not found')
         return {'ok': True, 'conversation_id': conversation_id, 'status': 'deleted'}
 
+    @router.delete('/')
+    def clear_history(confirm: bool = False):
+        context = require_session()
+        if not confirm:
+            raise HTTPException(422, 'Explicit conversation-history deletion confirmation is required')
+        turn_runtime = runtime.get('turn_runtime')
+        if turn_runtime is not None and hasattr(turn_runtime, 'clear_conversation_history'):
+            try:
+                turn_runtime.clear_conversation_history()
+            except RuntimeError as exc:
+                raise HTTPException(409, str(exc)) from exc
+        count = continuity.delete_all_threads()
+        memory = runtime.get('memory')
+        if memory is not None and hasattr(memory, 'clear_conversation_messages'):
+            memory.clear_conversation_messages()
+        if memory is not None and hasattr(memory, 'audit'):
+            memory.audit('privacy', 'chat_history.cleared', {'device_id': context.device_id, 'deleted_count': count})
+        return {'ok': True, 'deleted_count': count}
+
     @router.get('/{conversation_id}/export')
     def export(conversation_id: str):
         require_session()

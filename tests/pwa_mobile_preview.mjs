@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
 
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({
+  headless: true,
+  ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}),
+  ...(process.env.PLAYWRIGHT_CHROMIUM_ARGS ? { args: process.env.PLAYWRIGHT_CHROMIUM_ARGS.split(" ").filter(Boolean) } : {}),
+});
 
 const now = new Date();
 const atToday = (hour, minute = 0) =>
@@ -36,6 +40,10 @@ const exportedConversationIds=[];
 const turnConversationIds=[];
 let conversationCreateCount=0;
 let turnClock=Date.now();
+let uiPreferenceState={continuous_voice:true,voice_rate:1,quiet_hours:true,privacy_memory_enabled:true,privacy_review_before_saving:true,privacy_allow_project_context_general:false,privacy_save_conversations:true,privacy_retention:'until_deleted',privacy_share_anonymous_usage_data:false,appearance_theme:'dark',appearance_accent:'blue',appearance_density:'comfortable',appearance_motion:'standard',appearance_text_size:'default',chat_enter_sends:true,chat_keep_composer_visible:true,chat_response_detail:'detailed',chat_response_style:'clear_step_by_step',chat_show_sources:true,chat_show_timestamps:true,chat_show_actions:true,chat_message_spacing:'comfortable',chat_new_context:'general',chat_project_context_enabled:false};
+let profileState={first_name:'Vishnu',last_name:'Owner',display_name:'Vishnu',email:'owner@example.test',email_verified:true,account_created_at:'2025-01-15T00:00:00Z',account_id_masked:'•••• 4821',avatar_available:false};
+let notificationState={events:{task_reminders:{enabled:false,channels:[]},work_completed:{enabled:true,channels:['in_app']},needs_review:{enabled:true,channels:['in_app']},blocked_work:{enabled:true,channels:['in_app']},workflow_updates:{enabled:false,channels:[]},product_updates:{enabled:false,channels:[]}},quiet_hours:{enabled:true,start:'22:00',end:'08:00',timezone:'Asia/Kolkata'},allow_urgent_reviews:true,daily_summary:{enabled:true,time:'08:00'},weekly_summary:{enabled:false,weekday:0,time:'08:00'}};
+const notificationAvailability={in_app:true,push:false,email:false,scheduler:true,supported_events:['work_completed','needs_review','blocked_work','workflow_updates']};
 
 const activeConversation = {
   thread: { id: "c1", title: "Project Planning", created_at: atDayOffset(-1,23), updated_at: conversations[0].updated_at },
@@ -119,9 +127,29 @@ try {
       const item = everydayItems.find(item => item.id === id);
       if(item){item.status="completed";item.completed_at=new Date().toISOString();item.updated_at=item.completed_at}
       body = item || {};
+    } else if (path === "/profile/metadata" && method === "GET") {
+      body=profileState;
+    } else if (path === "/profile" && method === "PUT") {
+      const input=JSON.parse(request.postData()||"{}");profileState={...profileState,...input};body={saved:true,...input};
+    } else if (path === "/profile/account-id/copy" && method === "POST") {
+      body={account_id:"owner-real-id-4821"};
+    } else if (path === "/notifications/preferences" && method === "GET") {
+      body={preferences:notificationState,availability:notificationAvailability};
+    } else if (path === "/notifications/preferences" && method === "PUT") {
+      notificationState=JSON.parse(request.postData()||"{}");body={preferences:notificationState,availability:notificationAvailability};
+    } else if (path === "/notifications/inbox" && method === "GET") {
+      body={notifications:[],unread_count:0};
+    } else if (path === "/preferences" && method === "PUT") {
+      uiPreferenceState=JSON.parse(request.postData()||"{}");
+      sidebarPreferences={...sidebarPreferences,...uiPreferenceState};
+      body={...sidebarPreferences,...uiPreferenceState};
     } else if (path === "/preferences") {
-      if(method==="PUT")sidebarPreferences=JSON.parse(request.postData()||"{}");
-      body = sidebarPreferences;
+      body = uiPreferenceState;
+    } else if (path === "/privacy/export" && method === "GET") {
+      body={format:"vishnu-account-data-v1",memories:[],knowledge:[],conversations:[],preferences:uiPreferenceState};
+    } else if (path === "/conversations/" && method === "DELETE") {
+      if(url.searchParams.get("confirm")!=="true")return route.fulfill({status:422,contentType:"application/json",body:JSON.stringify({detail:"Confirmation required"})});
+      body={ok:true,deleted_count:conversations.length};
     } else if (path.startsWith("/conversations/c1/activate")) {
       body = activeConversation;
     } else if (path === "/conversations/c1" && method === "PATCH") {
@@ -471,6 +499,48 @@ try {
   await page.waitForFunction(() => document.querySelector("#modulePanel")?.classList.contains("open") && document.querySelector("#moduleTitle")?.textContent === "Settings" && document.querySelector("#moduleBody")?.innerText.toLowerCase().includes("ai & intelligence"));
   assert.ok(await page.locator("[data-settings-home-back]").isVisible(), "Settings hub must expose its Back control");
   await page.screenshot({ path: "artifacts/personal-ai-settings-390x844.png", fullPage: true });
+  await page.locator('[data-settings-section="appearance"]').click();
+  await page.waitForFunction(() => document.querySelector('#moduleBody')?.innerText.includes('Interface density'));
+  await page.locator('[data-pref-key="appearance_accent"][data-pref-value="teal"]').click();
+  await page.waitForFunction(() => document.documentElement.dataset.accent==='teal');
+  assert.equal(uiPreferenceState.appearance_accent,'teal','Appearance preference must persist via the authenticated preferences endpoint');
+  await page.screenshot({path:'artifacts/personal-ai-appearance-390x844.png',fullPage:true});
+  await page.locator('#settingsBack').click();
+  await page.locator('[data-settings-section="chat"]').click();
+  await page.waitForFunction(() => document.querySelector('#moduleBody')?.innerText.includes('Chat preview'));
+  await page.locator('[data-pref-key="chat_message_spacing"][data-pref-value="compact"]').click();
+  await page.waitForFunction(() => document.body.classList.contains('chat-compact'));
+  assert.equal(uiPreferenceState.chat_message_spacing,'compact','Chat preference must persist and affect conversation layout');
+  await page.screenshot({path:'artifacts/personal-ai-chat-preferences-390x844.png',fullPage:true});
+  await page.locator('#settingsBack').click();
+  await page.locator('[data-settings-section="notifications"]').click();
+  await page.waitForFunction(() => document.querySelector('#moduleBody')?.innerText.includes('Event preferences'));
+  assert.equal(await page.locator('.notification-event').count(),6,'Notifications must show all event categories');
+  assert.equal(await page.locator('.notification-event input[type="checkbox"]').first().isEnabled(),false,'Unavailable delivery channels must be disabled');
+  await page.locator('[data-notify-master][data-notify-event="work_completed"]').click();
+  await page.waitForFunction(() => document.querySelector('[data-notify-master][data-notify-event="work_completed"]')?.getAttribute('aria-checked')==='false');
+  assert.equal(notificationState.events.work_completed.enabled,false,'Notification event switches must persist through the authenticated preferences API');
+  await page.screenshot({path:'artifacts/personal-ai-notifications-390x844.png',fullPage:true});
+  await page.locator('#settingsBack').click();
+  await page.locator('[data-settings-section="profile"]').click();
+  await page.waitForFunction(() => document.querySelector('#moduleBody')?.innerText.includes('Email address verified'));
+  await page.fill('#profileFirstName','Taylor');
+  assert.match(await page.locator('#moduleBody').innerText(),/Unsaved changes/,'Profile edits must expose a dirty state');
+  await page.locator('#profileSave').click();
+  await page.waitForFunction(() => document.querySelector('#profileDirty')?.textContent==='');
+  assert.equal(profileState.first_name,'Taylor','Profile name changes must persist through the authenticated profile API');
+  await page.screenshot({path:'artifacts/personal-ai-profile-390x844.png',fullPage:true});
+  await page.locator('#settingsBack').click();
+  await page.locator('[data-settings-section="data"]').click();
+  await page.waitForFunction(() => document.querySelector('#moduleBody')?.innerText.includes('Privacy & data') && document.querySelector('#manageSavedMemories'));
+  assert.ok((await page.locator('#moduleBody').innerText()).includes('Your privacy at a glance'));
+  assert.ok((await page.locator('#moduleBody').innerText()).includes('Project context is not available in this installation.'));
+  await page.screenshot({path:"artifacts/personal-ai-privacy-data-390x844.png",fullPage:true});
+  const memorySwitch=page.locator('[data-privacy-key="privacy_memory_enabled"]');
+  assert.equal(await memorySwitch.getAttribute('aria-checked'),'true');
+  await memorySwitch.click();
+  await page.waitForFunction(()=>document.querySelector('#privacySaveStatus')?.innerText.includes('Changes save automatically'));
+  assert.equal(uiPreferenceState.privacy_memory_enabled,false,"Privacy memory choice must persist through the authenticated preference route");
   await page.reload();
   await page.waitForFunction(() => document.querySelector("#ownerButton") && !document.body.classList.contains("focused-module"));
 

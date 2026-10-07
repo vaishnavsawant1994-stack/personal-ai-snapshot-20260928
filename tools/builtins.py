@@ -35,6 +35,7 @@ def register_builtin_tools(
     proactive_engine=None,
     continuity_service=None,
     integration_adapters=None,
+    memory_enabled=None,
 ):
     # Some tests/embedded surfaces construct ToolRegistry with only autonomy
     # settings and supply the durable data directory here. Bind once, before
@@ -51,7 +52,7 @@ def register_builtin_tools(
     google_write.register(registry, integration_adapters)
     web.register(registry)
     system.register(registry)
-    memory_tools.register(registry, memory, second_brain=second_brain)
+    memory_tools.register(registry, memory, second_brain=second_brain, is_enabled=memory_enabled)
     documents.register(registry, settings)
     if not bool(getattr(settings, 'hosted_runtime', False)):
         screen.register(registry, settings.data_dir)

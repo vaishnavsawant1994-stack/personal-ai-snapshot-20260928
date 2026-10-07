@@ -1,18 +1,24 @@
 from types import SimpleNamespace
 import time
+from pathlib import Path
+
+import pytest
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from automation.engine import AutomationEngine
+from core.preferences import Preferences
 from devices.registry import DeviceRegistry
 from knowledge.store import KnowledgeStore
 from memory.second_brain import SecondBrain
 from memory.store import MemoryStore
 from qualification.program import P3QualificationProgram
-from server.owner_product import owner_product_router
 from projects.store import ProjectStore
+from server.owner_product import owner_product_router
+from server.owner_product import stage_owner_data_deletion
+from notifications.service import NotificationService
 from security.request_context import TrustedRequestContext, set_trusted_request, reset_trusted_request
 
 
@@ -73,6 +79,7 @@ def make_client(tmp_path, *, reauthenticated_at=None):
         'memory': memory,
         'second_brain': SecondBrain(memory),
         'knowledge': KnowledgeStore(tmp_path / 'knowledge.sqlite3', tmp_path / 'objects'),
+        'project_store': ProjectStore(tmp_path / 'projects.sqlite3'),
         'automations': automations,
         'executor': executor,
         'pwa_sessions': SessionStoreProbe(),
@@ -83,8 +90,10 @@ def make_client(tmp_path, *, reauthenticated_at=None):
         'tools': Tools(),
         'integrations': SimpleNamespace(list=lambda: []),
         'future_intelligence': SimpleNamespace(status=lambda: {}),
-        'project_store': ProjectStore(tmp_path / 'projects.sqlite3'),
+        'preferences': Preferences(tmp_path / 'preferences.json'),
+        'settings': SimpleNamespace(owner_google_email='', google_signin_client_id=''),
     }
+    runtime['notifications'] = NotificationService(tmp_path / 'notifications.sqlite3', registry, owner_preferences=runtime['preferences'], start_scheduler=False)
     app = FastAPI()
     fresh_at = time.time() if reauthenticated_at is None else reauthenticated_at
     class TrustedContextMiddleware(BaseHTTPMiddleware):
@@ -307,6 +316,28 @@ def test_ui_preferences_are_scoped_to_the_trusted_device_and_persist(tmp_path):
         'continuous_voice': True,
         'voice_rate': 1.0,
         'quiet_hours': True,
+        'privacy_memory_enabled': True,
+        'privacy_review_before_saving': True,
+        'privacy_allow_project_context_general': False,
+        'privacy_save_conversations': True,
+        'privacy_retention': 'until_deleted',
+        'privacy_share_anonymous_usage_data': False,
+        'profile_display_name': '',
+        'appearance_theme': 'dark',
+        'appearance_accent': 'blue',
+        'appearance_density': 'comfortable',
+        'appearance_motion': 'standard',
+        'appearance_text_size': 'default',
+        'chat_enter_sends': True,
+        'chat_keep_composer_visible': True,
+        'chat_response_detail': 'detailed',
+        'chat_response_style': 'clear_step_by_step',
+        'chat_show_sources': True,
+        'chat_show_timestamps': True,
+        'chat_show_actions': True,
+        'chat_message_spacing': 'comfortable',
+        'chat_new_context': 'general',
+        'chat_project_context_enabled': False,
         'pinned_sidebar_items': [],
     }
     updated = client.put('/iphone/api/preferences', json={
@@ -324,6 +355,135 @@ def test_ui_preferences_are_scoped_to_the_trusted_device_and_persist(tmp_path):
     other_client.cookies.set('pa_device', other['id'])
     other_client.cookies.set('pa_token', token)
     assert other_client.get('/iphone/api/preferences').json()['continuous_voice'] is True
+    assert other_client.get('/iphone/api/preferences').json()['privacy_memory_enabled'] is True
+
+
+def test_profile_metadata_account_id_and_photo_use_authenticated_owner_services(tmp_path):
+    import base64
+    client, runtime, _ = make_client(tmp_path)
+    metadata = client.get('/iphone/api/profile/metadata')
+    assert metadata.status_code == 200
+    profile = metadata.json()
+    assert profile['account_id_masked'].startswith('•••• ')
+    assert 'account_id' not in profile
+    copied = client.post('/iphone/api/profile/account-id/copy', json={})
+    assert copied.status_code == 200
+    assert copied.json()['account_id'].endswith(profile['account_id_masked'][-4:])
+    assert client.get('/iphone/api/profile/metadata').json()['account_id_masked'] == profile['account_id_masked']
+
+    # A valid 1×1 PNG keeps this endpoint test focused on the upload path.
+    pixel = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGBgAAAABQABpfZFQAAAAABJRU5ErkJggg=='
+    uploaded = client.put('/iphone/api/profile/avatar', json={'media_type': 'image/png', 'data_base64': pixel})
+    assert uploaded.status_code == 200
+    assert client.get('/iphone/api/profile/metadata').json()['avatar_available'] is True
+    avatar_response = client.get('/iphone/api/profile/avatar')
+    assert avatar_response.status_code == 200, avatar_response.text
+    assert avatar_response.headers['content-type'] == 'image/png'
+
+    unauthorized = TestClient(client.app, base_url='https://testserver')
+    assert unauthorized.get('/iphone/api/profile/metadata').status_code == 401
+    assert unauthorized.post('/iphone/api/profile/account-id/copy', json={}).status_code == 401
+
+
+def test_profile_update_persists_and_validates_names(tmp_path):
+    client, runtime, _ = make_client(tmp_path)
+    payload = {'first_name': 'Taylor', 'last_name': 'Rao', 'display_name': 'Tay'}
+    assert client.put('/iphone/api/profile', json=payload).status_code == 200
+    metadata = client.get('/iphone/api/profile/metadata').json()
+    assert (metadata['first_name'], metadata['last_name'], metadata['display_name']) == ('Taylor', 'Rao', 'Tay')
+    assert runtime['preferences'].get('preferred_name') == 'Tay'
+    assert client.put('/iphone/api/profile', json={**payload, 'first_name': '  '}).status_code == 422
+    unauthorized = TestClient(client.app, base_url='https://testserver')
+    assert unauthorized.put('/iphone/api/profile', json=payload).status_code == 401
+
+
+def test_notification_preferences_are_authenticated_validated_and_persistent(tmp_path):
+    client, runtime, device = make_client(tmp_path)
+    loaded = client.get('/iphone/api/notifications/preferences')
+    assert loaded.status_code == 200
+    prefs = loaded.json()['preferences']
+    prefs['events']['needs_review'] = {'enabled': True, 'channels': ['in_app']}
+    prefs['quiet_hours'] = {'enabled': True, 'start': '22:00', 'end': '08:00', 'timezone': 'Asia/Kolkata'}
+    saved = client.put('/iphone/api/notifications/preferences', json=prefs)
+    assert saved.status_code == 200
+    assert client.get('/iphone/api/notifications/preferences').json()['preferences'] == prefs
+    assert runtime['preferences'].get('notifications_preferences')['events']['needs_review']['channels'] == ['in_app']
+    other, _ = runtime['device_registry'].enroll('Other trusted browser', 'web')
+    assert runtime['notifications'].preferences(other['id']) == prefs
+    invalid = {**prefs, 'events': {**prefs['events'], 'needs_review': {'enabled': True, 'channels': ['email']}}}
+    assert client.put('/iphone/api/notifications/preferences', json=invalid).status_code == 422
+    unknown = {**prefs, 'quiet_hours': {'enabled': True, 'start': '22:00', 'end': '08:00', 'timezone': 'Mars/Olympus'}}
+    assert client.put('/iphone/api/notifications/preferences', json=unknown).status_code == 422
+    unauthorized = TestClient(client.app, base_url='https://testserver')
+    assert unauthorized.get('/iphone/api/notifications/preferences').status_code == 401
+    assert unauthorized.get('/iphone/api/notifications/inbox').status_code == 401
+
+
+def test_account_deletion_stages_only_the_configured_owner_data_directory(tmp_path):
+    data_dir = tmp_path / 'owner-data'
+    data_dir.mkdir()
+    (data_dir / 'private.sqlite3').write_text('owner data')
+    tombstone = stage_owner_data_deletion(data_dir)
+    assert not data_dir.exists()
+    assert tombstone.is_dir()
+    assert (tombstone / 'private.sqlite3').read_text() == 'owner data'
+    with pytest.raises(ValueError, match='unsafe'):
+        stage_owner_data_deletion(Path('/'))
+
+
+def test_privacy_preferences_persist_and_validate_for_authenticated_device(tmp_path):
+    client, runtime, _ = make_client(tmp_path)
+    response = client.put('/iphone/api/preferences', json={
+        'continuous_voice': True,
+        'voice_rate': 1.0,
+        'quiet_hours': True,
+        'privacy_memory_enabled': False,
+        'privacy_review_before_saving': True,
+        'privacy_allow_project_context_general': False,
+        'privacy_save_conversations': True,
+        'privacy_retention': 'until_deleted',
+        'privacy_share_anonymous_usage_data': False,
+    })
+    assert response.status_code == 200
+    saved = client.get('/iphone/api/preferences').json()
+    assert saved['privacy_memory_enabled'] is False
+    assert saved['privacy_save_conversations'] is True
+    assert saved['privacy_share_anonymous_usage_data'] is False
+    updated = client.put('/iphone/api/preferences', json={**saved, 'appearance_theme': 'system', 'appearance_accent': 'teal', 'chat_enter_sends': False, 'chat_message_spacing': 'compact'})
+    assert updated.status_code == 200
+    persisted = client.get('/iphone/api/preferences').json()
+    updated_name = client.put('/iphone/api/preferences', json={**persisted, 'profile_display_name': 'Vaishnav'})
+    assert updated_name.status_code == 200
+    assert client.get('/iphone/api/preferences').json()['profile_display_name'] == 'Vaishnav'
+    assert runtime['preferences'].get('preferred_name') == 'Vaishnav'
+    assert persisted['appearance_theme'] == 'system'
+    assert persisted['appearance_accent'] == 'teal'
+    assert persisted['chat_enter_sends'] is False
+    assert persisted['chat_message_spacing'] == 'compact'
+
+    invalid = client.put('/iphone/api/preferences', json={
+        **saved,
+        'privacy_retention': 'forever-unless-deleted-by-admin',
+    })
+    assert invalid.status_code == 422
+    unsupported = client.put('/iphone/api/preferences', json={
+        **saved,
+        'privacy_allow_project_context_general': True,
+    })
+    assert unsupported.status_code == 422
+
+
+def test_privacy_export_is_authenticated_and_contains_only_supported_data(tmp_path):
+    client, _, _ = make_client(tmp_path)
+    unauthenticated = TestClient(client.app, base_url='https://testserver')
+    assert unauthenticated.get('/iphone/api/privacy/export').status_code == 401
+
+    response = client.get('/iphone/api/privacy/export')
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload['format'] == 'vishnu-account-data-v1'
+    assert set(payload) == {'format', 'exported_at', 'preferences', 'memories', 'knowledge', 'conversations'}
+    assert 'password' not in str(payload).lower()
 
 
 def test_ui_preferences_reject_unsafe_voice_rate(tmp_path):

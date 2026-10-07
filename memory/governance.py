@@ -25,9 +25,10 @@ class GovernedMemory:
         'owner-confirmed', 'owner-import',
     })
 
-    def __init__(self, brain, path: Path, *, events=None):
+    def __init__(self, brain, path: Path, *, events=None, is_enabled=None):
         self._brain = brain
         self.events = events
+        self.is_enabled = is_enabled or (lambda: True)
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._con() as con:
@@ -84,6 +85,21 @@ class GovernedMemory:
         if self.events:
             self.events.emit(name, **payload)
 
+    def context(self, *args, **kwargs):
+        if not self.is_enabled():
+            return []
+        return self._brain.context(*args, **kwargs)
+
+    def temporal(self, *args, **kwargs):
+        if not self.is_enabled():
+            return []
+        return self._brain.temporal(*args, **kwargs)
+
+    def context_at(self, *args, **kwargs):
+        if not self.is_enabled():
+            return []
+        return self._brain.context_at(*args, **kwargs)
+
     @staticmethod
     def _normalize(candidate: MemoryCandidate) -> dict:
         return {
@@ -139,6 +155,9 @@ class GovernedMemory:
 
     def remember(self, candidate: MemoryCandidate, *, owner_id: str = CANONICAL_OWNER, request_id: str | None = None) -> str | None:
         owner = self._require_owner(owner_id)
+        if not self.is_enabled():
+            self._emit('memory.candidate.blocked', reason='memory_disabled', source=str(candidate.source or 'unknown'))
+            return None
         data = self._normalize(candidate)
         sensitivity = data['sensitivity']
         if is_never_store(sensitivity=sensitivity, metadata=data.get('metadata')):
