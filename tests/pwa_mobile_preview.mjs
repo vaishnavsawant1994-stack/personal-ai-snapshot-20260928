@@ -17,7 +17,7 @@ const assertSharedComposerBottomInset=(bottom,viewport,label)=>{
 };
 
 const conversations = [
-  { id: "c1", title: "Project Planning", preview: "Continue planning the project", updated_at: atToday(18,33) },
+  { id: "c1", title: "Project Planning", preview: "Continue planning the project", updated_at: atToday(10,33) },
   { id: "c2", title: "Mushroom Farm Plan", preview: "Shed layout and capacity", updated_at: atDayOffset(-1,14) },
   { id: "c3", title: "Onion Cultivation Guide", preview: "Irrigation and fertilizer plan", updated_at: atDayOffset(-4,9) },
 ];
