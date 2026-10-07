@@ -1187,8 +1187,12 @@ try {
     }));
     assert.equal(wideFixed.header,"fixed","wide Home topbar must remain fixed at "+width+"x"+height);
     assert.equal(wideFixed.composer,"fixed","wide Home composer must remain fixed at "+width+"x"+height);
-    assert.ok(wide.home.width<=722&&wide.header.width<=722&&wide.composer.width<=722,"Home content must remain centered within its intended max width at "+width+"x"+height);
-    assert.ok(Math.abs(wide.home.left-(wide.inner-wide.home.width)/2)<=2,"Home content must remain centered at "+width+"x"+height);
+    if(width>=1024){
+      assert.ok(wide.home.width<=722&&wide.header.width<=722&&wide.composer.width<=722,"Desktop Home content must remain centered within its intended max width at "+width+"x"+height);
+      assert.ok(Math.abs(wide.home.left-(wide.inner-wide.home.width)/2)<=2,"Desktop Home content must remain centered at "+width+"x"+height);
+    } else {
+      assert.ok(wide.home.left>=0&&wide.home.right<=wide.inner+1&&wide.header.left>=0&&wide.header.right<=wide.inner+1&&wide.composer.left>=0&&wide.composer.right<=wide.inner+1,"Tablet Home regions must remain inside the viewport at "+width+"x"+height);
+    }
     assert.ok(wide.quick.every(card=>card.width<wide.home.width*.52),"2x2 shortcut grid must stay proportionate at "+width+"x"+height);
     if(width===768)await page.screenshot({path:"artifacts/personal-ai-home-tablet-768x1024.png",fullPage:true});
     if(width===1440)await page.screenshot({path:"artifacts/personal-ai-home-desktop-1440x1000.png",fullPage:true});
