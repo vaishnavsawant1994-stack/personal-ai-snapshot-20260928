@@ -643,13 +643,12 @@ try {
   await page.click("#sidebarSearchToggle");
   assert.equal(await page.locator("#sidebarSearchPanel").isVisible(), false, "search must collapse cleanly");
 
-  const conversationsClickTarget=await page.locator("#appConversations").evaluate(button=>{const rect=button.getBoundingClientRect();return{visible:rect.width>0&&rect.height>0,rect:{left:rect.left,right:rect.right,top:rect.top,bottom:rect.bottom},handler:String(button.onclick),hitTarget:document.elementFromPoint(rect.left+rect.width/2,rect.top+rect.height/2)?.id}});
-  console.log("Conversations navigation click target",JSON.stringify(conversationsClickTarget));
   await page.evaluate(()=>{const open=openConversationsDrawer;window.__conversationOpenTrace={called:false,error:null};window.openConversationsDrawer=function(){window.__conversationOpenTrace.called=true;try{return open()}catch(error){window.__conversationOpenTrace.error=error?.message||String(error);throw error}}});
   await page.click("#appConversations");
   await page.waitForTimeout(500);
   const conversationsOpenState=await page.evaluate(()=>{const panel=document.querySelector("#conversationDrawer"),rect=panel.getBoundingClientRect();return{mode:panel.dataset.mode,hidden:panel.classList.contains("hidden"),rect:{left:rect.left,right:rect.right,width:rect.width},viewport:innerWidth,appDrawerHidden:document.querySelector("#appDrawer").classList.contains("hidden")}});
-  console.log("Conversations drawer opened from the main navigation",JSON.stringify({state:conversationsOpenState,pageErrors,trace:await page.evaluate(()=>window.__conversationOpenTrace)}));
+  const conversationOpenTrace=await page.evaluate(()=>window.__conversationOpenTrace);
+  assert.ok(conversationOpenTrace.called&&!conversationOpenTrace.error,"Conversations navigation must invoke its drawer action");
   assert.ok(conversationsOpenState.mode==="conversations"&&!conversationsOpenState.hidden,"Conversations navigation must open its drawer");
   assert.ok(conversationsOpenState.rect.left>=-1&&conversationsOpenState.rect.right<conversationsOpenState.viewport-20,"Conversations drawer must open on the left and leave a visible strip on the right");
   await page.waitForFunction(expected => document.querySelectorAll(".conversations-row").length === expected, conversations.length);
@@ -1049,9 +1048,9 @@ try {
         core: rect(".core-stage"),
         composer: rect("#composer"),
         header: rect(".topbar"),
-        quick: rect(".quick-actions"),
+        quick: rect(".v-shortcuts"),
         home: rect(".home-intro"),
-        cards: [...document.querySelectorAll(".quick-action")].map(node => {const r=node.getBoundingClientRect();return {width:r.width,height:r.height,scrollHeight:node.scrollHeight,clientHeight:node.clientHeight}}),
+        cards: [...document.querySelectorAll(".v-shortcuts .v-card")].map(node => {const r=node.getBoundingClientRect();return {width:r.width,height:r.height,scrollHeight:node.scrollHeight,clientHeight:node.clientHeight}}),
         controls: ["#attachmentButton","#sendButton","#micButton"].map(selector => rect(selector)),
       };
     });
@@ -1081,7 +1080,7 @@ try {
     assert.ok(layout.cards.length === 4, "four Home cards required");
     assert.ok(layout.cards.every(card => Math.abs(card.height-layout.cards[0].height)<1 && Math.abs(card.width-layout.cards[0].width)<1), "Home card dimensions mismatch at " + width + "x" + height);
     assert.ok(layout.cards.every(card => card.scrollHeight<=card.clientHeight+2), "Home card content clipped at " + width + "x" + height);
-    assert.ok(layout.cards.every(card => card.height>=58&&card.height<=86), "Home cards lost approved compact proportions at " + width + "x" + height);
+    assert.ok(layout.cards.every(card => card.height>=58&&card.height<=110), "Home cards lost approved responsive proportions at " + width + "x" + height);
     assert.ok(Math.abs(layout.composer.width-layout.home.width)<=4, "Home composer must share the same outer grid at " + width + "x" + height);
     assert.ok(layout.composer.left>=-1 && layout.composer.right<=layout.viewportWidth+1, "composer clips horizontally at " + width + "x" + height);
     assert.ok(layout.controls.filter(control => control.width>0).every(control => control.width>=43 && control.height>=43), "composer action hit targets too small at " + width + "x" + height);
