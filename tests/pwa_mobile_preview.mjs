@@ -500,7 +500,7 @@ try {
   assert.ok(await page.locator("[data-settings-home-back]").isVisible(), "Settings hub must expose its Back control");
   assert.ok((await page.locator("#moduleBody").innerText()).includes("Language & region"), "Language & region must be reachable from the Settings hub");
   await page.screenshot({ path: "artifacts/personal-ai-settings-390x844.png", fullPage: true });
-  await page.locator('[data-settings-section="personal"]').click();
+  await page.locator('[data-settings-section="personal"]').first().click();
   await page.waitForFunction(() => document.querySelector("#localePreviewDate")?.textContent.length > 0);
   assert.ok((await page.locator("#moduleBody").innerText()).includes("App language changes interface labels"), "Language & region must explain its boundary from chat response language");
   await page.screenshot({path:"artifacts/personal-ai-language-region-390x844.png",fullPage:true});
