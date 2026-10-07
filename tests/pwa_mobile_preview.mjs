@@ -1208,8 +1208,8 @@ try {
       if(width===820)await page.screenshot({path:"artifacts/personal-ai-timeline-approved-tablet-820x1180.png",fullPage:true});
       if(width===1440)await page.screenshot({path:"artifacts/personal-ai-timeline-approved-desktop-1440x1000.png",fullPage:true});
   
+      await page.click("#timelineCloseDrawer");
     }
-    await page.click("#timelineCloseDrawer");
   }
 
   // Sweep intermediate widths as well as the named device checkpoints. This
