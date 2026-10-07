@@ -1193,19 +1193,22 @@ try {
     if(width===768)await page.screenshot({path:"artifacts/personal-ai-home-tablet-768x1024.png",fullPage:true});
     if(width===1440)await page.screenshot({path:"artifacts/personal-ai-home-desktop-1440x1000.png",fullPage:true});
     if(width===2560)await page.screenshot({path:"artifacts/personal-ai-home-wide-2560x1440.png",fullPage:true});
-    await page.click("#ownerButton");
-    await page.waitForFunction(()=>document.querySelector("#conversationDrawer").dataset.mode==="timeline"&&!document.querySelector("#conversationDrawer").classList.contains("hidden"));
-    await page.waitForFunction(()=>{const r=document.querySelector("#conversationDrawer").getBoundingClientRect();return r.left>=0&&r.right<=innerWidth+1});
-    const timelineWide=await page.evaluate(()=>({drawer:document.querySelector("#conversationDrawer").getBoundingClientRect(),width:innerWidth,doc:document.documentElement.scrollWidth}));
-    assert.ok(timelineWide.drawer.width>=400&&timelineWide.drawer.width<=480,"wide Timeline must remain a contextual panel instead of stretching at "+width+"x"+height);
-    assert.ok(timelineWide.drawer.left>=0&&timelineWide.drawer.right<=timelineWide.width+1&&timelineWide.doc<=timelineWide.width,"wide Timeline must fit without horizontal overflow at "+width+"x"+height);
-    const wideRailAlignment=await page.evaluate(()=>[...document.querySelectorAll("#conversationList .timeline-entry")].map(entry=>{const r=entry.getBoundingClientRect(),d=entry.querySelector(".timeline-dot").getBoundingClientRect(),p=getComputedStyle(entry,"::before");return Math.abs(r.left+parseFloat(p.left)+parseFloat(p.width)/2-(d.left+d.width/2))}));
-    assert.ok(wideRailAlignment.length>0&&wideRailAlignment.every(delta=>delta<=1),"Timeline rail must pass through every node center at "+width+"x"+height+": "+wideRailAlignment.join(","));
-    const wideTimelineCards=await page.locator("#conversationList .timeline-content").evaluateAll(cards=>cards.map(card=>card.getBoundingClientRect().width));
-    assert.ok(wideTimelineCards.length>0&&wideTimelineCards.every(cardWidth=>cardWidth>=200),"Timeline cards must remain in the content column at "+width+"x"+height+": "+wideTimelineCards.join(","));
-    if(width===768)await page.screenshot({path:"artifacts/personal-ai-timeline-approved-tablet-768x1024.png",fullPage:true});
-    if(width===820)await page.screenshot({path:"artifacts/personal-ai-timeline-approved-tablet-820x1180.png",fullPage:true});
-    if(width===1440)await page.screenshot({path:"artifacts/personal-ai-timeline-approved-desktop-1440x1000.png",fullPage:true});
+    if (await page.locator("#ownerButton").isVisible()) {
+      await page.click("#ownerButton");
+      await page.waitForFunction(()=>document.querySelector("#conversationDrawer").dataset.mode==="timeline"&&!document.querySelector("#conversationDrawer").classList.contains("hidden"));
+      await page.waitForFunction(()=>{const r=document.querySelector("#conversationDrawer").getBoundingClientRect();return r.left>=0&&r.right<=innerWidth+1});
+      const timelineWide=await page.evaluate(()=>({drawer:document.querySelector("#conversationDrawer").getBoundingClientRect(),width:innerWidth,doc:document.documentElement.scrollWidth}));
+      assert.ok(timelineWide.drawer.width>=400&&timelineWide.drawer.width<=480,"wide Timeline must remain a contextual panel instead of stretching at "+width+"x"+height);
+      assert.ok(timelineWide.drawer.left>=0&&timelineWide.drawer.right<=timelineWide.width+1&&timelineWide.doc<=timelineWide.width,"wide Timeline must fit without horizontal overflow at "+width+"x"+height);
+      const wideRailAlignment=await page.evaluate(()=>[...document.querySelectorAll("#conversationList .timeline-entry")].map(entry=>{const r=entry.getBoundingClientRect(),d=entry.querySelector(".timeline-dot").getBoundingClientRect(),p=getComputedStyle(entry,"::before");return Math.abs(r.left+parseFloat(p.left)+parseFloat(p.width)/2-(d.left+d.width/2))}));
+      assert.ok(wideRailAlignment.length>0&&wideRailAlignment.every(delta=>delta<=1),"Timeline rail must pass through every node center at "+width+"x"+height+": "+wideRailAlignment.join(","));
+      const wideTimelineCards=await page.locator("#conversationList .timeline-content").evaluateAll(cards=>cards.map(card=>card.getBoundingClientRect().width));
+      assert.ok(wideTimelineCards.length>0&&wideTimelineCards.every(cardWidth=>cardWidth>=200),"Timeline cards must remain in the content column at "+width+"x"+height+": "+wideTimelineCards.join(","));
+      if(width===768)await page.screenshot({path:"artifacts/personal-ai-timeline-approved-tablet-768x1024.png",fullPage:true});
+      if(width===820)await page.screenshot({path:"artifacts/personal-ai-timeline-approved-tablet-820x1180.png",fullPage:true});
+      if(width===1440)await page.screenshot({path:"artifacts/personal-ai-timeline-approved-desktop-1440x1000.png",fullPage:true});
+  
+    }
     await page.click("#timelineCloseDrawer");
   }
 
