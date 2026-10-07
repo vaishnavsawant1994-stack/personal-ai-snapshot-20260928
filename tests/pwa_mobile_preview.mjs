@@ -634,7 +634,7 @@ try {
   await page.waitForFunction(() => {
     const panel=document.querySelector("#conversationDrawer"),rect=panel.getBoundingClientRect();
     return panel.dataset.mode==="conversations" && !panel.classList.contains("hidden") &&
-      rect.left>=-1 && rect.right<innerWidth-20;
+      rect.left>=innerWidth-370 && rect.right<=innerWidth+1 && rect.width>=330;
   });
   await page.waitForFunction(expected => document.querySelectorAll(".conversations-row").length === expected, conversations.length);
   assert.equal(await page.locator("#appDrawer").isVisible(),false,"Conversations must replace the open main drawer on mobile");
