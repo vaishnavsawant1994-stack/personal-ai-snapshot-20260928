@@ -123,8 +123,8 @@ try {
       body={runs:workflowRuns,workflows:[]};
     } else if (path === "/apps-tools/tools" && method === "GET") {
       body={tools:[{tool_id:"search_memory",name:"Search memory",description:"Search approved owner memories",availability:"AVAILABLE",approval_policy:"READ ONLY"}]};
-    } else if (path === "/apps-tools/apps" && method === "GET") {
-      body={apps:[{app_id:"gmail",name:"Gmail",connection_status:"Available",category:"Email"},{app_id:"drive",name:"Google Drive",connection_status:"Connected",category:"Storage"}]};
+    } else if (path === "/connectors" && method === "GET") {
+      body={connectors:[{id:"drive",name:"Google Drive",state:"healthy",read_only:true,capabilities:["Search and reference Drive files"],granted_scopes:["Drive files read-only"]},{id:"gmail",name:"Gmail",state:"disconnected",capabilities:["Email"]}]};
     } else if (path === "/everyday/items" && method === "POST") {
       const input = JSON.parse(request.postData() || "{}");
       const item = { id: "created-" + everydayItems.length, title: input.title, kind: input.category === "meeting" ? "commitment" : input.category === "reminder" ? "reminder" : "task",
