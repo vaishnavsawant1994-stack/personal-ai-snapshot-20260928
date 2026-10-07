@@ -68,6 +68,7 @@ let newConversation = {
 
 try {
   const page = await browser.newPage({
+    timezoneId: "Asia/Kolkata",
     viewport: { width: 390, height: 844 },
     deviceScaleFactor: 2,
     isMobile: true,
