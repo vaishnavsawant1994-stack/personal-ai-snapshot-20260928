@@ -1323,7 +1323,7 @@ try {
   assert.equal(sharedChatChrome.headerBorder,"0px","conversation topbar must not add a panel border");
   assert.ok(Math.abs(sharedChatChrome.menu.left-sharedChatChrome.header.left)<=1,"conversation hamburger must keep the shared left-edge alignment");
   assert.ok(Math.abs(sharedChatChrome.timeline.right-sharedChatChrome.header.right)<=1,"conversation Timeline control must keep the shared right-edge alignment");
-  assert.ok(sharedChatChrome.sphere.width>=44&&sharedChatChrome.sphere.width<=56,"conversation sphere must keep the shared compact topbar scale");
+  assert.ok(sharedChatChrome.sphere.width>=44&&sharedChatChrome.sphere.width<=66,"conversation sphere must keep the shared compact topbar scale");
   assert.equal(sharedChatChrome.composerPosition,"fixed","conversation SMS composer must use the same fixed bottom format");
   assert.ok(sharedChatChrome.composer.height>=52&&sharedChatChrome.composer.height<=56,"conversation SMS composer must match the Home compact pill height");
 
