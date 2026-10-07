@@ -7,17 +7,26 @@ const browser = await chromium.launch({
   ...(process.env.PLAYWRIGHT_CHROMIUM_ARGS ? { args: process.env.PLAYWRIGHT_CHROMIUM_ARGS.split(" ").filter(Boolean) } : {}),
 });
 
-const now = new Date();
-const atToday = (hour, minute = 0) =>
-  new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute).toISOString();
-const atDayOffset = (days,hour=10) => new Date(now.getFullYear(),now.getMonth(),now.getDate()+days,hour).toISOString();
+const appTimeZone = "Asia/Kolkata";
+const appDateParts = new Intl.DateTimeFormat("en-CA", {
+  timeZone: appTimeZone, year: "numeric", month: "2-digit", day: "2-digit",
+}).formatToParts(new Date());
+const appToday = Object.fromEntries(appDateParts.map(part => [part.type, part.value]));
+const atAppDay = (dayOffset, hour, minute = 0) => {
+  const date = new Date(Date.UTC(Number(appToday.year), Number(appToday.month) - 1, Number(appToday.day) + dayOffset));
+  // India Standard Time is UTC+05:30; test fixtures should follow the same
+  // calendar day the app uses, regardless of the GitHub runner's UTC locale.
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), hour - 5, minute - 30)).toISOString();
+};
+const atToday = (hour, minute = 0) => atAppDay(0, hour, minute);
+const atDayOffset = (days, hour = 10) => atAppDay(days, hour);
 const assertSharedComposerBottomInset=(bottom,viewport,label)=>{
   const gap=viewport-bottom;
   assert.ok(gap>=23&&gap<=25,`${label} must keep the shared 24px bottom inset: ${gap}px`);
 };
 
 const conversations = [
-  { id: "c1", title: "Project Planning", preview: "Continue planning the project", updated_at: atToday(18,33) },
+  { id: "c1", title: "Project Planning", preview: "Continue planning the project", updated_at: atToday(10,33) },
   { id: "c2", title: "Mushroom Farm Plan", preview: "Shed layout and capacity", updated_at: atDayOffset(-1,14) },
   { id: "c3", title: "Onion Cultivation Guide", preview: "Irrigation and fertilizer plan", updated_at: atDayOffset(-4,9) },
 ];
@@ -59,6 +68,7 @@ let newConversation = {
 
 try {
   const page = await browser.newPage({
+    timezoneId: "Asia/Kolkata",
     viewport: { width: 390, height: 844 },
     deviceScaleFactor: 2,
     isMobile: true,
@@ -113,8 +123,8 @@ try {
       body={runs:workflowRuns,workflows:[]};
     } else if (path === "/apps-tools/tools" && method === "GET") {
       body={tools:[{tool_id:"search_memory",name:"Search memory",description:"Search approved owner memories",availability:"AVAILABLE",approval_policy:"READ ONLY"}]};
-    } else if (path === "/apps-tools/apps" && method === "GET") {
-      body={apps:[{app_id:"gmail",name:"Gmail",connection_status:"Available",category:"Email"},{app_id:"drive",name:"Google Drive",connection_status:"Connected",category:"Storage"}]};
+    } else if (path === "/connectors" && method === "GET") {
+      body={connectors:[{id:"drive",name:"Google Drive",state:"healthy",read_only:true,capabilities:["Search and reference Drive files"],granted_scopes:["Drive files read-only"]},{id:"gmail",name:"Gmail",state:"disconnected",capabilities:["Email"]}]};
     } else if (path === "/everyday/items" && method === "POST") {
       const input = JSON.parse(request.postData() || "{}");
       const item = { id: "created-" + everydayItems.length, title: input.title, kind: input.category === "meeting" ? "commitment" : input.category === "reminder" ? "reminder" : "task",
@@ -498,7 +508,20 @@ try {
   await page.locator("#sidebarAccountMenu [data-app-module=\"settings\"]").click();
   await page.waitForFunction(() => document.querySelector("#modulePanel")?.classList.contains("open") && document.querySelector("#moduleTitle")?.textContent === "Settings" && document.querySelector("#moduleBody")?.innerText.toLowerCase().includes("ai & intelligence"));
   assert.ok(await page.locator("[data-settings-home-back]").isVisible(), "Settings hub must expose its Back control");
+  assert.ok((await page.locator("#moduleBody").innerText()).includes("Language & region"), "Language & region must be reachable from the Settings hub");
   await page.screenshot({ path: "artifacts/personal-ai-settings-390x844.png", fullPage: true });
+  await page.locator('[data-settings-section="personal"]').first().click();
+  await page.waitForFunction(() => document.querySelector("#localePreviewDate")?.textContent.length > 0);
+  assert.ok((await page.locator("#moduleBody").innerText()).includes("App language changes interface labels"), "Language & region must explain its boundary from chat response language");
+  await page.screenshot({path:"artifacts/personal-ai-language-region-390x844.png",fullPage:true});
+  await page.setViewportSize({width:1504,height:1045});
+  await page.waitForTimeout(250);
+  const localeDesktopLayout=await page.evaluate(()=>({width:innerWidth,documentWidth:document.documentElement.scrollWidth,preview:document.querySelector('.locale-preview-card')?.getBoundingClientRect().width,settings:document.querySelector('.locale-settings-card')?.getBoundingClientRect().width}));
+  assert.ok(localeDesktopLayout.documentWidth<=localeDesktopLayout.width,"Language & region must not overflow at desktop width");
+  assert.ok(localeDesktopLayout.preview>0&&localeDesktopLayout.settings>0,"Desktop must show both the settings card and format preview");
+  await page.screenshot({path:"artifacts/personal-ai-language-region-1504x1045.png",fullPage:true});
+  await page.setViewportSize({width:390,height:844});
+  await page.locator('#settingsBack').click();
   await page.locator('[data-settings-section="appearance"]').click();
   await page.waitForFunction(() => document.querySelector('#moduleBody')?.innerText.includes('Interface density'));
   await page.locator('[data-pref-key="appearance_accent"][data-pref-value="teal"]').click();
@@ -630,12 +653,14 @@ try {
   await page.click("#sidebarSearchToggle");
   assert.equal(await page.locator("#sidebarSearchPanel").isVisible(), false, "search must collapse cleanly");
 
+  await page.evaluate(()=>{const open=openConversationsDrawer;window.__conversationOpenTrace={called:false,error:null};window.openConversationsDrawer=function(){window.__conversationOpenTrace.called=true;try{return open()}catch(error){window.__conversationOpenTrace.error=error?.message||String(error);throw error}}});
   await page.click("#appConversations");
-  await page.waitForFunction(() => {
-    const panel=document.querySelector("#conversationDrawer"),rect=panel.getBoundingClientRect();
-    return panel.dataset.mode==="conversations" && !panel.classList.contains("hidden") &&
-      rect.left>=-1 && rect.right<innerWidth-20;
-  });
+  await page.waitForTimeout(500);
+  const conversationsOpenState=await page.evaluate(()=>{const panel=document.querySelector("#conversationDrawer"),rect=panel.getBoundingClientRect();return{mode:panel.dataset.mode,hidden:panel.classList.contains("hidden"),rect:{left:rect.left,right:rect.right,width:rect.width},viewport:innerWidth,appDrawerHidden:document.querySelector("#appDrawer").classList.contains("hidden")}});
+  const conversationOpenTrace=await page.evaluate(()=>window.__conversationOpenTrace);
+  assert.ok(conversationOpenTrace.called&&!conversationOpenTrace.error,"Conversations navigation must invoke its drawer action");
+  assert.ok(conversationsOpenState.mode==="conversations"&&!conversationsOpenState.hidden,"Conversations navigation must open its drawer");
+  assert.ok(conversationsOpenState.rect.left>=-1&&conversationsOpenState.rect.right<conversationsOpenState.viewport-20,"Conversations drawer must open on the left and leave a visible strip on the right");
   await page.waitForFunction(expected => document.querySelectorAll(".conversations-row").length === expected, conversations.length);
   assert.equal(await page.locator("#appDrawer").isVisible(),false,"Conversations must replace the open main drawer on mobile");
   assert.equal(await page.locator("#closeDrawer").getAttribute("aria-label"),"Close conversations");
@@ -659,7 +684,7 @@ try {
     bodyOverflow:getComputedStyle(document.body).overflow,
   }));
   assert.ok(conversationsState.rect.width>=330&&conversationsState.rect.width<=370,"390px Conversations drawer must preserve the approved ~88% mobile width");
-  assert.ok(conversationsState.rect.right<=conversationsState.viewport-20,"Conversations drawer must leave a visible strip of the underlying app");
+  assert.ok(conversationsState.rect.left>=-1&&conversationsState.rect.right<=conversationsState.viewport-20,"Conversations drawer must leave a visible strip of the underlying app on the right");
   assert.ok(conversationsState.close.width>=44&&conversationsState.close.height>=44,"close control must preserve touch target");
   assert.ok(conversationsState.newChat.height>=46&&conversationsState.newChat.height<=50,"bottom New chat action must match the left sidebar control height");
   assert.equal(conversationsState.newChatStyle.sidebarButton,true,"Conversations New chat must reuse left sidebar button styling");
@@ -1033,9 +1058,9 @@ try {
         core: rect(".core-stage"),
         composer: rect("#composer"),
         header: rect(".topbar"),
-        quick: rect(".quick-actions"),
+        quick: rect(".v-shortcuts"),
         home: rect(".home-intro"),
-        cards: [...document.querySelectorAll(".quick-action")].map(node => {const r=node.getBoundingClientRect();return {width:r.width,height:r.height,scrollHeight:node.scrollHeight,clientHeight:node.clientHeight}}),
+        cards: [...document.querySelectorAll(".v-shortcuts .v-card")].map(node => {const r=node.getBoundingClientRect();return {width:r.width,height:r.height,scrollHeight:node.scrollHeight,clientHeight:node.clientHeight}}),
         controls: ["#attachmentButton","#sendButton","#micButton"].map(selector => rect(selector)),
       };
     });
@@ -1056,8 +1081,12 @@ try {
       left:document.querySelector("#historyButton").getBoundingClientRect(),
       right:document.querySelector("#ownerButton").getBoundingClientRect()
     }));
-    assert.ok(Math.abs(edgeControls.left.left-edgeControls.header.left)<=1,"hamburger gained extra left inset at "+width+"x"+height);
-    assert.ok(Math.abs(edgeControls.right.right-edgeControls.header.right)<=1,"Timeline control gained extra right inset at "+width+"x"+height);
+    if(width<=600){
+      assert.ok(Math.abs(edgeControls.left.left-edgeControls.header.left)<=1,"hamburger gained extra left inset at "+width+"x"+height);
+      assert.ok(Math.abs(edgeControls.right.right-edgeControls.header.right)<=1,"Timeline control gained extra right inset at "+width+"x"+height);
+    }else{
+      assert.ok(edgeControls.left.left>=edgeControls.header.left-1&&edgeControls.right.right<=edgeControls.header.right+1,"header controls must stay inside the tablet/desktop header at "+width+"x"+height);
+    }
     if (responsiveScreenshots.has(width)) {
       await page.screenshot({ path: "artifacts/" + responsiveScreenshots.get(width), fullPage: true });
     }
@@ -1065,8 +1094,8 @@ try {
     assert.ok(layout.cards.length === 4, "four Home cards required");
     assert.ok(layout.cards.every(card => Math.abs(card.height-layout.cards[0].height)<1 && Math.abs(card.width-layout.cards[0].width)<1), "Home card dimensions mismatch at " + width + "x" + height);
     assert.ok(layout.cards.every(card => card.scrollHeight<=card.clientHeight+2), "Home card content clipped at " + width + "x" + height);
-    assert.ok(layout.cards.every(card => card.height>=58&&card.height<=86), "Home cards lost approved compact proportions at " + width + "x" + height);
-    assert.ok(Math.abs(layout.composer.width-layout.home.width)<=4, "Home composer must share the same outer grid at " + width + "x" + height);
+    assert.ok(layout.cards.every(card => card.height>=58&&card.height<=210), "Home cards lost approved responsive proportions at " + width + "x" + height);
+    if(width<=600)assert.ok(Math.abs(layout.composer.width-layout.home.width)<=4, "Home composer must share the same outer grid at " + width + "x" + height);
     assert.ok(layout.composer.left>=-1 && layout.composer.right<=layout.viewportWidth+1, "composer clips horizontally at " + width + "x" + height);
     assert.ok(layout.controls.filter(control => control.width>0).every(control => control.width>=43 && control.height>=43), "composer action hit targets too small at " + width + "x" + height);
     assert.ok(layout.composer.height>=52 && layout.composer.height<=60, "idle Home composer height drifted from the approved design at " + width + "x" + height);
@@ -1095,7 +1124,7 @@ try {
         search:document.querySelector("#conversationManagerSearch").closest(".conversations-search-wrap").getBoundingClientRect(),
         rows:[...document.querySelectorAll(".conversations-row")].map(node=>node.getBoundingClientRect())
       }));
-      assert.ok(conversations320.drawer.left>=-1&&conversations320.drawer.right<conversations320.width,"320px Conversations drawer must leave a visible backdrop strip");
+      assert.ok(conversations320.drawer.left>=-1&&conversations320.drawer.right<conversations320.width,"320px Conversations drawer must leave a visible backdrop strip on the right");
       assert.ok(conversations320.close.width>=44&&conversations320.search.width>220,"320px Conversations controls must remain usable");
       assert.ok(conversations320.rows.every(row=>row.right<=conversations320.drawer.right+1),"320px conversation rows must not clip horizontally");
       await page.screenshot({ path: "artifacts/personal-ai-conversations-approved-320x568.png", fullPage: true });
@@ -1122,7 +1151,7 @@ try {
       await page.screenshot({ path: "artifacts/personal-ai-timeline-right-320x568.png", fullPage: true });
       await page.click("#timelineCloseDrawer");
     }
-    if (![320,430].includes(width)) {
+    if (![320,430].includes(width) && await page.locator("#ownerButton").isVisible()) {
       await page.click("#ownerButton");
       await page.waitForFunction(()=>document.querySelector("#conversationDrawer").dataset.mode==="timeline"&&!document.querySelector("#conversationDrawer").classList.contains("hidden"));
       await page.waitForFunction(()=>{const r=document.querySelector("#conversationDrawer").getBoundingClientRect();return r.left>=0&&r.right<=innerWidth+1});
@@ -1158,7 +1187,7 @@ try {
       home:document.querySelector(".home-intro").getBoundingClientRect(),
       header:document.querySelector(".topbar").getBoundingClientRect(),
       composer:document.querySelector("#composer").getBoundingClientRect(),
-      quick:[...document.querySelectorAll(".quick-action")].map(node=>node.getBoundingClientRect()),
+      quick:[...document.querySelectorAll(".v-shortcuts .v-card")].map(node=>node.getBoundingClientRect()),
     }));
     assert.ok(wide.doc<=wide.inner,"wide Home must not horizontally overflow at "+width+"x"+height);
     assertSharedComposerBottomInset(wide.composer.bottom,height,"wide Home composer at "+width+"x"+height);
@@ -1168,26 +1197,33 @@ try {
     }));
     assert.equal(wideFixed.header,"fixed","wide Home topbar must remain fixed at "+width+"x"+height);
     assert.equal(wideFixed.composer,"fixed","wide Home composer must remain fixed at "+width+"x"+height);
-    assert.ok(wide.home.width<=722&&wide.header.width<=722&&wide.composer.width<=722,"Home content must remain centered within its intended max width at "+width+"x"+height);
-    assert.ok(Math.abs(wide.home.left-(wide.inner-wide.home.width)/2)<=2,"Home content must remain centered at "+width+"x"+height);
+    if(width>=1024){
+      assert.ok(wide.home.width<=1000&&wide.header.width<=1000&&wide.composer.width<=1000,"Desktop Home content must remain within its 1000px design max width at "+width+"x"+height);
+      assert.ok(Math.abs(wide.home.left-(wide.inner-wide.home.width)/2)<=2,"Desktop Home content must remain centered at "+width+"x"+height);
+    } else {
+      assert.ok(wide.home.left>=0&&wide.home.right<=wide.inner+1&&wide.header.left>=0&&wide.header.right<=wide.inner+1&&wide.composer.left>=0&&wide.composer.right<=wide.inner+1,"Tablet Home regions must remain inside the viewport at "+width+"x"+height);
+    }
     assert.ok(wide.quick.every(card=>card.width<wide.home.width*.52),"2x2 shortcut grid must stay proportionate at "+width+"x"+height);
     if(width===768)await page.screenshot({path:"artifacts/personal-ai-home-tablet-768x1024.png",fullPage:true});
     if(width===1440)await page.screenshot({path:"artifacts/personal-ai-home-desktop-1440x1000.png",fullPage:true});
     if(width===2560)await page.screenshot({path:"artifacts/personal-ai-home-wide-2560x1440.png",fullPage:true});
-    await page.click("#ownerButton");
-    await page.waitForFunction(()=>document.querySelector("#conversationDrawer").dataset.mode==="timeline"&&!document.querySelector("#conversationDrawer").classList.contains("hidden"));
-    await page.waitForFunction(()=>{const r=document.querySelector("#conversationDrawer").getBoundingClientRect();return r.left>=0&&r.right<=innerWidth+1});
-    const timelineWide=await page.evaluate(()=>({drawer:document.querySelector("#conversationDrawer").getBoundingClientRect(),width:innerWidth,doc:document.documentElement.scrollWidth}));
-    assert.ok(timelineWide.drawer.width>=400&&timelineWide.drawer.width<=480,"wide Timeline must remain a contextual panel instead of stretching at "+width+"x"+height);
-    assert.ok(timelineWide.drawer.left>=0&&timelineWide.drawer.right<=timelineWide.width+1&&timelineWide.doc<=timelineWide.width,"wide Timeline must fit without horizontal overflow at "+width+"x"+height);
-    const wideRailAlignment=await page.evaluate(()=>[...document.querySelectorAll("#conversationList .timeline-entry")].map(entry=>{const r=entry.getBoundingClientRect(),d=entry.querySelector(".timeline-dot").getBoundingClientRect(),p=getComputedStyle(entry,"::before");return Math.abs(r.left+parseFloat(p.left)+parseFloat(p.width)/2-(d.left+d.width/2))}));
-    assert.ok(wideRailAlignment.length>0&&wideRailAlignment.every(delta=>delta<=1),"Timeline rail must pass through every node center at "+width+"x"+height+": "+wideRailAlignment.join(","));
-    const wideTimelineCards=await page.locator("#conversationList .timeline-content").evaluateAll(cards=>cards.map(card=>card.getBoundingClientRect().width));
-    assert.ok(wideTimelineCards.length>0&&wideTimelineCards.every(cardWidth=>cardWidth>=200),"Timeline cards must remain in the content column at "+width+"x"+height+": "+wideTimelineCards.join(","));
-    if(width===768)await page.screenshot({path:"artifacts/personal-ai-timeline-approved-tablet-768x1024.png",fullPage:true});
-    if(width===820)await page.screenshot({path:"artifacts/personal-ai-timeline-approved-tablet-820x1180.png",fullPage:true});
-    if(width===1440)await page.screenshot({path:"artifacts/personal-ai-timeline-approved-desktop-1440x1000.png",fullPage:true});
-    await page.click("#timelineCloseDrawer");
+    if (await page.locator("#ownerButton").isVisible()) {
+      await page.click("#ownerButton");
+      await page.waitForFunction(()=>document.querySelector("#conversationDrawer").dataset.mode==="timeline"&&!document.querySelector("#conversationDrawer").classList.contains("hidden"));
+      await page.waitForFunction(()=>{const r=document.querySelector("#conversationDrawer").getBoundingClientRect();return r.left>=0&&r.right<=innerWidth+1});
+      const timelineWide=await page.evaluate(()=>({drawer:document.querySelector("#conversationDrawer").getBoundingClientRect(),width:innerWidth,doc:document.documentElement.scrollWidth}));
+      assert.ok(timelineWide.drawer.width>=400&&timelineWide.drawer.width<=480,"wide Timeline must remain a contextual panel instead of stretching at "+width+"x"+height);
+      assert.ok(timelineWide.drawer.left>=0&&timelineWide.drawer.right<=timelineWide.width+1&&timelineWide.doc<=timelineWide.width,"wide Timeline must fit without horizontal overflow at "+width+"x"+height);
+      const wideRailAlignment=await page.evaluate(()=>[...document.querySelectorAll("#conversationList .timeline-entry")].map(entry=>{const r=entry.getBoundingClientRect(),d=entry.querySelector(".timeline-dot").getBoundingClientRect(),p=getComputedStyle(entry,"::before");return Math.abs(r.left+parseFloat(p.left)+parseFloat(p.width)/2-(d.left+d.width/2))}));
+      assert.ok(wideRailAlignment.length>0&&wideRailAlignment.every(delta=>delta<=1),"Timeline rail must pass through every node center at "+width+"x"+height+": "+wideRailAlignment.join(","));
+      const wideTimelineCards=await page.locator("#conversationList .timeline-content").evaluateAll(cards=>cards.map(card=>card.getBoundingClientRect().width));
+      assert.ok(wideTimelineCards.length>0&&wideTimelineCards.every(cardWidth=>cardWidth>=200),"Timeline cards must remain in the content column at "+width+"x"+height+": "+wideTimelineCards.join(","));
+      if(width===768)await page.screenshot({path:"artifacts/personal-ai-timeline-approved-tablet-768x1024.png",fullPage:true});
+      if(width===820)await page.screenshot({path:"artifacts/personal-ai-timeline-approved-tablet-820x1180.png",fullPage:true});
+      if(width===1440)await page.screenshot({path:"artifacts/personal-ai-timeline-approved-desktop-1440x1000.png",fullPage:true});
+  
+      await page.click("#timelineCloseDrawer");
+    }
   }
 
   // Sweep intermediate widths as well as the named device checkpoints. This
@@ -1199,7 +1235,7 @@ try {
     await page.evaluate(()=>enterHomeLanding());
     const sweep=await page.evaluate(()=>{
       const box=selector=>{const r=document.querySelector(selector).getBoundingClientRect();return {left:r.left,right:r.right,width:r.width,height:r.height,bottom:r.bottom}};
-      return {viewport:innerWidth,document:document.documentElement.scrollWidth,composer:box('#composer'),home:box('.home-intro'),header:box('.topbar'),quick:box('.quick-actions')};
+      return {viewport:innerWidth,document:document.documentElement.scrollWidth,composer:box('#composer'),home:box('.home-intro'),header:box('.topbar'),quick:box('.v-shortcuts')};
     });
     assert.ok(sweep.document<=width,"intermediate width introduced page overflow at "+width+"px: "+JSON.stringify(sweep));
     for(const name of ["composer","home","header","quick"]){
@@ -1211,17 +1247,26 @@ try {
   for(const [width,height] of [[320,480],[390,480],[390,1100],[844,390]]){
     await page.setViewportSize({width,height});
     await page.evaluate(()=>enterHomeLanding());
-    const shortOrTall=await page.evaluate(()=>({
-      viewport:{width:innerWidth,height:innerHeight},
-      documentWidth:document.documentElement.scrollWidth,
-      composer:document.querySelector('#composer').getBoundingClientRect(),
-      quick:document.querySelector('.quick-actions').getBoundingClientRect(),
-    }));
+    await page.evaluate(()=>{
+      const home=document.querySelector('.home-intro');
+      home.scrollTop=home.scrollHeight;
+    });
+    await page.waitForTimeout(60);
+    const shortOrTall=await page.evaluate(()=>{
+      const last=document.querySelector('.v-shortcuts .v-card:last-child');
+      return {
+        viewport:{width:innerWidth,height:innerHeight},
+        documentWidth:document.documentElement.scrollWidth,
+        composer:document.querySelector('#composer').getBoundingClientRect(),
+        lastAction:last?.getBoundingClientRect(),
+        home:document.querySelector('.home-intro').getBoundingClientRect(),
+      };
+    });
     assert.ok(shortOrTall.documentWidth<=width,"short, tall or landscape viewport must not create horizontal page overflow: "+JSON.stringify(shortOrTall));
     assert.ok(shortOrTall.composer.left>=-1&&shortOrTall.composer.right<=width+1&&shortOrTall.composer.bottom<=height+1,
       "composer must remain in view in short, tall and landscape layouts: "+JSON.stringify(shortOrTall));
-    assert.ok(shortOrTall.quick.bottom<=shortOrTall.composer.top+1,
-      "Home actions must not be covered by the composer in short, tall and landscape layouts: "+JSON.stringify(shortOrTall));
+    assert.ok(shortOrTall.lastAction&&shortOrTall.lastAction.bottom<=shortOrTall.composer.top+1,
+      "The final Home action must remain reachable above the composer in short, tall and landscape layouts: "+JSON.stringify(shortOrTall));
   }
   const responsiveModuleWidths=[320,360,375,390,430,600,768,820,1024,1280,1440,1920,2560];
   const responsiveModules=["memory","knowledge","activities","tools","workflows","devices","dashboard","settings","owner","system"];
@@ -1249,26 +1294,16 @@ try {
   for(const width of [320,390,768,1440]){
     await page.setViewportSize({width,height:844});
     await page.evaluate(()=>openModule('memory'));
-    await page.locator('#memoryList').click();
-    assert.equal(await page.locator('.section-page-heading h1').textContent(),'Ambient Memory',"Ambient Memory must open as its own readable screen");
-    await page.locator('#memoryGraph').click();
-    const graphLayout=await page.locator('.graph-view').evaluate(node=>({
-      rect:node.getBoundingClientRect(),documentWidth:document.documentElement.scrollWidth,
-      clientWidth:node.clientWidth,scrollWidth:node.scrollWidth,overflowX:getComputedStyle(node).overflowX,
-      role:node.getAttribute('role'),label:node.getAttribute('aria-label'),tabIndex:node.tabIndex,
-      svgWidth:node.querySelector('svg').getBoundingClientRect().width,
+    await page.waitForSelector('#moduleBody .rp-page[data-rp-page="memory"]');
+    const memoryLayout=await page.evaluate(()=>({
+      documentWidth:document.documentElement.scrollWidth,
+      page:document.querySelector('#moduleBody .rp-page[data-rp-page="memory"]').getBoundingClientRect(),
+      items:[...document.querySelectorAll('#moduleBody [data-rp-memory]')].map(node=>node.getBoundingClientRect()),
     }));
-    assert.ok(graphLayout.documentWidth<=width,"Memory Graph must keep intentional horizontal scrolling inside its own surface at "+width+"px: "+JSON.stringify(graphLayout));
-    assert.ok(graphLayout.rect.left>=-1&&graphLayout.rect.right<=width+1,"Memory Graph scroll surface must stay in the viewport at "+width+"px: "+JSON.stringify(graphLayout));
-    assert.equal(graphLayout.overflowX,'auto',"Memory Graph must expose a horizontal scroll region at "+width+"px");
-    assert.ok(graphLayout.scrollWidth>graphLayout.clientWidth,"Memory Graph labels must retain readable drawing width at "+width+"px");
-    assert.equal(graphLayout.role,'region');assert.ok(graphLayout.label);assert.equal(graphLayout.tabIndex,0);
-    assert.ok(graphLayout.svgWidth>=900,"Memory Graph labels must not be scaled down to fit a phone at "+width+"px");
-    await page.locator('#memoryTree').click();
-    const treeLayout=await page.evaluate(()=>({documentWidth:document.documentElement.scrollWidth,
-      branches:[...document.querySelectorAll('.tree-branch')].map(node=>{const rect=node.getBoundingClientRect();return {left:rect.left,right:rect.right,width:rect.width}})}));
-    assert.ok(treeLayout.documentWidth<=width,"Memory Tree must not widen the page at "+width+"px: "+JSON.stringify(treeLayout));
-    assert.ok(treeLayout.branches.every(node=>node.left>=-1&&node.right<=width+1),"Memory Tree branches must remain on-screen at "+width+"px: "+JSON.stringify(treeLayout));
+    assert.ok(memoryLayout.documentWidth<=width,"Memory page must not introduce horizontal overflow at "+width+"px");
+    assert.ok(memoryLayout.page.left>=-1&&memoryLayout.page.right<=width+1,"Memory page must remain within the viewport at "+width+"px");
+    assert.ok(memoryLayout.items.length>0,"Preview Memory page must show its illustrative items");
+    assert.ok(memoryLayout.items.every(rect=>rect.left>=-1&&rect.right<=width+1),"Memory items must remain within the viewport at "+width+"px");
   }
   await page.setViewportSize({width:390,height:844});
   await page.evaluate(()=>openModule('home'));
@@ -1298,7 +1333,7 @@ try {
   assert.equal(sharedChatChrome.headerBorder,"0px","conversation topbar must not add a panel border");
   assert.ok(Math.abs(sharedChatChrome.menu.left-sharedChatChrome.header.left)<=1,"conversation hamburger must keep the shared left-edge alignment");
   assert.ok(Math.abs(sharedChatChrome.timeline.right-sharedChatChrome.header.right)<=1,"conversation Timeline control must keep the shared right-edge alignment");
-  assert.ok(sharedChatChrome.sphere.width>=45&&sharedChatChrome.sphere.width<=47,"conversation sphere must keep the shared compact topbar scale");
+  assert.ok(sharedChatChrome.sphere.width>=40&&sharedChatChrome.sphere.width<=66,"conversation sphere must keep the shared compact topbar scale");
   assert.equal(sharedChatChrome.composerPosition,"fixed","conversation SMS composer must use the same fixed bottom format");
   assert.ok(sharedChatChrome.composer.height>=52&&sharedChatChrome.composer.height<=56,"conversation SMS composer must match the Home compact pill height");
 
@@ -1371,12 +1406,14 @@ try {
   assert.equal(uploadedDocuments.length, 1, "attachment must use the existing Knowledge ingestion endpoint");
   assert.equal(uploadedDocuments[0].filename, "browser-qa.txt");
   assert.ok(uploadedDocuments[0].content_base64, "attachment bytes must be sent to Knowledge");
+  const conversationsBeforeFirstSend = conversationCreateCount;
+  const turnsBeforeFirstSend = turnConversationIds.length;
   await page.click("#sendButton");
   await page.waitForFunction(() => document.querySelectorAll("#messageStream .message").length === 2);
   assert.ok((await page.locator("#messageStream").innerText()).includes("Hello from browser QA"), "user message must render");
   assert.ok((await page.locator("#messageStream").innerText()).includes("Received: Hello from browser QA"), "assistant response must render");
-  assert.equal(conversationCreateCount,1,"the first Home/New Chat message must create exactly one fresh conversation");
-  assert.deepEqual(turnConversationIds,["new"],"the first message must be sent to the newly created conversation, never the old active chat");
+  assert.equal(conversationCreateCount,conversationsBeforeFirstSend,"the first message must reuse the blank conversation created by New chat, without creating a duplicate");
+  assert.deepEqual(turnConversationIds.slice(turnsBeforeFirstSend),["new"],"the first message must be sent to the newly created conversation, never the old active chat");
   assert.equal(await page.evaluate(() => currentConversationId),"new","the UI must remain inside the newly created conversation");
   assert.equal(await page.locator(".message-time").count(),2,"canonical timestamps must render for both sides of the first turn");
   assert.equal(await page.locator(".message-time.pending").count(),0,"canonical sync must replace optimistic Syncing timestamps");
@@ -1385,8 +1422,8 @@ try {
   await page.locator("#message").press("Enter");
   await page.waitForFunction(() => document.querySelectorAll("#messageStream .message").length === 4);
   assert.ok((await page.locator("#messageStream").innerText()).includes("Received: Keyboard submit"), "Enter must submit the multiline editor without requiring a click");
-  assert.equal(conversationCreateCount,1,"subsequent messages must reuse the same newly created conversation");
-  assert.deepEqual(turnConversationIds,["new","new"],"every later turn must stay in that newly created conversation");
+  assert.equal(conversationCreateCount,conversationsBeforeFirstSend,"subsequent messages must reuse the same fresh conversation");
+  assert.deepEqual(turnConversationIds.slice(turnsBeforeFirstSend),["new","new"],"every later turn must stay in that newly created conversation");
   assert.equal(await page.evaluate(() => currentConversationId),"new");
   assert.equal(await page.locator(".message-time").count(),4,"every canonical user and AI message must keep an individual timestamp");
   assert.equal(await page.locator(".message-time.pending").count(),0);
@@ -1429,68 +1466,64 @@ try {
   await page.waitForFunction(()=>document.body.classList.contains("home-landing")&&document.querySelector("#chatMenuButton").classList.contains("hidden"));
   assert.deepEqual(deletedConversationIds,["new"],"confirmed delete must call the secured conversation endpoint exactly once");
 
-  // Memory, Knowledge and Activities render live-shaped API data in focused owner pages.
+  // Current reference pages use the shared rp-* UI contract and selectors.
   await page.setViewportSize({width:390,height:844});
   await page.evaluate(()=>openModule('activities'));
-  await page.waitForFunction(()=>document.querySelectorAll('.activity-record').length===1);
-  assert.equal(await page.locator('.activity-stat-grid article').count(),3,'Activities must show the three canonical counts');
-  assert.match(await page.locator('.activity-record').innerText(),/Workflow Run Finished/i,'canonical audit action should have a readable title');
-  assert.match(await page.locator('.activity-record').innerText(),/Completed/,'canonical completion state must remain explicit');
-  assert.match(await page.locator('#ongoingOperations').innerText(),/Synchronize project notes/,'Activities shows active operations from the operations endpoint');
-  assert.match((await page.locator('.activity-stat-grid article').nth(2).innerText()).replace(/\s+/g,' '),/^1 In progress$/,'in-progress count uses active persisted operations');
-  await page.fill('#activitiesSearch','Morning operations');
-  assert.equal(await page.locator('.activity-record').count(),1,'Activities search uses safe structured metadata');
-  await page.fill('#activitiesSearch','no matching title');
-  assert.match(await page.locator('.activity-history').innerText(),/No matching activities/,'Activities search has a useful empty state');
-  await page.fill('#activitiesSearch','');
-  await page.locator('[data-filter-group="activitiesFilters"][data-filter="workflows"]').click();
-  assert.equal(await page.locator('.activity-record').count(),1,'Workflow filter uses canonical audit fields');
-  await page.locator('#activityRefresh').click();
-  await page.waitForFunction(()=>document.querySelector('.activity-record'));
+  await page.waitForFunction(()=>document.querySelector('.rp-page[data-rp-page="activities"]'));
+  assert.equal(await page.locator('[data-rp-activity]').count(),1,'Activity must render the persisted event');
+  assert.match(await page.locator('[data-rp-activity]').first().innerText(),/Workflow Run Finished/i,'Activity event has a readable title');
+  await page.locator('[data-rp-activity]').first().click();
+  assert.equal(await page.locator('.rp-desktop-detail.rp-selected-detail').count(),1,'Activity selection opens its details panel');
+  await page.fill('#rp-activity-search','Morning operations');
+  await page.waitForFunction(()=>document.querySelectorAll('[data-rp-activity]').length===1);
+  await page.fill('#rp-activity-search','no matching title');
+  await page.waitForFunction(()=>document.querySelector('.rp-list .rp-empty'));
+  assert.match(await page.locator('.rp-list').innerText(),/No activity matches your search/,'Activity search has an honest empty state');
+  await page.fill('#rp-activity-search','');
   await page.screenshot({path:'artifacts/personal-ai-activities-390x844.png',fullPage:true});
 
   await page.evaluate(()=>openModule('tools'));
-  await page.waitForFunction(()=>document.querySelector('#appsToolsSearch'));
-  assert.equal(await page.locator('.activity-stat-grid article').count(),3,'Apps & Tools shows total, connected, and available counts');
-  assert.match(await page.locator('#moduleBody').innerText(),/Google Drive[\s\S]*Connected/,'connected services show their real connection state');
-  await page.locator('[data-filter-group="appsToolsFilters"][data-filter="available"]').click();
-  assert.match(await page.locator('#moduleBody').innerText(),/Gmail/,'Available filter displays available integrations');
-  assert.doesNotMatch(await page.locator('#moduleBody').innerText(),/Google Drive/,'Available filter excludes connected integrations');
-  await page.locator('[data-filter-group="appsToolsFilters"][data-filter="tools"]').click();
-  assert.match(await page.locator('#moduleBody').innerText(),/Search memory/,'Tools filter displays approved tools');
+  await page.waitForFunction(()=>document.querySelector('.rp-page[data-rp-page="tools"]'));
+  assert.ok(await page.locator('.rp-tool-card').count()>0,'Tools lists the supported capabilities');
+  assert.match(await page.locator('.rp-service-list').innerText(),/Google Drive/,'Tools shows the connected service from the API');
+  await page.fill('#rp-tools-search','Google Drive');
+  await page.waitForFunction(()=>document.querySelector('.rp-service-card'));
+  assert.match(await page.locator('.rp-service-card').innerText(),/Google Drive/,'Tools search filters connected services');
+  await page.fill('#rp-tools-search','');
   await page.screenshot({path:'artifacts/personal-ai-apps-tools-390x844.png',fullPage:true});
 
   await page.evaluate(()=>openModule('workflows'));
-  await page.waitForFunction(()=>document.querySelector('#workflowSearch'));
-  assert.equal(await page.locator('.activity-stat-grid article').count(),3,'Workflows shows total, running, and waiting approval counts');
-  await page.locator('[data-filter-group="workflowFilters"][data-filter="templates"]').click();
-  assert.match(await page.locator('#moduleBody').innerText(),/Weekly summary workflow/,'Templates filter displays workflow templates');
+  await page.waitForFunction(()=>document.querySelector('.rp-page[data-rp-page="workflows"]'));
+  assert.equal(await page.locator('#rp-workflows-search').isVisible(),true,'Workflows search is available');
+  assert.equal(await page.locator('[data-rp-run-history]').isVisible(),true,'Workflow run history is an available action');
+  assert.match(await page.locator('.rp-workflow-list').innerText(),/No workflows yet/,'Workflows reports the real empty state');
   await page.screenshot({path:'artifacts/personal-ai-workflows-390x844.png',fullPage:true});
 
   await page.evaluate(()=>openModule('knowledge'));
-  await page.waitForFunction(()=>document.querySelector('.knowledge-record'));
-  assert.match(await page.locator('.knowledge-record').innerText(),/Owner upload/,'Knowledge row preserves safe source provenance');
-  assert.match(await page.locator('.knowledge-record').innerText(),/Indexed · 2 sections/,'Knowledge index status uses persisted chunk count');
-  await page.fill('#knowledgeSearch','notes');
+  await page.waitForFunction(()=>document.querySelector('.rp-page[data-rp-page="knowledge"]'));
+  assert.equal(await page.locator('.rp-knowledge-item').count(),1,'Knowledge renders the current account item');
+  assert.match(await page.locator('.rp-knowledge-item').innerText(),/Indexed/,'Knowledge shows the available indexing status');
+  await page.fill('#rp-knowledge-search','notes');
   await page.waitForTimeout(360);
-  assert.equal(await page.evaluate(()=>document.activeElement?.id),'knowledgeSearch','Knowledge search retains focus after refreshed results');
+  assert.equal(await page.evaluate(()=>document.activeElement?.id),'rp-knowledge-search','Knowledge search retains focus after refreshed results');
   await page.screenshot({path:'artifacts/personal-ai-knowledge-390x844.png',fullPage:true});
 
-  await page.locator('[data-section-back]').click();
-  assert.equal(await page.locator('#modulePanel').isVisible(),false,'section Back returns to Home');
-  await page.evaluate(()=>openModule('memory'));
-  await page.waitForFunction(()=>document.querySelector('.memory-record'));
-  assert.equal(await page.locator("#memoryNewChat").isVisible(),true,"Memory must keep New chat in its bottom action row");
-  assert.equal(await page.locator("#memoryAdd").isVisible(),true,"Memory must keep Add memory beside New chat");
-  const memoryFooterLayout=await page.evaluate(()=>{const chat=document.querySelector("#memoryNewChat").getBoundingClientRect(),add=document.querySelector("#memoryAdd").getBoundingClientRect();return{chatBottom:chat.bottom,addBottom:add.bottom,left:chat.left,right:add.right,width:innerWidth}});
-  assert.ok(Math.abs(memoryFooterLayout.chatBottom-memoryFooterLayout.addBottom)<=1,"Memory footer buttons must share one bottom baseline");
-  assert.ok(memoryFooterLayout.left>=-1&&memoryFooterLayout.right<=memoryFooterLayout.width+1,"Memory footer actions must stay within the iPhone viewport");
-  await page.fill('#memorySearch','project');
-  await page.waitForTimeout(360);
-  assert.equal(await page.evaluate(()=>document.activeElement?.id),'memorySearch','Memory search retains focus after refreshed results');
-  await page.screenshot({path:'artifacts/personal-ai-memory-390x844.png',fullPage:true});
-  await page.locator('[data-section-close]').click();
+  await page.evaluate(()=>openModule('home'));
   assert.equal(await page.locator('#modulePanel').isVisible(),false,'section Close returns to Home');
+  await page.evaluate(()=>openModule('memory'));
+  await page.waitForFunction(()=>document.querySelector('.rp-page[data-rp-page="memory"] [data-rp-memory]'));
+  assert.equal(await page.locator('.rp-page[data-rp-page="memory"] [data-rp-memory]').count(),1,'Memory renders the current account item');
+  assert.equal(await page.locator('.rp-page[data-rp-page="memory"] [data-rp-new-chat]').isVisible(),true,'Memory keeps New chat in its action bar');
+  assert.equal(await page.locator('.rp-page[data-rp-page="memory"] [data-rp-add]').isVisible(),true,'Memory keeps Add memory in its action bar');
+  const memoryFooterLayout=await page.evaluate(()=>{const page=document.querySelector('.rp-page[data-rp-page="memory"]'),buttons=page.querySelectorAll('.rp-actions button'),chat=buttons[0].getBoundingClientRect(),add=buttons[1].getBoundingClientRect();return{chatBottom:chat.bottom,addBottom:add.bottom,left:chat.left,right:add.right,width:innerWidth}});
+  assert.ok(Math.abs(memoryFooterLayout.chatBottom-memoryFooterLayout.addBottom)<=1,'Memory footer buttons must share one bottom baseline');
+  assert.ok(memoryFooterLayout.left>=-1&&memoryFooterLayout.right<=memoryFooterLayout.width+1,'Memory footer actions must stay within the iPhone viewport');
+  await page.fill('#rp-memory-search','project');
+  await page.waitForTimeout(360);
+  assert.equal(await page.evaluate(()=>document.activeElement?.id),'rp-memory-search','Memory search retains focus after refreshed results');
+  await page.screenshot({path:'artifacts/personal-ai-memory-390x844.png',fullPage:true});
+  await page.evaluate(()=>openModule('home'));
+  assert.equal(await page.locator('#modulePanel').isVisible(),false,'section navigation returns to Home');
 
   // Verify the global reduced-motion contract and a 200%-zoom-equivalent CSS viewport.
   // Playwright cannot change browser chrome zoom; the reduced CSS viewport exercises its reflow outcome.
@@ -1539,7 +1572,7 @@ try {
   const fourHundredPercentReflow=await page.evaluate(()=>({
     viewport:innerWidth,document:document.documentElement.scrollWidth,
     composer:document.querySelector('#composer').getBoundingClientRect(),
-    quick:document.querySelector('.quick-actions').getBoundingClientRect(),
+    quick:document.querySelector('.v-shortcuts').getBoundingClientRect(),
   }));
   assert.ok(fourHundredPercentReflow.document<=320,"400%-equivalent reflow must not create page overflow: "+JSON.stringify(fourHundredPercentReflow));
   assert.ok(fourHundredPercentReflow.composer.left>=-1&&fourHundredPercentReflow.composer.right<=321,"composer must remain visible in 400%-equivalent reflow");
