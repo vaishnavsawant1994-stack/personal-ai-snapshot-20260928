@@ -141,7 +141,8 @@ try {
       body={notifications:[],unread_count:0};
     } else if (path === "/preferences" && method === "PUT") {
       uiPreferenceState=JSON.parse(request.postData()||"{}");
-      body=uiPreferenceState;
+      sidebarPreferences={...sidebarPreferences,...uiPreferenceState};
+      body={...sidebarPreferences,...uiPreferenceState};
     } else if (path === "/preferences") {
       body = uiPreferenceState;
     } else if (path === "/privacy/export" && method === "GET") {
