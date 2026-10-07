@@ -1141,7 +1141,7 @@ try {
       await page.screenshot({ path: "artifacts/personal-ai-timeline-right-320x568.png", fullPage: true });
       await page.click("#timelineCloseDrawer");
     }
-    if (![320,430].includes(width)) {
+    if (![320,430].includes(width) && await page.locator("#ownerButton").isVisible()) {
       await page.click("#ownerButton");
       await page.waitForFunction(()=>document.querySelector("#conversationDrawer").dataset.mode==="timeline"&&!document.querySelector("#conversationDrawer").classList.contains("hidden"));
       await page.waitForFunction(()=>{const r=document.querySelector("#conversationDrawer").getBoundingClientRect();return r.left>=0&&r.right<=innerWidth+1});
