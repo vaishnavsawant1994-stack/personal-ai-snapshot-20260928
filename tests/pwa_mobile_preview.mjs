@@ -1238,7 +1238,8 @@ try {
     await page.setViewportSize({width,height});
     await page.evaluate(()=>enterHomeLanding());
     await page.evaluate(()=>{
-      document.querySelector('.v-shortcuts .v-card:last-child')?.scrollIntoView({block:'end',behavior:'instant'});
+      const home=document.querySelector('.home-intro');
+      home.scrollTop=home.scrollHeight;
     });
     await page.waitForTimeout(60);
     const shortOrTall=await page.evaluate(()=>{
