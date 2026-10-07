@@ -7,6 +7,7 @@ import os
 import shutil
 import time
 import uuid
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from io import BytesIO
 from pathlib import Path
 from typing import Literal
@@ -180,7 +181,26 @@ class UiPreferencesBody(BaseModel):
     chat_message_spacing: Literal['comfortable', 'compact'] = 'comfortable'
     chat_new_context: Literal['general', 'project'] = 'general'
     chat_project_context_enabled: bool = False
+    locale_app_language: Literal['en'] = 'en'
+    locale_region: Literal['IN', 'US', 'GB', 'CA', 'AU', 'DE', 'FR', 'JP'] = 'IN'
+    locale_time_zone: str = Field(default='Asia/Kolkata', min_length=1, max_length=80)
+    locale_use_device_time_zone: bool = False
+    locale_date_format: Literal['day_month_year', 'month_day_year', 'numeric'] = 'day_month_year'
+    locale_time_format: Literal['12h', '24h'] = '12h'
+    locale_week_start: Literal['monday', 'sunday'] = 'monday'
+    locale_number_format: Literal['indian', 'western'] = 'indian'
+    locale_temperature: Literal['celsius', 'fahrenheit'] = 'celsius'
+    locale_measurement: Literal['metric', 'imperial'] = 'metric'
     pinned_sidebar_items: list[str] = Field(default_factory=list, max_length=40)
+
+    @field_validator('locale_time_zone')
+    @classmethod
+    def valid_iana_time_zone(cls, value: str) -> str:
+        try:
+            ZoneInfo(value)
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            raise ValueError('Time zone must be a valid IANA identifier') from exc
+        return value
 
 
 

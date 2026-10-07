@@ -338,17 +338,32 @@ def test_ui_preferences_are_scoped_to_the_trusted_device_and_persist(tmp_path):
         'chat_message_spacing': 'comfortable',
         'chat_new_context': 'general',
         'chat_project_context_enabled': False,
+        'locale_app_language': 'en',
+        'locale_region': 'IN',
+        'locale_time_zone': 'Asia/Kolkata',
+        'locale_use_device_time_zone': False,
+        'locale_date_format': 'day_month_year',
+        'locale_time_format': '12h',
+        'locale_week_start': 'monday',
+        'locale_number_format': 'indian',
+        'locale_temperature': 'celsius',
+        'locale_measurement': 'metric',
         'pinned_sidebar_items': [],
     }
     updated = client.put('/iphone/api/preferences', json={
         'continuous_voice': False,
         'voice_rate': 1.15,
         'quiet_hours': False,
+        'locale_region': 'US',
+        'locale_time_zone': 'America/New_York',
+        'locale_date_format': 'numeric',
+        'locale_number_format': 'western',
         'pinned_sidebar_items': ['chat:conversation-1', 'project:project-1'],
     })
     assert updated.status_code == 200
     assert client.get('/iphone/api/preferences').json() == updated.json()
     assert 'ui.preferences' in runtime['device_registry'].metadata(owner['id'])
+    assert client.get('/iphone/api/preferences').json()['locale_region'] == 'US'
 
     other, token = runtime['device_registry'].enroll('Other browser', 'web')
     other_client = TestClient(client.app, base_url='https://testserver')
@@ -496,6 +511,14 @@ def test_ui_preferences_reject_unsafe_voice_rate(tmp_path):
     })
 
     assert response.status_code == 422
+
+
+def test_ui_preferences_validate_language_region_and_iana_time_zone(tmp_path):
+    client, _, _ = make_client(tmp_path)
+    base = client.get('/iphone/api/preferences').json()
+    assert client.put('/iphone/api/preferences', json={**base, 'locale_time_zone': 'Not/A_Zone'}).status_code == 422
+    assert client.put('/iphone/api/preferences', json={**base, 'locale_app_language': 'hi'}).status_code == 422
+    assert client.put('/iphone/api/preferences', json={**base, 'locale_region': 'XX'}).status_code == 422
 
 
 def test_p3_stage_evidence_endpoint_records_but_does_not_self_award(tmp_path):
