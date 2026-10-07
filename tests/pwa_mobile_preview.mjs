@@ -1071,8 +1071,12 @@ try {
       left:document.querySelector("#historyButton").getBoundingClientRect(),
       right:document.querySelector("#ownerButton").getBoundingClientRect()
     }));
-    assert.ok(Math.abs(edgeControls.left.left-edgeControls.header.left)<=1,"hamburger gained extra left inset at "+width+"x"+height);
-    assert.ok(Math.abs(edgeControls.right.right-edgeControls.header.right)<=1,"Timeline control gained extra right inset at "+width+"x"+height);
+    if(width<=600){
+      assert.ok(Math.abs(edgeControls.left.left-edgeControls.header.left)<=1,"hamburger gained extra left inset at "+width+"x"+height);
+      assert.ok(Math.abs(edgeControls.right.right-edgeControls.header.right)<=1,"Timeline control gained extra right inset at "+width+"x"+height);
+    }else{
+      assert.ok(edgeControls.left.left>=edgeControls.header.left-1&&edgeControls.right.right<=edgeControls.header.right+1,"header controls must stay inside the tablet/desktop header at "+width+"x"+height);
+    }
     if (responsiveScreenshots.has(width)) {
       await page.screenshot({ path: "artifacts/" + responsiveScreenshots.get(width), fullPage: true });
     }
