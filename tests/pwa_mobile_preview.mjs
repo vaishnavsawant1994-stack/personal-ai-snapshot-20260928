@@ -637,13 +637,10 @@ try {
   assert.equal(await page.locator("#sidebarSearchPanel").isVisible(), false, "search must collapse cleanly");
 
   await page.click("#appConversations");
-  await page.waitForFunction(() => {
-    const panel=document.querySelector("#conversationDrawer");
-    return panel.dataset.mode==="conversations" && !panel.classList.contains("hidden");
-  });
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(500);
   const conversationsOpenState=await page.evaluate(()=>{const panel=document.querySelector("#conversationDrawer"),rect=panel.getBoundingClientRect();return{mode:panel.dataset.mode,hidden:panel.classList.contains("hidden"),rect:{left:rect.left,right:rect.right,width:rect.width},viewport:innerWidth,appDrawerHidden:document.querySelector("#appDrawer").classList.contains("hidden")}});
   console.log("Conversations drawer opened from the main navigation",JSON.stringify(conversationsOpenState));
+  assert.ok(conversationsOpenState.mode==="conversations"&&!conversationsOpenState.hidden,"Conversations navigation must open its drawer");
   assert.ok(conversationsOpenState.rect.left>=-1&&conversationsOpenState.rect.right<conversationsOpenState.viewport-20,"Conversations drawer must open on the left and leave a visible strip on the right");
   await page.waitForFunction(expected => document.querySelectorAll(".conversations-row").length === expected, conversations.length);
   assert.equal(await page.locator("#appDrawer").isVisible(),false,"Conversations must replace the open main drawer on mobile");
