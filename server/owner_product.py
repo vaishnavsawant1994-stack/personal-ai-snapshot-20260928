@@ -529,8 +529,9 @@ def owner_product_router(runtime):
     @router.get('/profile/avatar')
     def profile_avatar(pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
         authenticate(pa_device, pa_token, 'ai:chat')
-        path = profile_avatar_path()
-        if not path.is_file():
+        base = profile_avatar_path()
+        path = next((base.parent / f'owner-avatar{suffix}' for suffix in ('.png', '.jpeg', '.webp') if (base.parent / f'owner-avatar{suffix}').is_file()), None)
+        if path is None:
             raise HTTPException(404, 'No profile photo has been uploaded')
         media_type = {'png': 'image/png', 'jpeg': 'image/jpeg', 'webp': 'image/webp'}.get(path.suffix.lstrip('.'), 'application/octet-stream')
         return Response(content=path.read_bytes(), media_type=media_type, headers={'Cache-Control': 'no-store, private'})
