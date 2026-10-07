@@ -1177,7 +1177,7 @@ try {
       home:document.querySelector(".home-intro").getBoundingClientRect(),
       header:document.querySelector(".topbar").getBoundingClientRect(),
       composer:document.querySelector("#composer").getBoundingClientRect(),
-      quick:[...document.querySelectorAll(".quick-action")].map(node=>node.getBoundingClientRect()),
+      quick:[...document.querySelectorAll(".v-shortcuts .v-card")].map(node=>node.getBoundingClientRect()),
     }));
     assert.ok(wide.doc<=wide.inner,"wide Home must not horizontally overflow at "+width+"x"+height);
     assertSharedComposerBottomInset(wide.composer.bottom,height,"wide Home composer at "+width+"x"+height);
@@ -1225,7 +1225,7 @@ try {
     await page.evaluate(()=>enterHomeLanding());
     const sweep=await page.evaluate(()=>{
       const box=selector=>{const r=document.querySelector(selector).getBoundingClientRect();return {left:r.left,right:r.right,width:r.width,height:r.height,bottom:r.bottom}};
-      return {viewport:innerWidth,document:document.documentElement.scrollWidth,composer:box('#composer'),home:box('.home-intro'),header:box('.topbar'),quick:box('.quick-actions')};
+      return {viewport:innerWidth,document:document.documentElement.scrollWidth,composer:box('#composer'),home:box('.home-intro'),header:box('.topbar'),quick:box('.v-shortcuts')};
     });
     assert.ok(sweep.document<=width,"intermediate width introduced page overflow at "+width+"px: "+JSON.stringify(sweep));
     for(const name of ["composer","home","header","quick"]){
@@ -1241,7 +1241,7 @@ try {
       viewport:{width:innerWidth,height:innerHeight},
       documentWidth:document.documentElement.scrollWidth,
       composer:document.querySelector('#composer').getBoundingClientRect(),
-      quick:document.querySelector('.quick-actions').getBoundingClientRect(),
+      quick:document.querySelector('.v-shortcuts').getBoundingClientRect(),
     }));
     assert.ok(shortOrTall.documentWidth<=width,"short, tall or landscape viewport must not create horizontal page overflow: "+JSON.stringify(shortOrTall));
     assert.ok(shortOrTall.composer.left>=-1&&shortOrTall.composer.right<=width+1&&shortOrTall.composer.bottom<=height+1,
@@ -1565,7 +1565,7 @@ try {
   const fourHundredPercentReflow=await page.evaluate(()=>({
     viewport:innerWidth,document:document.documentElement.scrollWidth,
     composer:document.querySelector('#composer').getBoundingClientRect(),
-    quick:document.querySelector('.quick-actions').getBoundingClientRect(),
+    quick:document.querySelector('.v-shortcuts').getBoundingClientRect(),
   }));
   assert.ok(fourHundredPercentReflow.document<=320,"400%-equivalent reflow must not create page overflow: "+JSON.stringify(fourHundredPercentReflow));
   assert.ok(fourHundredPercentReflow.composer.left>=-1&&fourHundredPercentReflow.composer.right<=321,"composer must remain visible in 400%-equivalent reflow");
