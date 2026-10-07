@@ -641,7 +641,7 @@ try {
   await page.click("#appConversations");
   await page.waitForTimeout(500);
   const conversationsOpenState=await page.evaluate(()=>{const panel=document.querySelector("#conversationDrawer"),rect=panel.getBoundingClientRect();return{mode:panel.dataset.mode,hidden:panel.classList.contains("hidden"),rect:{left:rect.left,right:rect.right,width:rect.width},viewport:innerWidth,appDrawerHidden:document.querySelector("#appDrawer").classList.contains("hidden")}});
-  console.log("Conversations drawer opened from the main navigation",JSON.stringify(conversationsOpenState));
+  console.log("Conversations drawer opened from the main navigation",JSON.stringify({state:conversationsOpenState,pageErrors}));
   assert.ok(conversationsOpenState.mode==="conversations"&&!conversationsOpenState.hidden,"Conversations navigation must open its drawer");
   assert.ok(conversationsOpenState.rect.left>=-1&&conversationsOpenState.rect.right<conversationsOpenState.viewport-20,"Conversations drawer must open on the left and leave a visible strip on the right");
   await page.waitForFunction(expected => document.querySelectorAll(".conversations-row").length === expected, conversations.length);
