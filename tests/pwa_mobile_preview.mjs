@@ -1406,12 +1406,14 @@ try {
   assert.equal(uploadedDocuments.length, 1, "attachment must use the existing Knowledge ingestion endpoint");
   assert.equal(uploadedDocuments[0].filename, "browser-qa.txt");
   assert.ok(uploadedDocuments[0].content_base64, "attachment bytes must be sent to Knowledge");
+  const conversationsBeforeFirstSend = conversationCreateCount;
+  const turnsBeforeFirstSend = turnConversationIds.length;
   await page.click("#sendButton");
   await page.waitForFunction(() => document.querySelectorAll("#messageStream .message").length === 2);
   assert.ok((await page.locator("#messageStream").innerText()).includes("Hello from browser QA"), "user message must render");
   assert.ok((await page.locator("#messageStream").innerText()).includes("Received: Hello from browser QA"), "assistant response must render");
-  assert.equal(conversationCreateCount,1,"the first Home/New Chat message must create exactly one fresh conversation");
-  assert.deepEqual(turnConversationIds,["new"],"the first message must be sent to the newly created conversation, never the old active chat");
+  assert.equal(conversationCreateCount,conversationsBeforeFirstSend+1,"the first Home/New Chat message must create exactly one fresh conversation");
+  assert.deepEqual(turnConversationIds.slice(turnsBeforeFirstSend),["new"],"the first message must be sent to the newly created conversation, never the old active chat");
   assert.equal(await page.evaluate(() => currentConversationId),"new","the UI must remain inside the newly created conversation");
   assert.equal(await page.locator(".message-time").count(),2,"canonical timestamps must render for both sides of the first turn");
   assert.equal(await page.locator(".message-time.pending").count(),0,"canonical sync must replace optimistic Syncing timestamps");
@@ -1420,8 +1422,8 @@ try {
   await page.locator("#message").press("Enter");
   await page.waitForFunction(() => document.querySelectorAll("#messageStream .message").length === 4);
   assert.ok((await page.locator("#messageStream").innerText()).includes("Received: Keyboard submit"), "Enter must submit the multiline editor without requiring a click");
-  assert.equal(conversationCreateCount,1,"subsequent messages must reuse the same newly created conversation");
-  assert.deepEqual(turnConversationIds,["new","new"],"every later turn must stay in that newly created conversation");
+  assert.equal(conversationCreateCount,conversationsBeforeFirstSend+1,"subsequent messages must reuse the same newly created conversation");
+  assert.deepEqual(turnConversationIds.slice(turnsBeforeFirstSend),["new","new"],"every later turn must stay in that newly created conversation");
   assert.equal(await page.evaluate(() => currentConversationId),"new");
   assert.equal(await page.locator(".message-time").count(),4,"every canonical user and AI message must keep an individual timestamp");
   assert.equal(await page.locator(".message-time.pending").count(),0);
