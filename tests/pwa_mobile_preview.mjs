@@ -7,10 +7,19 @@ const browser = await chromium.launch({
   ...(process.env.PLAYWRIGHT_CHROMIUM_ARGS ? { args: process.env.PLAYWRIGHT_CHROMIUM_ARGS.split(" ").filter(Boolean) } : {}),
 });
 
-const now = new Date();
-const atToday = (hour, minute = 0) =>
-  new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute).toISOString();
-const atDayOffset = (days,hour=10) => new Date(now.getFullYear(),now.getMonth(),now.getDate()+days,hour).toISOString();
+const appTimeZone = "Asia/Kolkata";
+const appDateParts = new Intl.DateTimeFormat("en-CA", {
+  timeZone: appTimeZone, year: "numeric", month: "2-digit", day: "2-digit",
+}).formatToParts(new Date());
+const appToday = Object.fromEntries(appDateParts.map(part => [part.type, part.value]));
+const atAppDay = (dayOffset, hour, minute = 0) => {
+  const date = new Date(Date.UTC(Number(appToday.year), Number(appToday.month) - 1, Number(appToday.day) + dayOffset));
+  // India Standard Time is UTC+05:30; test fixtures should follow the same
+  // calendar day the app uses, regardless of the GitHub runner's UTC locale.
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), hour - 5, minute - 30)).toISOString();
+};
+const atToday = (hour, minute = 0) => atAppDay(0, hour, minute);
+const atDayOffset = (days, hour = 10) => atAppDay(days, hour);
 const assertSharedComposerBottomInset=(bottom,viewport,label)=>{
   const gap=viewport-bottom;
   assert.ok(gap>=23&&gap<=25,`${label} must keep the shared 24px bottom inset: ${gap}px`);
