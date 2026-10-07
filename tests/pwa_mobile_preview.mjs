@@ -645,10 +645,11 @@ try {
 
   const conversationsClickTarget=await page.locator("#appConversations").evaluate(button=>{const rect=button.getBoundingClientRect();return{visible:rect.width>0&&rect.height>0,rect:{left:rect.left,right:rect.right,top:rect.top,bottom:rect.bottom},handler:String(button.onclick),hitTarget:document.elementFromPoint(rect.left+rect.width/2,rect.top+rect.height/2)?.id}});
   console.log("Conversations navigation click target",JSON.stringify(conversationsClickTarget));
+  await page.evaluate(()=>{const open=openConversationsDrawer;window.__conversationOpenTrace={called:false,error:null};window.openConversationsDrawer=function(){window.__conversationOpenTrace.called=true;try{return open()}catch(error){window.__conversationOpenTrace.error=error?.message||String(error);throw error}}});
   await page.click("#appConversations");
   await page.waitForTimeout(500);
   const conversationsOpenState=await page.evaluate(()=>{const panel=document.querySelector("#conversationDrawer"),rect=panel.getBoundingClientRect();return{mode:panel.dataset.mode,hidden:panel.classList.contains("hidden"),rect:{left:rect.left,right:rect.right,width:rect.width},viewport:innerWidth,appDrawerHidden:document.querySelector("#appDrawer").classList.contains("hidden")}});
-  console.log("Conversations drawer opened from the main navigation",JSON.stringify({state:conversationsOpenState,pageErrors}));
+  console.log("Conversations drawer opened from the main navigation",JSON.stringify({state:conversationsOpenState,pageErrors,trace:await page.evaluate(()=>window.__conversationOpenTrace)}));
   assert.ok(conversationsOpenState.mode==="conversations"&&!conversationsOpenState.hidden,"Conversations navigation must open its drawer");
   assert.ok(conversationsOpenState.rect.left>=-1&&conversationsOpenState.rect.right<conversationsOpenState.viewport-20,"Conversations drawer must open on the left and leave a visible strip on the right");
   await page.waitForFunction(expected => document.querySelectorAll(".conversations-row").length === expected, conversations.length);
