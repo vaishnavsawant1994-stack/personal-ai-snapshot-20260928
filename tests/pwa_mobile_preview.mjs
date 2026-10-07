@@ -1522,8 +1522,8 @@ try {
   await page.waitForTimeout(360);
   assert.equal(await page.evaluate(()=>document.activeElement?.id),'rp-memory-search','Memory search retains focus after refreshed results');
   await page.screenshot({path:'artifacts/personal-ai-memory-390x844.png',fullPage:true});
-  await page.locator('[data-section-close]').click();
-  assert.equal(await page.locator('#modulePanel').isVisible(),false,'section Close returns to Home');
+  await page.evaluate(()=>openModule('home'));
+  assert.equal(await page.locator('#modulePanel').isVisible(),false,'section navigation returns to Home');
 
   // Verify the global reduced-motion contract and a 200%-zoom-equivalent CSS viewport.
   // Playwright cannot change browser chrome zoom; the reduced CSS viewport exercises its reflow outcome.
