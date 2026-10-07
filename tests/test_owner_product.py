@@ -430,7 +430,7 @@ def test_account_deletion_stages_only_the_configured_owner_data_directory(tmp_pa
 
 
 def test_privacy_preferences_persist_and_validate_for_authenticated_device(tmp_path):
-    client, _, _ = make_client(tmp_path)
+    client, runtime, _ = make_client(tmp_path)
     response = client.put('/iphone/api/preferences', json={
         'continuous_voice': True,
         'voice_rate': 1.0,

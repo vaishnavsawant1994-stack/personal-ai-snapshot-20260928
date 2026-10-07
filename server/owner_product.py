@@ -14,7 +14,7 @@ from io import BytesIO
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Cookie, HTTPException
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field, field_validator
 from starlette.background import BackgroundTask
 
@@ -529,7 +529,7 @@ def owner_product_router(runtime):
         if not path.is_file():
             raise HTTPException(404, 'No profile photo has been uploaded')
         media_type = {'png': 'image/png', 'jpeg': 'image/jpeg', 'webp': 'image/webp'}.get(path.suffix.lstrip('.'), 'application/octet-stream')
-        return FileResponse(path, media_type=media_type, headers={'Cache-Control': 'no-store, private'})
+        return Response(content=path.read_bytes(), media_type=media_type, headers={'Cache-Control': 'no-store, private'})
 
     @router.put('/profile/avatar')
     def profile_avatar_upload(body: ProfileAvatarBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):

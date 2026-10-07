@@ -138,7 +138,9 @@ def conversation_voice_router(runtime, executor):
         transcript = body.transcript.strip()
         modality = input_modality(request)
         try:
-            saved_preferences = json.loads(registry.metadata(context.device_id).get('ui.preferences', '{}'))
+            metadata_reader = getattr(registry, 'metadata', None)
+            metadata = metadata_reader(context.device_id) if callable(metadata_reader) else {}
+            saved_preferences = json.loads(metadata.get('ui.preferences', '{}'))
         except (TypeError, ValueError, json.JSONDecodeError):
             saved_preferences = {}
         response_detail = saved_preferences.get('chat_response_detail', 'detailed')
