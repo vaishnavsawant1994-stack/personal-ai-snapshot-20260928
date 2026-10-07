@@ -1412,7 +1412,7 @@ try {
   await page.waitForFunction(() => document.querySelectorAll("#messageStream .message").length === 2);
   assert.ok((await page.locator("#messageStream").innerText()).includes("Hello from browser QA"), "user message must render");
   assert.ok((await page.locator("#messageStream").innerText()).includes("Received: Hello from browser QA"), "assistant response must render");
-  assert.equal(conversationCreateCount,conversationsBeforeFirstSend+1,"the first Home/New Chat message must create exactly one fresh conversation");
+  assert.equal(conversationCreateCount,conversationsBeforeFirstSend,"the first message must reuse the blank conversation created by New chat, without creating a duplicate");
   assert.deepEqual(turnConversationIds.slice(turnsBeforeFirstSend),["new"],"the first message must be sent to the newly created conversation, never the old active chat");
   assert.equal(await page.evaluate(() => currentConversationId),"new","the UI must remain inside the newly created conversation");
   assert.equal(await page.locator(".message-time").count(),2,"canonical timestamps must render for both sides of the first turn");
@@ -1422,7 +1422,7 @@ try {
   await page.locator("#message").press("Enter");
   await page.waitForFunction(() => document.querySelectorAll("#messageStream .message").length === 4);
   assert.ok((await page.locator("#messageStream").innerText()).includes("Received: Keyboard submit"), "Enter must submit the multiline editor without requiring a click");
-  assert.equal(conversationCreateCount,conversationsBeforeFirstSend+1,"subsequent messages must reuse the same newly created conversation");
+  assert.equal(conversationCreateCount,conversationsBeforeFirstSend,"subsequent messages must reuse the same fresh conversation");
   assert.deepEqual(turnConversationIds.slice(turnsBeforeFirstSend),["new","new"],"every later turn must stay in that newly created conversation");
   assert.equal(await page.evaluate(() => currentConversationId),"new");
   assert.equal(await page.locator(".message-time").count(),4,"every canonical user and AI message must keep an individual timestamp");
