@@ -15,6 +15,7 @@ from knowledge.store import KnowledgeStore
 from memory.second_brain import SecondBrain
 from memory.store import MemoryStore
 from qualification.program import P3QualificationProgram
+from projects.store import ProjectStore
 from server.owner_product import owner_product_router
 from server.owner_product import stage_owner_data_deletion
 from notifications.service import NotificationService
@@ -78,6 +79,7 @@ def make_client(tmp_path, *, reauthenticated_at=None):
         'memory': memory,
         'second_brain': SecondBrain(memory),
         'knowledge': KnowledgeStore(tmp_path / 'knowledge.sqlite3', tmp_path / 'objects'),
+        'project_store': ProjectStore(tmp_path / 'projects.sqlite3'),
         'automations': automations,
         'executor': executor,
         'pwa_sessions': SessionStoreProbe(),
@@ -336,6 +338,7 @@ def test_ui_preferences_are_scoped_to_the_trusted_device_and_persist(tmp_path):
         'chat_message_spacing': 'comfortable',
         'chat_new_context': 'general',
         'chat_project_context_enabled': False,
+        'pinned_sidebar_items': [],
     }
     updated = client.put('/iphone/api/preferences', json={
         'continuous_voice': False,
@@ -368,7 +371,8 @@ def test_profile_metadata_account_id_and_photo_use_authenticated_owner_services(
     assert copied.json()['account_id'].endswith(profile['account_id_masked'][-4:])
     assert client.get('/iphone/api/profile/metadata').json()['account_id_masked'] == profile['account_id_masked']
 
-    pixel = base64.b64encode(bytes.fromhex('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000b49444154789c636000020000050001a5f645400000000049454e44ae426082')).decode()
+    # A valid 1×1 PNG keeps this endpoint test focused on the upload path.
+    pixel = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGBgAAAABQABpfZFQAAAAABJRU5ErkJggg=='
     uploaded = client.put('/iphone/api/profile/avatar', json={'media_type': 'image/png', 'data_base64': pixel})
     assert uploaded.status_code == 200
     assert client.get('/iphone/api/profile/metadata').json()['avatar_available'] is True

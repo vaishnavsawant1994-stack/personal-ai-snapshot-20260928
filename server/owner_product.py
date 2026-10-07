@@ -158,7 +158,27 @@ class UiPreferencesBody(BaseModel):
     continuous_voice: bool = True
     voice_rate: float = Field(default=1.0, ge=0.75, le=1.35)
     quiet_hours: bool = True
-    pinned_sidebar_items: list[str] = Field(default_factory=list, max_length=40)
+    privacy_memory_enabled: bool = True
+    privacy_review_before_saving: bool = True
+    privacy_allow_project_context_general: bool = False
+    privacy_save_conversations: bool = True
+    privacy_retention: Literal['until_deleted'] = 'until_deleted'
+    privacy_share_anonymous_usage_data: bool = False
+    appearance_theme: Literal['dark', 'light', 'system'] = 'dark'
+    appearance_accent: Literal['blue', 'teal', 'violet', 'amber', 'rose'] = 'blue'
+    appearance_density: Literal['comfortable', 'compact'] = 'comfortable'
+    appearance_motion: Literal['standard', 'reduced'] = 'standard'
+    appearance_text_size: Literal['small', 'default', 'large'] = 'default'
+    chat_enter_sends: bool = True
+    chat_keep_composer_visible: bool = True
+    chat_response_detail: Literal['concise', 'balanced', 'detailed'] = 'detailed'
+    chat_response_style: Literal['clear_step_by_step', 'warm_conversational', 'technical', 'direct'] = 'clear_step_by_step'
+    chat_show_sources: bool = True
+    chat_show_timestamps: bool = True
+    chat_show_actions: bool = True
+    chat_message_spacing: Literal['comfortable', 'compact'] = 'comfortable'
+    chat_new_context: Literal['general', 'project'] = 'general'
+    chat_project_context_enabled: bool = False
     pinned_sidebar_items: list[str] = Field(default_factory=list, max_length=40)
 
 
@@ -223,6 +243,14 @@ class NotificationPreferencesBody(BaseModel):
     @classmethod
     def valid_timezone(cls, value):
         cls._check_timezone(value.timezone)
+        return value
+
+    @field_validator('events')
+    @classmethod
+    def reject_duplicate_channels(cls, value):
+        for event in value.values():
+            if len(event.channels) != len(set(event.channels)):
+                raise ValueError('Notification channels cannot be duplicated')
         return value
 
 

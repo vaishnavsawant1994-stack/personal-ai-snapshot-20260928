@@ -17,7 +17,8 @@ DEFAULT_PREFERENCES = {
         'needs_review': {'enabled': True, 'channels': ['in_app']},
         'blocked_work': {'enabled': True, 'channels': ['in_app']},
         'workflow_updates': {'enabled': False, 'channels': []},
-        'product_updates': {'enabled': False, 'channels': ['in_app']},
+        # Product-update publishing is not wired to this installation yet.
+        'product_updates': {'enabled': False, 'channels': []},
     },
     'quiet_hours': {'enabled': True, 'start': '22:00', 'end': '08:00', 'timezone': 'Asia/Kolkata'},
     'allow_urgent_reviews': True,
