@@ -1237,17 +1237,25 @@ try {
   for(const [width,height] of [[320,480],[390,480],[390,1100],[844,390]]){
     await page.setViewportSize({width,height});
     await page.evaluate(()=>enterHomeLanding());
-    const shortOrTall=await page.evaluate(()=>({
-      viewport:{width:innerWidth,height:innerHeight},
-      documentWidth:document.documentElement.scrollWidth,
-      composer:document.querySelector('#composer').getBoundingClientRect(),
-      quick:document.querySelector('.v-shortcuts').getBoundingClientRect(),
-    }));
+    await page.evaluate(()=>{
+      document.querySelector('.v-shortcuts .v-card:last-child')?.scrollIntoView({block:'end',behavior:'instant'});
+    });
+    await page.waitForTimeout(60);
+    const shortOrTall=await page.evaluate(()=>{
+      const last=document.querySelector('.v-shortcuts .v-card:last-child');
+      return {
+        viewport:{width:innerWidth,height:innerHeight},
+        documentWidth:document.documentElement.scrollWidth,
+        composer:document.querySelector('#composer').getBoundingClientRect(),
+        lastAction:last?.getBoundingClientRect(),
+        home:document.querySelector('.home-intro').getBoundingClientRect(),
+      };
+    });
     assert.ok(shortOrTall.documentWidth<=width,"short, tall or landscape viewport must not create horizontal page overflow: "+JSON.stringify(shortOrTall));
     assert.ok(shortOrTall.composer.left>=-1&&shortOrTall.composer.right<=width+1&&shortOrTall.composer.bottom<=height+1,
       "composer must remain in view in short, tall and landscape layouts: "+JSON.stringify(shortOrTall));
-    assert.ok(shortOrTall.quick.bottom<=shortOrTall.composer.top+1,
-      "Home actions must not be covered by the composer in short, tall and landscape layouts: "+JSON.stringify(shortOrTall));
+    assert.ok(shortOrTall.lastAction&&shortOrTall.lastAction.bottom<=shortOrTall.composer.top+1,
+      "The final Home action must remain reachable above the composer in short, tall and landscape layouts: "+JSON.stringify(shortOrTall));
   }
   const responsiveModuleWidths=[320,360,375,390,430,600,768,820,1024,1280,1440,1920,2560];
   const responsiveModules=["memory","knowledge","activities","tools","workflows","devices","dashboard","settings","owner","system"];
