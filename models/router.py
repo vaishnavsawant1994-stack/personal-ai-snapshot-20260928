@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 import io
 import json
 from pathlib import Path
@@ -92,10 +92,11 @@ class Provider:
 class ModelRouter:
     """Replaceable, OpenAI-compatible routing with explicit safe failures."""
 
-    def __init__(self, settings, *, events=None, audit=None):
+    def __init__(self, settings, *, events=None, audit=None, vault=None):
         self.settings = settings
         self.events = events
         self.audit = audit
+        self.vault = vault
         self.timeout = max(1.0, float(getattr(settings, 'model_request_timeout_seconds', 120)))
         self.health_timeout = max(0.5, float(getattr(settings, 'model_health_timeout_seconds', 5)))
         self.max_response_bytes = max(
@@ -104,22 +105,26 @@ class ModelRouter:
         )
         self.allow_external_sensitive = bool(getattr(settings, 'allow_external_for_sensitive', False))
         self.local_first = bool(getattr(settings, 'model_local_first', True))
-        self.providers = self._build_providers()
-        selected = str(getattr(settings, 'ai_provider', 'local') or 'local').strip().lower()
-        self.primary = self._safe_provider_id(selected)
         self._settings_lock = threading.RLock()
         self._owner_settings_path = None
         self._owner_selected_provider = False
+        self._owner_provider_configs = {}
+        row = None
         data_dir = getattr(settings, 'data_dir', None)
         if data_dir is not None:
             self._owner_settings_path = Path(data_dir) / 'owner-model-settings.sqlite3'
             self._owner_settings_path.parent.mkdir(parents=True, exist_ok=True)
             with self._model_settings_connection() as con:
                 con.execute('CREATE TABLE IF NOT EXISTS model_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at REAL NOT NULL)')
+                con.execute('CREATE TABLE IF NOT EXISTS owner_provider_config (provider_id TEXT PRIMARY KEY, model TEXT NOT NULL, updated_at REAL NOT NULL)')
+                self._owner_provider_configs = {row['provider_id']: row['model'] for row in con.execute('SELECT provider_id,model FROM owner_provider_config')}
                 row = con.execute("SELECT value FROM model_settings WHERE key='default_provider'").fetchone()
-            if row and self._provider_can_run(row[0]):
-                self.primary = row[0]
-                self._owner_selected_provider = True
+        self.providers = self._build_providers()
+        selected = str(getattr(settings, 'ai_provider', 'local') or 'local').strip().lower()
+        self.primary = self._safe_provider_id(selected)
+        if row and self._provider_can_run(row[0]):
+            self.primary = row[0]
+            self._owner_selected_provider = True
         fallback = getattr(settings, 'model_fallback_providers', ()) or ()
         if isinstance(fallback, str):
             fallback = tuple(item.strip() for item in fallback.split(',') if item.strip())
@@ -172,6 +177,91 @@ class ModelRouter:
                 self.fallbacks = tuple(dict.fromkeys(([previous] if previous != 'invalid' else []) + [p for p in self.fallbacks if p != selected]))
             return {'provider': selected, 'previous_provider': previous, 'persisted': self._owner_settings_path is not None}
 
+    def _test_owner_provider(self, provider_id: str, api_key: str) -> tuple[Provider, list[str]]:
+        provider_id = self._safe_provider_id(str(provider_id or '').strip().lower())
+        if provider_id not in {'openai', 'openrouter', 'gemini'}:
+            raise ValueError('Select a supported external provider')
+        api_key = str(api_key or '').strip()
+        if not 16 <= len(api_key) <= 4096 or any(ord(char) < 32 for char in api_key):
+            raise ValueError('Enter a valid provider credential')
+        current = self.providers[provider_id]
+        candidate = replace(current, api_key=api_key)
+        try:
+            response = self._request(candidate, 'GET', '/models', timeout=self.health_timeout)
+        except ModelError as exc:
+            # Provider response bodies and credential-related details are never returned to the owner UI.
+            raise ValueError('Provider connection failed. Check the credential and try again.') from exc
+        try:
+            payload = response.json()
+            models = payload.get('data', []) if isinstance(payload, dict) else []
+            available = [str(row.get('id', '')) for row in models if isinstance(row, dict) and row.get('id')]
+        except (AttributeError, TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise ValueError('The provider returned an invalid model list') from exc
+        if not available:
+            raise ValueError('The provider returned no available models')
+        return candidate, available
+
+    def test_owner_provider(self, provider_id: str, api_key: str) -> dict:
+        if self._owner_settings_path is None or self.vault is None:
+            raise RuntimeError('Encrypted provider storage is unavailable')
+        _, available = self._test_owner_provider(provider_id, api_key)
+        return {'provider': provider_id, 'models': available[:500], 'credential_stored': False}
+
+    def connect_owner_provider(self, provider_id: str, api_key: str, model: str) -> dict:
+        """Validate a known provider using its live model endpoint, then store its key in the encrypted vault."""
+        if self._owner_settings_path is None or self.vault is None:
+            raise RuntimeError('Encrypted provider storage is unavailable')
+        candidate, available = self._test_owner_provider(provider_id, api_key)
+        model = str(model or '').strip()
+        if not model or len(model) > 200 or any(ord(char) < 32 for char in model):
+            raise ValueError('Select a model returned by the provider')
+        if model not in available:
+            raise ValueError('The selected model is not available for this provider account')
+        with self._settings_lock:
+            previous_key = self.vault.get(f'ai-provider:{provider_id}:api-key')
+            self.vault.set(f'ai-provider:{provider_id}:api-key', api_key)
+            try:
+                with self._model_settings_connection() as con:
+                    con.execute('INSERT INTO owner_provider_config(provider_id,model,updated_at) VALUES(?,?,?) ON CONFLICT(provider_id) DO UPDATE SET model=excluded.model,updated_at=excluded.updated_at', (provider_id, model, time.time()))
+            except Exception:
+                if previous_key:
+                    self.vault.set(f'ai-provider:{provider_id}:api-key', str(previous_key))
+                else:
+                    self.vault.delete(f'ai-provider:{provider_id}:api-key')
+                raise
+            self._owner_provider_configs[provider_id] = model
+            self.providers[provider_id] = replace(candidate, model=model)
+            if hasattr(self, 'observability'):
+                self.observability.configured(provider_id, True, provider_id in getattr(self, 'disabled', set()))
+        return {'provider': candidate.id, 'model': model, 'available_models': len(available), 'credential_stored': True}
+
+    def disconnect_owner_provider(self, provider_id: str) -> dict:
+        provider_id = self._safe_provider_id(str(provider_id or '').strip().lower())
+        if provider_id not in {'openai', 'openrouter', 'gemini'}:
+            raise ValueError('This provider cannot be disconnected here')
+        if provider_id == self.primary:
+            raise ValueError('Choose another default provider before disconnecting this provider')
+        if provider_id not in self._owner_provider_configs:
+            raise ValueError('This provider is configured by the server and cannot be removed here')
+        with self._settings_lock:
+            previous_key = self.vault.get(f'ai-provider:{provider_id}:api-key') if self.vault else None
+            try:
+                if self.vault:
+                    self.vault.delete(f'ai-provider:{provider_id}:api-key')
+                with self._model_settings_connection() as con:
+                    con.execute('DELETE FROM owner_provider_config WHERE provider_id=?', (provider_id,))
+            except Exception:
+                if previous_key and self.vault:
+                    self.vault.set(f'ai-provider:{provider_id}:api-key', str(previous_key))
+                raise
+            self._owner_provider_configs.pop(provider_id, None)
+            self.fallbacks = tuple(item for item in self.fallbacks if item != provider_id)
+            self.providers = self._build_providers()
+            if hasattr(self, 'observability'):
+                provider = self.providers[provider_id]
+                self.observability.configured(provider_id, bool(provider.configured and (provider.private or provider.api_key)), provider_id in getattr(self, 'disabled', set()))
+        return {'provider': provider_id, 'disconnected': True}
+
     def _build_providers(self) -> dict[str, Provider]:
         explicit_local = bool(getattr(self.settings, 'local_ai_explicit', False))
         hosted = bool(
@@ -185,7 +275,7 @@ class ModelRouter:
             getattr(self.settings, 'self_hosted_ai_model', '')
             or getattr(self.settings, 'local_ai_model', '')
         )
-        return {
+        providers = {
             'self_hosted': Provider(
                 'self_hosted', self_hosted_url,
                 str(getattr(self.settings, 'self_hosted_ai_api_key', '') or ''),
@@ -214,6 +304,12 @@ class ModelRouter:
                 False, ('chat', 'json', 'vision'), 1, 1,
             ),
         }
+        if self.vault:
+            for provider_id, model in self._owner_provider_configs.items():
+                key = self.vault.get(f'ai-provider:{provider_id}:api-key', '')
+                if key and provider_id in providers:
+                    providers[provider_id] = replace(providers[provider_id], api_key=str(key), model=model)
+        return providers
 
     def _candidates(self, capability: str, sensitivity: str) -> list[Provider]:
         candidates = []
@@ -336,7 +432,7 @@ class ModelRouter:
             'external_sensitive_allowed': self.allow_external_sensitive,
             'provider': provider.public() if provider else None,
             'providers': [
-                {**item.public(), 'configured': self._provider_can_run(item.id), 'health': dict(self._health[item.id])}
+                {**item.public(), 'configured': self._provider_can_run(item.id), 'owner_managed': item.id in self._owner_provider_configs, 'health': dict(self._health[item.id])}
                 for item in self.providers.values()
             ],
             'last_check': dict(self._last),
