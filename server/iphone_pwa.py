@@ -318,6 +318,14 @@ def iphone_pwa_router(runtime, settings, *, include_legacy_runtime_routes: bool 
     def reference_pages_styles():
         return Response((web_dir / 'reference-pages.css').read_text(encoding='utf-8'), media_type='text/css', headers={'Cache-Control': 'no-cache'})
 
+    @router.get('/owner-controls.js', include_in_schema=False)
+    def owner_controls_script():
+        return Response((web_dir / 'owner-controls.js').read_text(encoding='utf-8'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+    @router.get('/owner-controls.css', include_in_schema=False)
+    def owner_controls_styles():
+        return Response((web_dir / 'owner-controls.css').read_text(encoding='utf-8'), media_type='text/css', headers={'Cache-Control': 'no-cache'})
+
     @router.get('/projects-workspace.css', include_in_schema=False)
     def projects_workspace_styles():
         return Response((web_dir / 'projects-workspace.css').read_text(encoding='utf-8'), media_type='text/css', headers={'Cache-Control': 'no-cache'})

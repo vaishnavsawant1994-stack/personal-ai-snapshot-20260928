@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 from pathlib import Path
 import sqlite3
+import json
 from typing import Any, Callable
 from urllib.parse import urlparse
 from core.permissions import PermissionDecision, PermissionEngine
@@ -30,7 +31,14 @@ class ToolRegistry:
         if self._data_root is not None:return self._data_root
         self._data_root=data_root;self._control_path=data_root/'runtime-controls.sqlite3';self._approval_path=data_root/'trusted-actions.sqlite3';self._control_path.parent.mkdir(parents=True,exist_ok=True)
         with self._control_con() as con:
-            con.execute('CREATE TABLE IF NOT EXISTS runtime_controls (key TEXT PRIMARY KEY,value TEXT NOT NULL)');row=con.execute("SELECT value FROM runtime_controls WHERE key='emergency_stop'").fetchone();self.emergency_stop=bool(row and row[0]=='1')
+            con.execute('CREATE TABLE IF NOT EXISTS runtime_controls (key TEXT PRIMARY KEY,value TEXT NOT NULL)')
+            row=con.execute("SELECT value FROM runtime_controls WHERE key='emergency_stop'").fetchone();self.emergency_stop=bool(row and row[0]=='1')
+            row=con.execute("SELECT value FROM runtime_controls WHERE key='autonomy_mode'").fetchone()
+            if row and row[0] in {'observe','suggest','ask','act'}:self.permissions.mode=row[0]
+            row=con.execute("SELECT value FROM runtime_controls WHERE key='owner_permission_rules'").fetchone()
+            if row:
+                try:self.permissions.set_rules(json.loads(row[0]))
+                except (TypeError,ValueError):pass
         from security.approvals import ApprovalManager
         from security.policy_gateway import PolicyGateway
         self.policy_gateway=PolicyGateway(data_root/'operator-policies.sqlite3',emergency_stop=lambda:self.emergency_stop,security_epoch_provider=lambda:ApprovalManager(path=self._approval_path).current_security_epoch())
@@ -71,7 +79,61 @@ class ToolRegistry:
     def set_autonomy_mode(self,mode):
         mode=str(mode).lower().strip()
         if mode not in {'observe','suggest','ask','act'}:raise ValueError('invalid autonomy mode')
-        self.permissions.mode=mode;return mode
+        self.permissions.mode=mode
+        if self._control_path is not None:
+            owner_mode='safe' if mode in {'observe','suggest'} else 'balanced' if mode=='ask' else 'custom'
+            with self._control_con() as con:
+                con.execute("INSERT OR REPLACE INTO runtime_controls(key,value) VALUES('autonomy_mode',?)",(mode,))
+                con.execute("INSERT OR REPLACE INTO runtime_controls(key,value) VALUES('permission_mode',?)",(owner_mode,))
+        return mode
+    @staticmethod
+    def permission_operation(tool, parameters):
+        """Map a registered capability to the owner-facing permission group."""
+        name=' '.join((str(getattr(tool,'name','')),str(getattr(tool,'description','')),str(getattr(tool,'capability','') or ''),str(getattr(tool,'connector_id','') or ''))).casefold()
+        risk=int(getattr(tool,'risk',Risk.READ_ONLY))
+        if risk==int(Risk.READ_ONLY):return 'read'
+        if any(word in name for word in ('financial','payment','invoice','purchase','subscription','charge','refund')):return 'financial_actions'
+        if any(word in name for word in ('credential','provider','security','permission','account setting','passkey','password')):return 'account_security_changes'
+        if any(word in name for word in ('delete','remove','destroy','erase')):return 'delete'
+        if any(word in name for word in ('email','message','send','share','publish','post to')):return 'external_communication'
+        if any(word in name for word in ('workflow','deploy','execute','run code','shell','command','integration')):return 'execute_actions'
+        if risk>=int(Risk.CRITICAL):return 'account_security_changes'
+        if risk>=int(Risk.DESTRUCTIVE):return 'delete'
+        if risk>=int(Risk.EXTERNAL_SIDE_EFFECT):return 'execute_actions'
+        if any(word in name for word in ('read','list','search','get','inspect','view')):return 'read'
+        if any(word in name for word in ('create','new','add','draft')):return 'create'
+        if any(word in name for word in ('edit','update','organize','rename','move','modify')):return 'edit'
+        # Unknown reversible actions keep the existing autonomy-mode behavior;
+        # don't grant automatic execution by guessing a category.
+        return None
+    def set_owner_permission_rules(self,rules):
+        clean=self.permissions.set_rules(rules)
+        if self._control_path is not None:
+            with self._control_con() as con:con.execute("INSERT OR REPLACE INTO runtime_controls(key,value) VALUES('owner_permission_rules',?)",(json.dumps(clean,sort_keys=True,separators=(',',':')),))
+        return clean
+    def update_owner_permissions(self,mode,rules):
+        mode=str(mode).lower().strip()
+        if mode not in {'safe','balanced','custom'}:raise ValueError('invalid owner permission mode')
+        candidate=PermissionEngine(self.permissions.mode)
+        clean=candidate.set_rules(rules)
+        runtime_mode='observe' if mode=='safe' else 'ask'
+        if self._control_path is not None:
+            with self._control_con() as con:
+                con.execute('BEGIN IMMEDIATE')
+                con.execute("INSERT OR REPLACE INTO runtime_controls(key,value) VALUES('permission_mode',?)",(mode,))
+                con.execute("INSERT OR REPLACE INTO runtime_controls(key,value) VALUES('autonomy_mode',?)",(runtime_mode,))
+                con.execute("INSERT OR REPLACE INTO runtime_controls(key,value) VALUES('owner_permission_rules',?)",(json.dumps(clean,sort_keys=True,separators=(',',':')),))
+                con.commit()
+        self.permissions.mode=runtime_mode
+        self.permissions.rules=clean
+        return {'mode':mode,'rules':dict(clean)}
+    def owner_permissions(self):
+        mode={'observe':'safe','suggest':'safe','ask':'balanced','act':'custom'}.get(self.permissions.mode,'balanced')
+        if self._control_path is not None:
+            with self._control_con() as con:
+                row=con.execute("SELECT value FROM runtime_controls WHERE key='permission_mode'").fetchone()
+                if row and row[0] in {'safe','balanced','custom'}:mode=row[0]
+        return {'mode':mode,'rules':dict(self.permissions.rules)}
     @property
     def autonomy_mode(self):return self.permissions.mode
     @staticmethod
@@ -126,7 +188,7 @@ class ToolRegistry:
         if tool.prohibited:return PermissionDecision(False,False,'this connector operation is prohibited by policy')
         parameters=self._prepare_trusted(tool,parameters);classification=str(data_classification or 'internal').strip().lower()
         if classification in set(tool.prohibited_data_classifications):return PermissionDecision(False,False,'this data classification is prohibited for the connector operation')
-        self.validate_destination(tool,parameters);risk=self.effective_risk(tool,parameters=parameters,data_classification=classification);return self.permissions.decide(int(risk),confirmed=confirmed)
+        self.validate_destination(tool,parameters);risk=self.effective_risk(tool,parameters=parameters,data_classification=classification);operation=self.permission_operation(tool,parameters);return self.permissions.decide(int(risk),confirmed=confirmed,operation=operation)
     def verify_result(self,tool,parameters,result):
         if tool.verifier is not None:
             verdict=tool.verifier(parameters,result)

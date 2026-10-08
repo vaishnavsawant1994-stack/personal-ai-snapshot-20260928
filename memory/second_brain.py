@@ -569,12 +569,12 @@ class SecondBrain:
             result['dry_run'] = False
         return result
 
-    def extract_candidates(self, user_text: str, assistant_text: str | None = None):
+    def extract_candidates(self, user_text: str, assistant_text: str | None = None, *, sensitivity: str = 'internal'):
         if not self.models:
             return []
         prompt = f'''Extract only durable user facts, preferences, people, projects, goals, decisions or events explicitly supported by USER TEXT. Never treat assistant claims as user facts. If the owner says not to remember, retain, or store something, classify it as never_store. Return JSON exactly like:\n{{"memories":[{{"type":"fact|preference|project|person|goal|decision|event|note","subject":"...","content":"...","confidence":0.0,"importance":0.0,"sensitivity":"normal|sensitive|secret|never_store","occurred_at":null,"evidence":[],"tags":[]}}]}}\nUSER TEXT:\n{user_text}'''
         try:
-            data = self.models.json(prompt, system='Return conservative memory candidates as JSON only. Do not infer unsupported personal facts.')
+            data = self.models.json(prompt, system='Return conservative memory candidates as JSON only. Do not infer unsupported personal facts.', sensitivity=sensitivity)
         except Exception:
             return []
         output = []

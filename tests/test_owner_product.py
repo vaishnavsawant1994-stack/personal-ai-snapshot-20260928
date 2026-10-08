@@ -18,6 +18,7 @@ from qualification.program import P3QualificationProgram
 from projects.store import ProjectStore
 from server.owner_product import owner_product_router
 from server.owner_product import stage_owner_data_deletion
+from recovery.backup import BackupService
 from notifications.service import NotificationService
 from security.request_context import TrustedRequestContext, set_trusted_request, reset_trusted_request
 
@@ -808,3 +809,48 @@ def test_stage8_owner_workflow_approval_state_hidden_from_foreign_device(tmp_pat
     own = client.post(f'/iphone/api/workflows/runs/{run_id}/approve')
     assert own.status_code == 409
     assert 'not waiting' in own.text.lower()
+
+
+def test_owner_backup_create_verify_and_download_are_authenticated(tmp_path):
+    class RootKey:
+        def get_or_create(self):
+            return b'k' * 32
+
+    client, runtime, _ = make_client(tmp_path)
+    data_dir = tmp_path / 'backup-source'
+    data_dir.mkdir()
+    (data_dir / 'owner-note.txt').write_text('owner data', encoding='utf-8')
+    runtime['backups'] = BackupService(data_dir, RootKey())
+
+    listing = client.get('/iphone/api/owner/backups')
+    assert listing.status_code == 200
+    assert listing.json()['backups'] == []
+
+    created = client.post('/iphone/api/owner/backups', json={})
+    assert created.status_code == 200
+    backup = created.json()['backup']
+    assert backup['encrypted'] is True
+    assert backup['status'] == 'verified'
+    assert backup['size_bytes'] > 0
+
+    verify = client.post(f"/iphone/api/owner/backups/{backup['id']}/verify", json={})
+    assert verify.status_code == 200
+    assert verify.json()['ok'] is True
+    assert verify.json()['encrypted'] is True
+
+    download = client.get(f"/iphone/api/owner/backups/{backup['id']}/download")
+    assert download.status_code == 200
+    assert download.content.startswith(b'PAIBACKUP2\n')
+    assert 'no-store' in download.headers['cache-control']
+
+    rows = client.get('/iphone/api/owner/backups').json()['backups']
+    assert len(rows) == 1
+    assert rows[0]['id'] == backup['id']
+
+
+def test_owner_backup_routes_reject_untrusted_clients(tmp_path):
+    client, runtime, _ = make_client(tmp_path)
+    runtime['backups'] = SimpleNamespace(backup_dir=tmp_path / 'backups')
+    client.cookies.delete('pa_token')
+    assert client.get('/iphone/api/owner/backups').status_code == 401
+    assert client.post('/iphone/api/owner/backups', json={}).status_code == 401

@@ -4,7 +4,9 @@ import base64
 import binascii
 import json
 import os
+import re
 import shutil
+import threading
 import time
 import uuid
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -15,8 +17,9 @@ from io import BytesIO
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Cookie, HTTPException
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import SecretStr
 from starlette.background import BackgroundTask
 
 from knowledge.store import KnowledgeError
@@ -53,6 +56,7 @@ class MemoryUpdateBody(BaseModel):
     parent_id: str | None = None
     scope: Literal['personal', 'project'] | None = None
     project_id: str | None = None
+    pinned: bool | None = None
 
 
 class RetentionBody(BaseModel):
@@ -152,6 +156,35 @@ class WorkflowRunBody(BaseModel):
 
 class EmergencyStopBody(BaseModel):
     enabled: bool
+
+
+class OwnerPermissionsBody(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    mode: Literal['safe', 'balanced', 'custom']
+    rules: dict[str, Literal['allow', 'ask', 'never']]
+
+
+class OwnerDefaultProviderBody(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    provider_id: str = Field(min_length=1, max_length=80, pattern=r'^[a-z0-9_-]+$')
+
+
+class OwnerProviderConnectBody(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    provider_id: Literal['openai', 'openrouter', 'gemini']
+    api_key: SecretStr = Field(min_length=16, max_length=4096)
+    model: str = Field(min_length=1, max_length=200)
+
+
+class OwnerProviderTestBody(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    provider_id: Literal['openai', 'openrouter', 'gemini']
+    api_key: SecretStr = Field(min_length=16, max_length=4096)
+
+
+class OwnerProviderModelBody(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    model: str = Field(min_length=1, max_length=200)
 
 
 class UiPreferencesBody(BaseModel):
@@ -344,6 +377,9 @@ def owner_product_router(runtime):
     memory = runtime['memory']
     second_brain = runtime['second_brain']
     knowledge = runtime['knowledge']
+    backup_lock = runtime.setdefault('owner_backup_lock', threading.RLock())
+    provider_attempt_lock = threading.Lock()
+    provider_attempts: dict[str, tuple[float, int]] = {}
 
     def authenticate(device_id: str | None, token: str | None, scope: str):
         if not device_id or not token or not registry.authenticate(device_id, token):
@@ -354,6 +390,32 @@ def owner_product_router(runtime):
 
     def audit(action: str, *, device_id: str, **payload):
         memory.audit('owner-product', action, {'device_id': device_id, **payload})
+
+    def limit_provider_attempts(device_id: str):
+        now = time.monotonic()
+        with provider_attempt_lock:
+            for key, (started, _) in list(provider_attempts.items()):
+                if now - started >= 60:
+                    provider_attempts.pop(key, None)
+            started, count = provider_attempts.get(device_id, (now, 0))
+            if count >= 5:
+                raise HTTPException(429, 'Too many provider connection attempts. Wait a minute and try again.')
+            provider_attempts[device_id] = (started, count + 1)
+
+    def backup_file(backup_id: str):
+        service = runtime.get('backups')
+        if service is None:
+            raise HTTPException(503, 'Encrypted backup service is unavailable')
+        if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,159}\.paibackup', backup_id):
+            raise HTTPException(404, 'Backup not found')
+        candidate = service.backup_dir / backup_id
+        if candidate.is_symlink():
+            raise HTTPException(404, 'Backup not found')
+        path = candidate.resolve()
+        root = service.backup_dir.resolve()
+        if root not in path.parents or path.is_symlink() or not path.is_file():
+            raise HTTPException(404, 'Backup not found')
+        return service, path
 
     def require_fresh_reauthentication():
         context = current_trusted_request()
@@ -807,6 +869,17 @@ def owner_product_router(runtime):
         if body.sensitivity in {'sensitive', 'secret'} and not can_read_sensitive_memory(device_id):
             raise HTTPException(403, 'This device cannot mark memory sensitive')
         changes = body.model_dump(exclude_unset=True, exclude_none=True)
+        if 'pinned' in changes:
+            pinned = bool(changes.pop('pinned'))
+            try:
+                current_metadata = json.loads(existing.get('metadata_json') or '{}')
+            except (TypeError, ValueError, json.JSONDecodeError):
+                current_metadata = {}
+            if pinned:
+                current_metadata['pinned'] = True
+            else:
+                current_metadata.pop('pinned', None)
+            changes['metadata'] = current_metadata
         if 'scope' in changes or 'project_id' in changes:
             metadata_raw = existing.get('metadata_json') or '{}'
             try:
@@ -1040,6 +1113,100 @@ def owner_product_router(runtime):
             raise HTTPException(404, 'Knowledge document not found')
         audit('knowledge.deleted', device_id=device_id, document_id=document_id)
         return {'ok': True, 'document_id': document_id}
+
+    @router.get('/owner/backups')
+    def owner_backups(
+        pa_device: str | None = Cookie(default=None),
+        pa_token: str | None = Cookie(default=None),
+    ):
+        device_id = authenticate(pa_device, pa_token, 'activities:read')
+        service = runtime.get('backups')
+        if service is None:
+            return {'available': False, 'can_create': False, 'backups': [], 'total_size_bytes': None}
+        all_paths = [path for path in service.backup_dir.glob('*.paibackup') if not path.is_symlink() and path.is_file()]
+        rows = []
+        for path in sorted(all_paths, key=lambda item: item.stat().st_mtime, reverse=True)[:100]:
+            if path.is_symlink() or not path.is_file():
+                continue
+            stat = path.stat()
+            with path.open('rb') as handle:
+                encrypted = handle.read(11) == b'PAIBACKUP2\n'
+            rows.append({
+                'id': path.name,
+                'created_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(stat.st_mtime)),
+                'size_bytes': stat.st_size,
+                'status': 'stored_unverified',
+                'encrypted': encrypted,
+            })
+        return {
+            'available': True,
+            'can_create': bool(registry.authorize(device_id, 'device:admin')) if hasattr(registry, 'authorize') else False,
+            'backups': rows,
+            'total_size_bytes': sum(path.stat().st_size for path in all_paths),
+            'backup_count': len(all_paths),
+            'storage': 'local encrypted backup directory',
+            'schedule': None,
+        }
+
+    @router.post('/owner/backups')
+    def owner_backup_create(
+        pa_device: str | None = Cookie(default=None),
+        pa_token: str | None = Cookie(default=None),
+    ):
+        device_id = authenticate(pa_device, pa_token, 'device:admin')
+        service = runtime.get('backups')
+        if service is None:
+            raise HTTPException(503, 'Encrypted backup service is unavailable')
+        from recovery.backup import BackupError
+        backup_id = f"owner-{time.strftime('%Y%m%d-%H%M%S', time.gmtime())}-{uuid.uuid4().hex[:10]}.paibackup"
+        try:
+            with backup_lock:
+                path = service.create(backup_id)
+                metadata = service.inspect(path)
+        except (BackupError, OSError) as exc:
+            audit('backup.create.failed', device_id=device_id, backup_id=backup_id, error_type=type(exc).__name__)
+            raise HTTPException(503, 'The encrypted backup could not be created or verified') from exc
+        audit('backup.created', device_id=device_id, backup_id=path.name, size_bytes=path.stat().st_size, encrypted=bool(metadata.get('encrypted')))
+        return {
+            'ok': True,
+            'backup': {
+                'id': path.name,
+                'created_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(path.stat().st_mtime)),
+                'size_bytes': path.stat().st_size,
+                'status': 'verified' if metadata.get('encrypted') else 'verified_legacy_unencrypted',
+                'encrypted': bool(metadata.get('encrypted')),
+                'file_count': len(metadata.get('files', [])),
+            },
+        }
+
+    @router.post('/owner/backups/{backup_id}/verify')
+    def owner_backup_verify(
+        backup_id: str,
+        pa_device: str | None = Cookie(default=None),
+        pa_token: str | None = Cookie(default=None),
+    ):
+        device_id = authenticate(pa_device, pa_token, 'activities:read')
+        service, path = backup_file(backup_id)
+        from recovery.backup import BackupError
+        try:
+            with backup_lock:
+                metadata = service.inspect(path)
+        except (BackupError, OSError) as exc:
+            audit('backup.verification.failed', device_id=device_id, backup_id=path.name, error_type=type(exc).__name__)
+            return {'ok': False, 'status': 'verification_failed', 'message': 'Backup integrity verification failed'}
+        audit('backup.verified', device_id=device_id, backup_id=path.name, encrypted=bool(metadata.get('encrypted')), file_count=len(metadata.get('files', [])))
+        return {'ok': True, 'status': 'verified', 'encrypted': bool(metadata.get('encrypted')), 'file_count': len(metadata.get('files', [])), 'created_at': metadata.get('created_at')}
+
+    @router.get('/owner/backups/{backup_id}/download')
+    def owner_backup_download(
+        backup_id: str,
+        pa_device: str | None = Cookie(default=None),
+        pa_token: str | None = Cookie(default=None),
+    ):
+        device_id = authenticate(pa_device, pa_token, 'activities:read')
+        _, path = backup_file(backup_id)
+        audit('backup.downloaded', device_id=device_id, backup_id=path.name)
+        return FileResponse(path, media_type='application/octet-stream', filename=path.name, headers={'Cache-Control': 'no-store'})
 
     @router.get('/activities')
     def activities(
@@ -1444,6 +1611,117 @@ def owner_product_router(runtime):
             'emergency_stop': bool(getattr(runtime['tools'], 'emergency_stop', False)),
             'model_evaluation': runtime['model_evaluation'].latest(),
         }
+
+    @router.get('/owner/permissions')
+    def owner_permissions_get(pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'device:admin')
+        tools = runtime.get('tools')
+        if tools is None or not callable(getattr(tools, 'owner_permissions', None)):
+            raise HTTPException(503, 'Owner permission policy is unavailable')
+        return tools.owner_permissions()
+
+    @router.patch('/owner/permissions')
+    def owner_permissions_patch(body: OwnerPermissionsBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'device:admin')
+        tools = runtime.get('tools')
+        if tools is None or not callable(getattr(tools, 'update_owner_permissions', None)):
+            raise HTTPException(503, 'Owner permission policy is unavailable')
+        try:
+            result = tools.update_owner_permissions(body.mode, body.rules)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        audit('owner.permissions.updated', device_id=device_id, mode=result['mode'], rules=result['rules'])
+        return {'ok': True, **result}
+
+    @router.patch('/owner/ai-provider/default')
+    def owner_default_provider(body: OwnerDefaultProviderBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'device:admin')
+        models = runtime.get('models')
+        setter = getattr(models, 'set_default_provider', None)
+        if not callable(setter):
+            raise HTTPException(503, 'Persistent provider selection is unavailable')
+        try:
+            result = setter(body.provider_id)
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        audit('model.default_provider.changed', device_id=device_id, provider_id=result['provider'], previous_provider=result['previous_provider'])
+        return {'ok': True, **result, 'model': models.status()}
+
+    @router.post('/owner/ai-providers/test')
+    def owner_provider_test(body: OwnerProviderTestBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'device:admin')
+        limit_provider_attempts(device_id)
+        models = runtime.get('models')
+        if models is None or not callable(getattr(models, 'test_owner_provider', None)):
+            raise HTTPException(503, 'Provider connection testing is unavailable')
+        try:
+            result = models.test_owner_provider(body.provider_id, body.api_key.get_secret_value())
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(503, str(exc)) from exc
+        return result
+
+    @router.post('/owner/ai-providers')
+    def owner_provider_connect(body: OwnerProviderConnectBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'device:admin')
+        limit_provider_attempts(device_id)
+        models = runtime.get('models')
+        if models is None or not callable(getattr(models, 'connect_owner_provider', None)):
+            raise HTTPException(503, 'Encrypted provider configuration is unavailable')
+        try:
+            result = models.connect_owner_provider(body.provider_id, body.api_key.get_secret_value(), body.model)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(503, str(exc)) from exc
+        audit('model.provider.connected', device_id=device_id, provider_id=result['provider'], model=result['model'])
+        return {'ok': True, **result, 'model_status': models.status()}
+
+    @router.get('/owner/ai-providers/{provider_id}/models')
+    def owner_provider_models(provider_id: str, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'device:admin')
+        limit_provider_attempts(device_id)
+        models = runtime.get('models')
+        if models is None or not callable(getattr(models, 'owner_provider_models', None)):
+            raise HTTPException(503, 'Provider model discovery is unavailable')
+        try:
+            return models.owner_provider_models(provider_id)
+        except ValueError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(503, str(exc)) from exc
+
+    @router.patch('/owner/ai-providers/{provider_id}/model')
+    def owner_provider_model_update(provider_id: str, body: OwnerProviderModelBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'device:admin')
+        limit_provider_attempts(device_id)
+        models = runtime.get('models')
+        if models is None or not callable(getattr(models, 'set_owner_provider_model', None)):
+            raise HTTPException(503, 'Provider model configuration is unavailable')
+        try:
+            result = models.set_owner_provider_model(provider_id, body.model)
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(503, str(exc)) from exc
+        audit('model.provider.model_changed', device_id=device_id, provider_id=result['provider'], model=result['model'])
+        return {'ok': True, **result, 'model_status': models.status()}
+
+    @router.delete('/owner/ai-providers/{provider_id}')
+    def owner_provider_disconnect(provider_id: str, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'device:admin')
+        models = runtime.get('models')
+        if models is None or not callable(getattr(models, 'disconnect_owner_provider', None)):
+            raise HTTPException(503, 'Provider configuration is unavailable')
+        try:
+            result = models.disconnect_owner_provider(provider_id)
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(503, str(exc)) from exc
+        audit('model.provider.disconnected', device_id=device_id, provider_id=result['provider'])
+        return {'ok': True, **result, 'model_status': models.status()}
 
     @router.post('/system/model-evaluation')
     def run_model_evaluation(

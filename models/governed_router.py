@@ -23,8 +23,8 @@ NON_RETRYABLE = {'authentication_error','configuration_error','unsupported_capab
 class GovernedModelRouter(ModelRouter):
     """Canonical W8 router extended by P9 policy; models remain intelligence resources only."""
 
-    def __init__(self, settings, *, events=None, audit=None):
-        super().__init__(settings, events=events, audit=audit)
+    def __init__(self, settings, *, events=None, audit=None, vault=None):
+        super().__init__(settings, events=events, audit=audit, vault=vault)
         self.observability = ModelObservability(self.providers)
         self.retry_attempts = max(0, min(3, int(getattr(settings, 'model_retry_attempts', 1))))
         self.retry_backoff = max(0.0, min(2.0, float(getattr(settings, 'model_retry_backoff_seconds', .05))))
