@@ -1,8 +1,16 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, ConfigDict, Field
 
 from security.request_context import current_trusted_request
+
+
+class MemoryCandidateEdit(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    subject: str | None = Field(default=None, min_length=1, max_length=240)
+    content: str | None = Field(default=None, min_length=1, max_length=20000)
+    type: str | None = Field(default=None, min_length=1, max_length=60)
 
 
 def memory_governance_router(runtime):
@@ -45,6 +53,28 @@ def memory_governance_router(runtime):
             {'device_id': context.device_id, 'candidate_id': candidate_id, 'memory_id': memory_id},
         )
         return {'ok': True, 'memory_id': memory_id, 'memory': detail}
+
+    @router.patch('/{candidate_id}')
+    def edit_memory_candidate(candidate_id: str, body: MemoryCandidateEdit):
+        context = require_owner('memory:write')
+        edit = getattr(governed, 'update_candidate', None)
+        if not callable(edit):
+            raise HTTPException(503, 'Governed Memory candidate editing is unavailable')
+        changes = body.model_dump(exclude_unset=True, exclude_none=True)
+        if any(not value.strip() for value in changes.values()):
+            raise HTTPException(422, 'Candidate fields cannot be blank')
+        try:
+            result = edit(candidate_id, changes, owner_id='owner')
+        except KeyError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        runtime['memory'].audit(
+            'owner-product',
+            'memory.candidate.edited',
+            {'device_id': context.device_id, 'candidate_id': candidate_id, 'fields': sorted(changes)},
+        )
+        return result
 
     @router.delete('/{candidate_id}')
     def reject_memory_candidate(candidate_id: str):

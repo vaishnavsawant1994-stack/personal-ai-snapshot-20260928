@@ -56,6 +56,7 @@ class MemoryUpdateBody(BaseModel):
     parent_id: str | None = None
     scope: Literal['personal', 'project'] | None = None
     project_id: str | None = None
+    pinned: bool | None = None
 
 
 class RetentionBody(BaseModel):
@@ -868,6 +869,17 @@ def owner_product_router(runtime):
         if body.sensitivity in {'sensitive', 'secret'} and not can_read_sensitive_memory(device_id):
             raise HTTPException(403, 'This device cannot mark memory sensitive')
         changes = body.model_dump(exclude_unset=True, exclude_none=True)
+        if 'pinned' in changes:
+            pinned = bool(changes.pop('pinned'))
+            try:
+                current_metadata = json.loads(existing.get('metadata_json') or '{}')
+            except (TypeError, ValueError, json.JSONDecodeError):
+                current_metadata = {}
+            if pinned:
+                current_metadata['pinned'] = True
+            else:
+                current_metadata.pop('pinned', None)
+            changes['metadata'] = current_metadata
         if 'scope' in changes or 'project_id' in changes:
             metadata_raw = existing.get('metadata_json') or '{}'
             try:

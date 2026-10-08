@@ -48,6 +48,9 @@ const createdMemories=[];
 const exportedConversationIds=[];
 const turnConversationIds=[];
 let conversationCreateCount=0;
+let ambientCandidate={id:"candidate-qa",source:"chat-conversation",status:"pending",created_at:atToday(8),candidate:{subject:"Suggested preference",content:"The owner prefers concise responses.",type:"preference",confidence:0.82,source:"chat-conversation"}};
+let ambientCandidateEdits=[];
+let ambientSavedMemories=[{id:"memory-qa",subject:"Project context",type:"note",content:"Browser qualification fixture with source evidence",source:"owner",created_at:atToday(8),metadata_json:"{}"}];
 let turnClock=Date.now();
 let uiPreferenceState={continuous_voice:true,voice_rate:1,quiet_hours:true,privacy_memory_enabled:true,privacy_review_before_saving:true,privacy_allow_project_context_general:false,privacy_save_conversations:true,privacy_retention:'until_deleted',privacy_share_anonymous_usage_data:false,appearance_theme:'dark',appearance_accent:'blue',appearance_density:'comfortable',appearance_motion:'standard',appearance_text_size:'default',chat_enter_sends:true,chat_keep_composer_visible:true,chat_response_detail:'detailed',chat_response_style:'clear_step_by_step',chat_show_sources:true,chat_show_timestamps:true,chat_show_actions:true,chat_message_spacing:'comfortable',chat_new_context:'general',chat_project_context_enabled:false};
 let profileState={first_name:'Vishnu',last_name:'Owner',display_name:'Vishnu',email:'owner@example.test',email_verified:true,account_created_at:'2025-01-15T00:00:00Z',account_id_masked:'•••• 4821',avatar_available:false};
@@ -100,7 +103,7 @@ try {
       body={provider:"openai",models:["model-a","model-b"],credential_stored:false};
     } else if (path === "/owner/ai-providers" && method === "POST") {
       const input=JSON.parse(request.postData()||"{}");assert.equal(input.api_key,"sk-browser-test-credential");assert.equal(input.model,"model-b");
-      systemStatus.model={state:"configured",primary_provider:"self_hosted",providers:[{id:"openai",model:"model-b",configured:true,user_managed:true,private:false,health:{state:"not_checked"}}]};
+      systemStatus.model={state:"configured",primary_provider:"self_hosted",providers:[{id:"openai",model:"model-b",configured:true,owner_managed:true,private:false,health:{state:"not_checked"}}]};
       body={ok:true,provider:"openai",model:"model-b",credential_stored:true,model_status:systemStatus.model};
     } else if (path === "/owner/ai-providers/openai/models" && method === "GET") {
       body={provider:"openai",models:["model-a","model-b"]};
@@ -118,6 +121,16 @@ try {
     } else if (path === "/memory" && method === "POST") {
       const input=JSON.parse(request.postData()||"{}");createdMemories.push(input);
       return route.fulfill({status:201,contentType:"application/json",body:JSON.stringify({memory:{id:"created-memory-"+createdMemories.length,...input}})});
+    } else if (path === "/memory/ambient" && method === "GET") {
+      body={settings:{enabled:true,memory_enabled:true,capture_active:true,sources:{chats:true,projects:false,files:false},capabilities:{chats:true,projects:false,files:false},unavailable_sources:{projects:"Candidate generation is unavailable.",files:"Candidate generation is unavailable."},excluded_conversation_ids:[],pause_until:null,retention:"forever"},candidates:ambientCandidate?[ambientCandidate]:[],memories:ambientSavedMemories,activity:[]};
+    } else if (path.startsWith("/memory/candidates/") && method === "PATCH") {
+      const edits=JSON.parse(request.postData()||"{}");ambientCandidate={...ambientCandidate,candidate:{...ambientCandidate.candidate,...edits}};ambientCandidateEdits.push(edits);body=ambientCandidate;
+    } else if (path.startsWith("/memory/candidates/") && path.endsWith("/approve") && method === "POST") {
+      ambientSavedMemories.push({id:"memory-approved",...ambientCandidate.candidate,source:"owner-confirmed:chat-conversation",created_at:atToday(9),metadata_json:"{}"});ambientCandidate=null;body={ok:true,memory_id:"memory-approved"};
+    } else if (path.startsWith("/memory/candidates/") && method === "DELETE") {
+      ambientCandidate=null;body={ok:true};
+    } else if (path === "/memory/ambient/settings" && method === "PATCH") {
+      body={enabled:true,memory_enabled:true,sources:{chats:true,projects:false,files:false},capabilities:{chats:true,projects:false,files:false},excluded_conversation_ids:[],pause_until:null,retention:"forever"};
     } else if (path === "/memory/graph" && method === "GET") {
       body={nodes:[{id:"memory-qa",subject:"Project context",type:"note"},{id:"memory-related",subject:"Responsive review details",type:"note"}],edges:[{source_id:"memory-qa",target_id:"memory-related"}]};
     } else if (path === "/memory/tree" && method === "GET") {
@@ -513,7 +526,7 @@ try {
     assert.ok(ownerPageText.includes(item), "Owner Controls Overview missing " + item);
   }
   await page.screenshot({ path: "artifacts/personal-ai-owner-controls-390x844.png", fullPage: true });
-  await page.locator('.oc-tabs [data-oc-section="providers"]').click();
+  await page.locator('[data-oc-section="providers"]').click();
   await page.waitForFunction(()=>document.querySelector('#moduleBody')?.innerText.includes('Your AI providers'));
   await page.locator('[data-oc-action="provider-add"]').first().click();
   assert.equal(await page.locator('.oc-provider-dialog').isVisible(),true,'Add provider must open the secure connection flow');
@@ -1329,11 +1342,11 @@ try {
     const memoryLayout=await page.evaluate(()=>({
       documentWidth:document.documentElement.scrollWidth,
       page:document.querySelector('#moduleBody .rp-page[data-rp-page="memory"]').getBoundingClientRect(),
-      items:[...document.querySelectorAll('#moduleBody [data-rp-memory]')].map(node=>node.getBoundingClientRect()),
+      items:[...document.querySelectorAll('#moduleBody .mx-saved')].map(node=>node.getBoundingClientRect()),
     }));
     assert.ok(memoryLayout.documentWidth<=width,"Memory page must not introduce horizontal overflow at "+width+"px");
     assert.ok(memoryLayout.page.left>=-1&&memoryLayout.page.right<=width+1,"Memory page must remain within the viewport at "+width+"px");
-    assert.ok(memoryLayout.items.length>0,"Preview Memory page must show its illustrative items");
+    assert.ok(memoryLayout.items.length>0,"Preview Memory page must show its isolated browser fixture");
     assert.ok(memoryLayout.items.every(rect=>rect.left>=-1&&rect.right<=width+1),"Memory items must remain within the viewport at "+width+"px");
   }
   await page.setViewportSize({width:390,height:844});
@@ -1542,16 +1555,28 @@ try {
   await page.evaluate(()=>openModule('home'));
   assert.equal(await page.locator('#modulePanel').isVisible(),false,'section Close returns to Home');
   await page.evaluate(()=>openModule('memory'));
-  await page.waitForFunction(()=>document.querySelector('.rp-page[data-rp-page="memory"] [data-rp-memory]'));
-  assert.equal(await page.locator('.rp-page[data-rp-page="memory"] [data-rp-memory]').count(),1,'Memory renders the current account item');
-  assert.equal(await page.locator('.rp-page[data-rp-page="memory"] [data-rp-new-chat]').isVisible(),true,'Memory keeps New chat in its action bar');
-  assert.equal(await page.locator('.rp-page[data-rp-page="memory"] [data-rp-add]').isVisible(),true,'Memory keeps Add memory in its action bar');
-  const memoryFooterLayout=await page.evaluate(()=>{const page=document.querySelector('.rp-page[data-rp-page="memory"]'),buttons=page.querySelectorAll('.rp-actions button'),chat=buttons[0].getBoundingClientRect(),add=buttons[1].getBoundingClientRect();return{chatBottom:chat.bottom,addBottom:add.bottom,left:chat.left,right:add.right,width:innerWidth}});
-  assert.ok(Math.abs(memoryFooterLayout.chatBottom-memoryFooterLayout.addBottom)<=1,'Memory footer buttons must share one bottom baseline');
-  assert.ok(memoryFooterLayout.left>=-1&&memoryFooterLayout.right<=memoryFooterLayout.width+1,'Memory footer actions must stay within the iPhone viewport');
-  await page.fill('#rp-memory-search','project');
-  await page.waitForTimeout(360);
-  assert.equal(await page.evaluate(()=>document.activeElement?.id),'rp-memory-search','Memory search retains focus after refreshed results');
+  await page.waitForFunction(()=>document.querySelector('.rp-page[data-rp-page="memory"] .mx-main-toggle'));
+  assert.equal(await page.locator('.rp-page[data-rp-page="memory"] .mx-saved').count(),1,'Ambient Memory renders a real-record browser fixture');
+  assert.equal(await page.locator('.rp-page[data-rp-page="memory"] .mx-review-callout').isVisible(),true,'Ambient Memory explains approval before save');
+  assert.equal(await page.locator('.rp-page[data-rp-page="memory"] .mx-candidate').count(),1,'Pending candidate comes from the owner review queue');
+  await page.locator('[data-mx-review]').click();
+  await page.locator('dialog input[name="subject"]').fill('Owner-edited browser candidate');
+  assert.equal(await page.locator('.rp-page[data-rp-page="memory"] .mx-saved').count(),1,'Reviewing a candidate does not save it');
+  await page.locator('dialog [data-approve]').click();
+  await page.waitForFunction(()=>document.querySelectorAll('.rp-page[data-rp-page="memory"] .mx-candidate').length===0);
+  assert.equal(await page.locator('.rp-page[data-rp-page="memory"] .mx-saved').count(),2,'Explicit approval persists the reviewed candidate');
+  assert.equal(ambientCandidateEdits[0].subject,'Owner-edited browser candidate','Review can edit the candidate before approval');
+  await page.getByRole('button',{name:'Tree',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelector('.rp-page[data-rp-page="memory"] .mx-node'));
+  await page.locator('[data-mx-search]:visible').first().fill('project');
+  assert.equal(await page.locator('.rp-page[data-rp-page="memory"] .mx-node').count(),1,'Tree search filters actual memory nodes');
+  await page.getByRole('button',{name:'2D',exact:true}).first().click();
+  assert.equal(await page.locator('.mx-mode button[aria-pressed="true"]').innerText(),'2D','2D mode can be selected');
+  await page.getByRole('button',{name:'Graph',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelector('.rp-page[data-rp-page="memory"] .mx-node'));
+  await page.getByRole('button',{name:'Filter',exact:true}).click();
+  assert.equal(await page.getByRole('heading',{name:'Legend & Filters'}).isVisible(),true,'Graph filter and legend sheet opens');
+  await page.keyboard.press('Escape');
   await page.screenshot({path:'artifacts/personal-ai-memory-390x844.png',fullPage:true});
   await page.evaluate(()=>openModule('home'));
   assert.equal(await page.locator('#modulePanel').isVisible(),false,'section navigation returns to Home');

@@ -669,7 +669,14 @@ class AgentExecutor:
         self.memory.add_message('assistant', answer, conversation_id=conversation_id, device_id=device_id)
         self.events.emit('conversation.assistant', text=answer, device_id=device_id, conversation_id=conversation_id)
         if self.second_brain:
-            for candidate in self.second_brain.extract_candidates(text, answer):
-                self.second_brain.remember(candidate)
+            capture_check = getattr(self.second_brain, 'ambient_can_capture', None)
+            capture_allowed = not callable(capture_check) or capture_check('chats', conversation_id)
+            if capture_allowed:
+                for candidate in self.second_brain.extract_candidates(text, answer):
+                    ambient_remember = getattr(self.second_brain, 'remember_ambient', None)
+                    if callable(ambient_remember):
+                        ambient_remember(candidate, conversation_id=conversation_id)
+                    else:
+                        self.second_brain.remember(candidate)
         self.events.emit('state', state='speaking')
         return answer
