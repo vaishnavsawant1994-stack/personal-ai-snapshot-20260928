@@ -12,6 +12,8 @@ from .models import (
     WorkPlan,
     WorkPlanStatus,
 )
+from .p10_bridge import P10WorkBridge
+from .store import WorkStore
 
 __all__ = [
     "WORK_SCHEMA_VERSION",
@@ -20,11 +22,13 @@ __all__ = [
     "ExecutionBudget",
     "GoalSpec",
     "Milestone",
+    "P10WorkBridge",
     "ReadinessStatus",
     "ResourceScope",
     "WorkOrder",
     "WorkOrderStatus",
     "WorkPlan",
     "WorkPlanStatus",
+    "WorkStore",
     "migrate_work_schema",
 ]
