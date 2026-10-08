@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import pytest
+
 from future_intelligence.autonomy import AdvancedAutonomy
 from future_intelligence.autonomy_runtime import install as install_p10_runtime
 from future_intelligence.work_orchestration.p10_runtime import install as install_work_runtime
 from future_intelligence.work_orchestration.hierarchical_runtime import install as install_hierarchical_runtime
+from future_intelligence.work_orchestration.planner import InvalidStrategicPlan
 
 
 class _Gate:
@@ -49,6 +52,44 @@ class _Models:
                 }
             ],
         }
+
+
+class _BlockedToolModels:
+    def json(self, _prompt, **_kwargs):
+        return {
+            "summary": "Try blocked tool",
+            "work_orders": [
+                {
+                    "id": "blocked",
+                    "title": "Blocked",
+                    "objective": "Attempt blocked tool",
+                    "worker_type": "tool",
+                    "required_capabilities": ["research"],
+                    "requested_tool": "blocked_tool",
+                    "expected_output": "never created",
+                    "success_criteria": ["never runs"],
+                }
+            ],
+        }
+
+
+class _Tool:
+    def __init__(self, name, prohibited=False):
+        self.name = name
+        self.prohibited = prohibited
+
+
+class _Registry:
+    def all(self):
+        return [_Tool("allowed_tool"), _Tool("blocked_tool", prohibited=True)]
+
+
+class _Executor:
+    tools = _Registry()
+
+
+class _Operations:
+    executor = _Executor()
 
 
 install_p10_runtime(AdvancedAutonomy)
@@ -99,3 +140,21 @@ def test_hierarchical_status_exposes_planning_only_authority(tmp_path):
     assert status["installed"] is True
     assert status["authority"] == "planning_only"
     assert status["execution_authority"] == "existing_p10_p6_runtime"
+
+
+def test_prohibited_registry_tool_is_not_available_to_strategic_planner(tmp_path):
+    autonomy = AdvancedAutonomy(
+        gate=_Gate(),
+        operations=_Operations(),
+        path=tmp_path / "prohibited.sqlite3",
+        models=_BlockedToolModels(),
+    )
+    goal = autonomy.create_goal(
+        "Research safely",
+        desired_outcome="Safe research",
+        allowed_capabilities=["research"],
+        success_criteria=["safe result"],
+    )
+
+    with pytest.raises(InvalidStrategicPlan, match="unavailable tool blocked_tool"):
+        autonomy.propose_hierarchical_plan(goal["id"])
