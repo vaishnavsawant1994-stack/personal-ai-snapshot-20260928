@@ -134,7 +134,7 @@
     if(typeof oldHome==='function')window.enterHomeLanding=function(){document.body.classList.remove('chat-new-empty');oldHome();syncShell();};
     if(typeof oldConversation==='function')window.enterConversationView=function(){oldConversation();syncShell();placeSphereInHeader();};
     if(typeof oldOpenModule==='function')window.openModule=async function(name){const result=await oldOpenModule(name);syncShell();return result};
-    window.addEventListener('vishnu:new-chat',()=>{closeDetails();autoDetailsForConversation='';projectName='';projectLookupFor='';projectContextKnown=false;projectContextLoading=false;document.body.classList.remove('home-landing');document.body.classList.add('chat-new-empty');syncShell();updateDetails();});
+    window.addEventListener('vishnu:new-chat',()=>{closeDetails();autoDetailsForConversation='';projectName='';projectLookupFor='';projectContextKnown=false;projectContextLoading=false;document.body.classList.add('chat-new-empty','home-landing');syncShell();updateDetails();});
     if($('historyButton'))$('historyButton').onclick=()=>{if(matchMedia('(min-width:1280px)').matches&&document.body.classList.contains('chat-experience')){document.body.classList.toggle('chat-shell-collapsed');return}window.openAppDrawer?.()};
     if($('ownerButton'))$('ownerButton').onclick=()=>{if(matchMedia('(min-width:1280px)').matches&&document.body.classList.contains('chat-experience')){$('conversationManagerSearch')?.focus();return}window.openTimelineDrawer?.()};
     $('chatMenuButton')?.addEventListener('click',()=>{if(!$('chatMenuButton').classList.contains('hidden'))return;openDetails()});
