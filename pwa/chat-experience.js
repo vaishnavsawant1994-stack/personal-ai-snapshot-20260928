@@ -48,7 +48,7 @@
       const panel=document.createElement('section');panel.id='chatDetailMobile';panel.className='chat-detail-mobile';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-label','Chat details');panel.setAttribute('aria-hidden','true');document.body.append(panel);
     }
     if(!$('chatDetailsTop')){
-      const b=document.createElement('button');b.id='chatDetailsTop';b.className='chat-top-details';b.type='button';b.setAttribute('aria-label','Open chat details and actions');b.setAttribute('aria-haspopup','dialog');b.setAttribute('aria-expanded','false');b.innerHTML=icon('more');b.onclick=()=>openDetails();document.querySelector('.topbar')?.append(b);
+      const b=document.createElement('button');b.id='chatDetailsTop';b.className='chat-top-details';b.type='button';b.setAttribute('aria-label','Conversation options and chat details');b.setAttribute('aria-haspopup','menu');b.setAttribute('aria-expanded','false');b.innerHTML=icon('more');b.onclick=()=>{if(document.body.classList.contains('has-conversation')&&state()?.id){$('chatMenuButton')?.click();b.setAttribute('aria-expanded',$('chatMenuButton')?.getAttribute('aria-expanded')||'false')}else openDetails(b)};document.querySelector('.topbar')?.append(b);
     }
     const menu=$('chatActionMenu');if(menu&&!$('chatDetailsMenuItem')){const b=document.createElement('button');b.id='chatDetailsMenuItem';b.type='button';b.setAttribute('role','menuitem');b.innerHTML='<span class="chat-menu-icon" aria-hidden="true">ⓘ</span>Chat details';b.onclick=()=>{menu.classList.add('hidden');$('chatMenuButton').setAttribute('aria-expanded','false');openDetails($('chatMenuButton'))};menu.insertBefore(b,menu.firstChild)}
   }
