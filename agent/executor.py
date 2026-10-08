@@ -675,7 +675,13 @@ class AgentExecutor:
                 for candidate in self.second_brain.extract_candidates(text, answer):
                     ambient_remember = getattr(self.second_brain, 'remember_ambient', None)
                     if callable(ambient_remember):
-                        ambient_remember(candidate, conversation_id=conversation_id)
+                        candidate_id = ambient_remember(candidate, conversation_id=conversation_id)
+                        if candidate_id and callable(getattr(self.memory, 'audit', None)):
+                            self.memory.audit(
+                                'memory',
+                                'memory.candidate.detected',
+                                {'candidate_id': candidate_id, 'conversation_id': str(conversation_id)},
+                            )
                     else:
                         self.second_brain.remember(candidate)
         self.events.emit('state', state='speaking')
