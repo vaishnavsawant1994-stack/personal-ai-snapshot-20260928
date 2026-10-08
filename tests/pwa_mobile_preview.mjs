@@ -1444,7 +1444,7 @@ try {
   await page.screenshot({ path: "artifacts/personal-ai-expanded-composer-320x568.png", fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.fill("#message", "Hello from browser QA");
-  assert.equal(await page.locator("#homeIntro").isVisible(), false, "new empty chat must not duplicate Home quick actions");
+  assert.equal(await page.locator(".v-shortcuts").isVisible(), false, "new empty chat must not duplicate Home quick actions");
   assert.equal(await page.locator(".core-stage").evaluate(node => getComputedStyle(node).visibility), "visible", "new empty chat retains mini header sphere");
   await page.screenshot({ path: "artifacts/personal-ai-new-chat-390x844.png", fullPage: true });
   await page.locator("#message").focus();
