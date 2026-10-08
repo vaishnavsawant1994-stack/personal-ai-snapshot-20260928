@@ -51,6 +51,7 @@ let conversationCreateCount=0;
 let turnClock=Date.now();
 let uiPreferenceState={continuous_voice:true,voice_rate:1,quiet_hours:true,privacy_memory_enabled:true,privacy_review_before_saving:true,privacy_allow_project_context_general:false,privacy_save_conversations:true,privacy_retention:'until_deleted',privacy_share_anonymous_usage_data:false,appearance_theme:'dark',appearance_accent:'blue',appearance_density:'comfortable',appearance_motion:'standard',appearance_text_size:'default',chat_enter_sends:true,chat_keep_composer_visible:true,chat_response_detail:'detailed',chat_response_style:'clear_step_by_step',chat_show_sources:true,chat_show_timestamps:true,chat_show_actions:true,chat_message_spacing:'comfortable',chat_new_context:'general',chat_project_context_enabled:false};
 let profileState={first_name:'Vishnu',last_name:'Owner',display_name:'Vishnu',email:'owner@example.test',email_verified:true,account_created_at:'2025-01-15T00:00:00Z',account_id_masked:'•••• 4821',avatar_available:false};
+let systemStatus={model:{state:'not_configured',primary_provider:'self_hosted',providers:[]},integrations:[],emergency_stop:false};
 let notificationState={events:{task_reminders:{enabled:false,channels:[]},work_completed:{enabled:true,channels:['in_app']},needs_review:{enabled:true,channels:['in_app']},blocked_work:{enabled:true,channels:['in_app']},workflow_updates:{enabled:false,channels:[]},product_updates:{enabled:false,channels:[]}},quiet_hours:{enabled:true,start:'22:00',end:'08:00',timezone:'Asia/Kolkata'},allow_urgent_reviews:true,daily_summary:{enabled:true,time:'08:00'},weekly_summary:{enabled:false,weekday:0,time:'08:00'}};
 const notificationAvailability={in_app:true,push:false,email:false,scheduler:true,supported_events:['work_completed','needs_review','blocked_work','workflow_updates']};
 
@@ -92,6 +93,15 @@ try {
     if (path === "/status") {
       if(revokeSession)return route.fulfill({status:401,contentType:"application/json",body:JSON.stringify({detail:"Owner verification required"})});
       body = { model: { state: "ready" }, conversations, conversation: activeConversation, memory_count: 3, active_qualification: true };
+    } else if (path === "/system/status" && method === "GET") {
+      body=systemStatus;
+    } else if (path === "/owner/ai-providers/test" && method === "POST") {
+      const input=JSON.parse(request.postData()||"{}");assert.equal(input.provider_id,"openai");assert.equal(input.api_key,"sk-browser-test-credential");
+      body={provider:"openai",models:["model-a","model-b"],credential_stored:false};
+    } else if (path === "/owner/ai-providers" && method === "POST") {
+      const input=JSON.parse(request.postData()||"{}");assert.equal(input.api_key,"sk-browser-test-credential");assert.equal(input.model,"model-b");
+      systemStatus.model={state:"configured",primary_provider:"self_hosted",providers:[{id:"openai",model:"model-b",configured:true,owner_managed:true,private:false,health:{state:"not_checked"}}]};
+      body={ok:true,provider:"openai",model:"model-b",credential_stored:true,model_status:systemStatus.model};
     } else if (path === "/everyday/active" && method === "GET") {
       body = { items: everydayItems.filter(item => !['completed','cancelled','dismissed'].includes(item.status)) };
     } else if (path === "/everyday/timeline" && method === "GET") {
@@ -499,6 +509,17 @@ try {
     assert.ok(ownerPageText.includes(item), "Owner Controls Overview missing " + item);
   }
   await page.screenshot({ path: "artifacts/personal-ai-owner-controls-390x844.png", fullPage: true });
+  await page.locator('[data-oc-section="providers"]').click();
+  await page.waitForFunction(()=>document.querySelector('#moduleBody')?.innerText.includes('Your AI providers'));
+  await page.locator('[data-oc-action="provider-add"]').first().click();
+  assert.equal(await page.locator('.oc-provider-dialog').isVisible(),true,'Add provider must open the secure connection flow');
+  await page.locator('.oc-provider-dialog [name="apiKey"]').fill('sk-browser-test-credential');
+  await page.locator('.oc-provider-dialog [data-provider-test]').click();
+  await page.waitForFunction(()=>!document.querySelector('.oc-provider-dialog [name="model"]')?.disabled);
+  await page.selectOption('.oc-provider-dialog [name="model"]','model-b');
+  await page.locator('.oc-provider-dialog [type="submit"]').click();
+  await page.waitForFunction(()=>document.querySelector('#moduleBody')?.innerText.includes('Owner configured'));
+  assert.ok(!(await page.evaluate(()=>localStorage.getItem('sk-browser-test-credential'))),'provider credential must never be stored in browser local storage');
 
   // Reload the app shell before checking its Home-only Timeline control.
   await page.reload();
