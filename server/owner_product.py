@@ -19,6 +19,7 @@ from urllib.parse import urlparse
 from fastapi import APIRouter, Cookie, HTTPException
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import SecretStr
 from starlette.background import BackgroundTask
 
 from knowledge.store import KnowledgeError
@@ -165,6 +166,19 @@ class OwnerPermissionsBody(BaseModel):
 class OwnerDefaultProviderBody(BaseModel):
     model_config = ConfigDict(extra='forbid')
     provider_id: str = Field(min_length=1, max_length=80, pattern=r'^[a-z0-9_-]+$')
+
+
+class OwnerProviderConnectBody(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    provider_id: Literal['openai', 'openrouter', 'gemini']
+    api_key: SecretStr = Field(min_length=16, max_length=4096)
+    model: str = Field(min_length=1, max_length=200)
+
+
+class OwnerProviderTestBody(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    provider_id: Literal['openai', 'openrouter', 'gemini']
+    api_key: SecretStr = Field(min_length=16, max_length=4096)
 
 
 class UiPreferencesBody(BaseModel):
@@ -1602,6 +1616,50 @@ def owner_product_router(runtime):
             raise HTTPException(409, str(exc)) from exc
         audit('model.default_provider.changed', device_id=device_id, provider_id=result['provider'], previous_provider=result['previous_provider'])
         return {'ok': True, **result, 'model': models.status()}
+
+    @router.post('/owner/ai-providers/test')
+    def owner_provider_test(body: OwnerProviderTestBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        authenticate(pa_device, pa_token, 'device:admin')
+        models = runtime.get('models')
+        if models is None or not callable(getattr(models, 'test_owner_provider', None)):
+            raise HTTPException(503, 'Provider connection testing is unavailable')
+        try:
+            result = models.test_owner_provider(body.provider_id, body.api_key.get_secret_value())
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(503, str(exc)) from exc
+        return result
+
+    @router.post('/owner/ai-providers')
+    def owner_provider_connect(body: OwnerProviderConnectBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'device:admin')
+        models = runtime.get('models')
+        if models is None or not callable(getattr(models, 'connect_owner_provider', None)):
+            raise HTTPException(503, 'Encrypted provider configuration is unavailable')
+        try:
+            result = models.connect_owner_provider(body.provider_id, body.api_key.get_secret_value(), body.model)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(503, str(exc)) from exc
+        audit('model.provider.connected', device_id=device_id, provider_id=result['provider'], model=result['model'])
+        return {'ok': True, **result, 'model_status': models.status()}
+
+    @router.delete('/owner/ai-providers/{provider_id}')
+    def owner_provider_disconnect(provider_id: str, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'device:admin')
+        models = runtime.get('models')
+        if models is None or not callable(getattr(models, 'disconnect_owner_provider', None)):
+            raise HTTPException(503, 'Provider configuration is unavailable')
+        try:
+            result = models.disconnect_owner_provider(provider_id)
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(503, str(exc)) from exc
+        audit('model.provider.disconnected', device_id=device_id, provider_id=result['provider'])
+        return {'ok': True, **result, 'model_status': models.status()}
 
     @router.post('/system/model-evaluation')
     def run_model_evaluation(
