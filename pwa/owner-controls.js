@@ -86,7 +86,7 @@
       id:item.id,
       name:item.display_name||item.name||(item.id==='self_hosted'?'Self-hosted model':String(item.id||'AI provider')),
       model:item.model||'Model not specified', health:item.health?.state||item.state||'configured',
-      primary:item.id===model.primary_provider, private:item.private===true,
+      primary:item.id===model.primary_provider, private:item.private===true, ownerManaged:item.owner_managed===true,
     }));
   }
   function connectors() { return Array.isArray(state.data.connectors) ? state.data.connectors : safeArray(state.data.connectors,'connectors'); }
@@ -155,9 +155,9 @@
   function providersPage() {
     const rows=providerRows(), model=state.data.system?.model||{};
     return `${hero('Choose and configure AI providers','Select the AI models Vishnu can use and control their use.',['Provider credentials stay on the server'],'Provider status',[[`${rows.length} configured provider${rows.length===1?'':'s'}`,rows.length?'good':'neutral'],[model.primary_provider?`Default: ${model.primary_provider}`:'Default provider unavailable',model.primary_provider?'good':'neutral'],[state.errors.system?'System status unavailable':'Model status from Vishnu runtime',state.errors.system?'warn':'good']])}
-      ${sectionHeading('Your AI providers','Provider configuration comes from the secure Vishnu server.',button('Manage model settings','models','oc-button primary'))}
-      <div class="oc-list">${rows.length?rows.map(item=>`<article class="oc-provider-row"><span class="oc-card-icon purple">${icon('brain')}</span><div><strong>${esc(item.name)}</strong><small>${esc(item.model)} · ${esc(item.private?'Private':'Server configured')}</small><small>${esc(String(item.health).replaceAll('_',' '))}</small></div>${item.primary?status('Default','good'):`<button type="button" class="oc-text-button" data-oc-provider-default="${esc(item.id)}">Set as default</button>`}<button type="button" class="oc-row-chev" data-oc-action="models" aria-label="Manage ${esc(item.name)}">›</button></article>`).join(''):`<div class="oc-empty"><strong>${state.errors.system?'Provider status could not be loaded.':'No configured providers are reported by the runtime.'}</strong><p>${state.errors.system?'Retry after checking the server connection.':'Provider secrets and configuration are managed server-side.'}</p>${button('Open model settings','models','oc-button')}</div>`}</div>
-      <div class="oc-note">The current PWA exposes model status, but does not expose a provider credential management flow. No provider is shown as connected unless the server reports it as configured.</div>`;
+      ${sectionHeading('Your AI providers','Connect an AI provider securely and manage the models available to Vishnu.',button('+ Add provider','provider-add','oc-button primary'))}
+      <div class="oc-list">${rows.length?rows.map(item=>`<article class="oc-provider-row"><span class="oc-card-icon purple">${icon('brain')}</span><div><strong>${esc(item.name)}</strong><small>${esc(item.model)} · ${esc(item.private?'Private':item.ownerManaged?'Owner configured':'Server configured')}</small><small>${esc(String(item.health).replaceAll('_',' '))}</small></div>${item.primary?status('Default','good'):`<button type="button" class="oc-text-button" data-oc-provider-default="${esc(item.id)}">Set as default</button>`}${item.ownerManaged&&!item.primary?`<button type="button" class="oc-text-button danger" data-oc-provider-disconnect="${esc(item.id)}">Disconnect</button>`:''}<button type="button" class="oc-row-chev" data-oc-action="models" aria-label="Open ${esc(item.name)} model settings">›</button></article>`).join(''):`<div class="oc-empty"><strong>${state.errors.system?'Provider status could not be loaded.':'No configured providers are reported by the runtime.'}</strong><p>${state.errors.system?'Retry after checking the server connection.':'Add a provider to load models from its live account.'}</p>${button('+ Add provider','provider-add','oc-button')}</div>`}</div>
+      <div class="oc-note">Credentials are tested against the provider’s live model endpoint and stored in Vishnu’s encrypted server vault. Keys are never returned to this page.</div>`;
   }
   function servicesPage() {
     const rows=connectors();
@@ -293,6 +293,8 @@
     document.querySelectorAll('[data-oc-backup-verify]').forEach(el=>el.addEventListener('click',()=>verifyBackup(el.dataset.ocBackupVerify)));
     document.querySelectorAll('[data-oc-backup-download]').forEach(el=>el.addEventListener('click',()=>downloadBackup(el.dataset.ocBackupDownload)));
     document.querySelectorAll('[data-oc-provider-default]').forEach(el=>el.addEventListener('click',()=>setDefaultProvider(el.dataset.ocProviderDefault,el)));
+    document.querySelectorAll('[data-oc-provider-disconnect]').forEach(el=>el.addEventListener('click',()=>disconnectProvider(el.dataset.ocProviderDisconnect)));
+    document.querySelectorAll('[data-oc-action="provider-add"]').forEach(el=>el.addEventListener('click',openProviderDialog));
     const svcSearch=document.getElementById('ocServiceSearch'),svcFilter=document.getElementById('ocServiceFilter');
     const refreshServices=()=>{const host=document.getElementById('ocServiceList');if(host)host.innerHTML=renderServiceRows(connectors(),svcSearch?.value||'',svcFilter?.value||'all');document.querySelectorAll('[data-oc-action="tools"]').forEach(el=>el.onclick=()=>handleAction('tools'))};
     svcSearch?.addEventListener('input',refreshServices);svcFilter?.addEventListener('change',refreshServices);
@@ -307,6 +309,24 @@
       await call('/owner/ai-provider/default',{method:'PATCH',body:JSON.stringify({provider_id:providerId})});
       await loadData();render();window.showToast('Default AI provider updated.');
     }catch(error){if(buttonEl)buttonEl.disabled=false;window.showToast(error.message||'The provider could not be selected. Check its server configuration.');}
+  }
+  function openProviderDialog() {
+    const root=document.querySelector('.oc-shell');if(!root)return;
+    root.querySelector('.oc-provider-dialog')?.remove();
+    const dialog=document.createElement('dialog');dialog.className='oc-detail-dialog oc-provider-dialog';dialog.setAttribute('aria-labelledby','ocProviderDialogTitle');
+    dialog.innerHTML=`<header><div><small>Owner Controls · AI Providers</small><h2 id="ocProviderDialogTitle">Connect an AI provider</h2></div><button type="button" aria-label="Close provider setup">×</button></header><form class="oc-provider-form"><label>Provider<select name="provider"><option value="openai">OpenAI</option><option value="openrouter">OpenRouter</option><option value="gemini">Google Gemini</option></select></label><label>API key<input name="apiKey" type="password" autocomplete="new-password" required minlength="16" maxlength="4096" spellcheck="false"></label><p class="oc-provider-help">The key is sent only to Vishnu’s authenticated server, tested, then stored in the encrypted vault. It is never saved in browser storage or shown again.</p><button class="oc-button" type="button" data-provider-test>Test connection and load models</button><label>Available model<select name="model" disabled required><option value="">Test the connection first</option></select></label><p class="oc-provider-error" role="alert" aria-live="polite"></p><footer><button class="oc-button" type="button" data-provider-cancel>Cancel</button><button class="oc-button primary" type="submit" disabled>Save provider</button></footer></form>`;
+    root.append(dialog);const form=dialog.querySelector('form'),key=form.elements.apiKey,provider=form.elements.provider,model=form.elements.model,test=dialog.querySelector('[data-provider-test]'),save=form.querySelector('[type="submit"]'),error=dialog.querySelector('.oc-provider-error');let verifiedKey='';
+    const clear=()=>{key.value='';verifiedKey='';};
+    const close=()=>{clear();dialog.close();};
+    dialog.querySelector('header button').addEventListener('click',close);dialog.querySelector('[data-provider-cancel]').addEventListener('click',close);dialog.addEventListener('cancel',event=>{event.preventDefault();close()});dialog.addEventListener('close',()=>dialog.remove());dialog.addEventListener('click',event=>{if(event.target===dialog)close()});
+    key.addEventListener('input',()=>{verifiedKey='';model.disabled=true;model.innerHTML='<option value="">Test the connection first</option>';save.disabled=true;});provider.addEventListener('change',()=>{verifiedKey='';model.disabled=true;model.innerHTML='<option value="">Test the connection first</option>';save.disabled=true;});
+    test.addEventListener('click',async()=>{error.textContent='';if(!key.value){error.textContent='Enter the provider API key first.';key.focus();return;}test.disabled=true;test.textContent='Testing…';try{const data=await call('/owner/ai-providers/test',{method:'POST',body:JSON.stringify({provider_id:provider.value,api_key:key.value})});model.innerHTML=data.models.map(id=>`<option value="${esc(id)}">${esc(id)}</option>`).join('');model.disabled=false;verifiedKey=key.value;save.disabled=false;}catch(err){error.textContent=err.message||'The connection could not be verified.';verifiedKey='';}finally{test.disabled=false;test.textContent='Test connection and load models';}});
+    form.addEventListener('submit',async event=>{event.preventDefault();error.textContent='';if(!verifiedKey||key.value!==verifiedKey){error.textContent='Test this credential again before saving.';save.disabled=true;return;}save.disabled=true;try{await call('/owner/ai-providers',{method:'POST',body:JSON.stringify({provider_id:provider.value,api_key:key.value,model:model.value})});clear();dialog.close();await loadData();render();window.showToast('Provider connected and encrypted configuration saved.');}catch(err){error.textContent=err.message||'Provider setup failed.';save.disabled=false;}});
+    dialog.showModal();key.focus();
+  }
+  async function disconnectProvider(providerId) {
+    if(!await window.requestConfirmation?.('Disconnect this owner-configured provider? Requests will stop using it. Its default model must be changed first.'))return;
+    try{await call(`/owner/ai-providers/${encodeURIComponent(providerId)}`,{method:'DELETE'});await loadData();render();window.showToast('Provider disconnected.');}catch(error){window.showToast(error.message||'Provider could not be disconnected.');}
   }
   async function saveOwnerPermissions(mode) {
     if(state.permissionSaving)return;
