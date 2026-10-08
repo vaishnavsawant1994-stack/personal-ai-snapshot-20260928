@@ -28,7 +28,13 @@ def install(cls) -> None:
         if registry is None or not hasattr(registry, "all"):
             return None
         try:
-            return tuple(dict.fromkeys(str(tool.name) for tool in registry.all()))
+            return tuple(
+                dict.fromkeys(
+                    str(tool.name)
+                    for tool in registry.all()
+                    if not bool(getattr(tool, "prohibited", False))
+                )
+            )
         except Exception:
             return None
 
