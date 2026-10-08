@@ -372,6 +372,8 @@ def owner_product_router(runtime):
     second_brain = runtime['second_brain']
     knowledge = runtime['knowledge']
     backup_lock = runtime.setdefault('owner_backup_lock', threading.RLock())
+    provider_attempt_lock = threading.Lock()
+    provider_attempts: dict[str, tuple[float, int]] = {}
 
     def authenticate(device_id: str | None, token: str | None, scope: str):
         if not device_id or not token or not registry.authenticate(device_id, token):
@@ -382,6 +384,17 @@ def owner_product_router(runtime):
 
     def audit(action: str, *, device_id: str, **payload):
         memory.audit('owner-product', action, {'device_id': device_id, **payload})
+
+    def limit_provider_attempts(device_id: str):
+        now = time.monotonic()
+        with provider_attempt_lock:
+            for key, (started, _) in list(provider_attempts.items()):
+                if now - started >= 60:
+                    provider_attempts.pop(key, None)
+            started, count = provider_attempts.get(device_id, (now, 0))
+            if count >= 5:
+                raise HTTPException(429, 'Too many provider connection attempts. Wait a minute and try again.')
+            provider_attempts[device_id] = (started, count + 1)
 
     def backup_file(backup_id: str):
         service = runtime.get('backups')
@@ -1619,7 +1632,8 @@ def owner_product_router(runtime):
 
     @router.post('/owner/ai-providers/test')
     def owner_provider_test(body: OwnerProviderTestBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
-        authenticate(pa_device, pa_token, 'device:admin')
+        device_id = authenticate(pa_device, pa_token, 'device:admin')
+        limit_provider_attempts(device_id)
         models = runtime.get('models')
         if models is None or not callable(getattr(models, 'test_owner_provider', None)):
             raise HTTPException(503, 'Provider connection testing is unavailable')
@@ -1634,6 +1648,7 @@ def owner_product_router(runtime):
     @router.post('/owner/ai-providers')
     def owner_provider_connect(body: OwnerProviderConnectBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
         device_id = authenticate(pa_device, pa_token, 'device:admin')
+        limit_provider_attempts(device_id)
         models = runtime.get('models')
         if models is None or not callable(getattr(models, 'connect_owner_provider', None)):
             raise HTTPException(503, 'Encrypted provider configuration is unavailable')
