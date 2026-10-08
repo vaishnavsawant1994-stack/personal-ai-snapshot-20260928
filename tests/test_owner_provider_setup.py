@@ -56,6 +56,7 @@ def test_owner_provider_connection_is_encrypted_persisted_and_disconnectable(tmp
     restarted = ModelRouter(settings, vault=vault)
     assert restarted.providers['openai'].api_key == 'sk-test-key-1234567890'
     assert restarted.providers['openai'].model == 'model-live-1'
+    restarted.set_default_provider('openai')
     with pytest.raises(ValueError, match='another default'):
         restarted.disconnect_owner_provider('openai')
     restarted.set_default_provider('self_hosted')
