@@ -5,6 +5,7 @@ import json
 import sqlite3
 import time
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 from memory.policy import is_never_store
@@ -108,15 +109,12 @@ class GovernedMemory:
         settings['sources'] = {**defaults['sources'], **(settings.get('sources') or {})}
         base_preferences = self._brain.store.preferences()
         settings['memory_enabled'] = bool(base_preferences.get('memory_enabled', True))
-        settings['capture_active'] = bool(
-            settings['enabled'] and settings['memory_enabled'] and
-            settings['sources'].get('chats', False) and
-            not (settings.get('pause_until') and float(settings['pause_until']) > time.time())
-        )
+        settings['capture_active'] = bool(settings['enabled'] and settings['memory_enabled'] and
+            any(settings['sources'].get(key, False) for key in ('chats', 'projects', 'files')) and
+            not (settings.get('pause_until') and float(settings['pause_until']) > time.time()))
         settings['excluded_conversation_ids'] = [row['conversation_id'] for row in exclusions]
-        settings['capabilities'] = {'chats': True, 'projects': False, 'files': False}
-        settings['unavailable_sources'] = {'projects': 'Candidate generation is not connected to project activity yet.',
-                                           'files': 'Candidate generation is not connected to shared files yet.'}
+        settings['capabilities'] = {'chats': True, 'projects': True, 'files': True}
+        settings['unavailable_sources'] = {}
         return settings
 
     def update_ambient_settings(self, changes: dict, *, owner_id: str = CANONICAL_OWNER):
@@ -130,16 +128,14 @@ class GovernedMemory:
             if key == 'sources':
                 if not isinstance(value, dict) or set(value) - {'chats', 'projects', 'files'}:
                     raise ValueError('Invalid source settings')
-                if value.get('projects') is True or value.get('files') is True:
-                    raise ValueError('Candidate generation for projects and files is not available')
                 updated[key] = {**current['sources'], **{name: bool(enabled) for name, enabled in value.items()}}
             elif key == 'pause_until':
                 if value is not None and (not isinstance(value, (int, float)) or value < time.time() or value > time.time() + 30 * 86400):
                     raise ValueError('Pause duration must be within the next 30 days')
                 updated[key] = value
             elif key == 'retention':
-                if value != 'forever':
-                    raise ValueError('Automatic memory expiry is not supported; choose forever')
+                if value not in {'6_months', '1_year', 'forever'}:
+                    raise ValueError('Choose a supported memory retention period')
                 updated[key] = value
             elif key == 'enabled':
                 if not isinstance(value, bool): raise ValueError('Enabled must be a boolean')
@@ -150,7 +146,27 @@ class GovernedMemory:
                 con.execute('INSERT INTO ambient_memory_settings(owner_id,key,value,updated_at) VALUES(?,?,?,?) '
                             'ON CONFLICT(owner_id,key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at',
                             (owner, key, json.dumps(stored), time.time()))
+        if 'retention' in changes:
+            self._apply_ambient_retention_setting(updated['retention'])
         return self.ambient_settings(owner_id=owner)
+
+    def _apply_ambient_retention_setting(self, retention: str):
+        store = self._brain.store
+        days = {'6_months': 183, '1_year': 365}.get(retention)
+        with store.lock, store.con() as con:
+            rows = con.execute(f"SELECT id,created_at,metadata_json FROM memories WHERE {store.STORABLE_SQL} AND removed_at IS NULL").fetchall()
+            for row in rows:
+                try: metadata = json.loads(row['metadata_json'] or '{}')
+                except (TypeError, ValueError): continue
+                if not metadata.get('ambient'): continue
+                if days:
+                    try: created = datetime.fromisoformat(str(row['created_at']).replace('Z', '+00:00')).timestamp()
+                    except (TypeError, ValueError): created = time.time()
+                    metadata['ambient_expires_at'] = created + days * 86400
+                else:
+                    metadata.pop('ambient_expires_at', None)
+                con.execute('UPDATE memories SET metadata_json=?,updated_at=? WHERE id=?',
+                            (json.dumps(metadata, default=str), datetime.now(timezone.utc).isoformat(), row['id']))
 
     def ambient_can_capture(self, source: str = 'chats', conversation_id: str | None = None, *, owner_id: str = CANONICAL_OWNER):
         settings = self.ambient_settings(owner_id=owner_id)
@@ -173,16 +189,43 @@ class GovernedMemory:
             con.execute('DELETE FROM ambient_memory_exclusions WHERE owner_id=? AND conversation_id=?', (owner, str(conversation_id)))
         return self.ambient_settings(owner_id=owner)
 
-    def remember_ambient(self, candidate: MemoryCandidate, *, conversation_id: str | None = None, request_id: str | None = None, owner_id: str = CANONICAL_OWNER):
-        if not self.ambient_can_capture('chats', conversation_id, owner_id=owner_id): return None
+    def remember_ambient(self, candidate: MemoryCandidate, *, source_type: str = 'chats', conversation_id: str | None = None,
+                         project_id: str | None = None, source_id: str | None = None, request_id: str | None = None,
+                         owner_id: str = CANONICAL_OWNER):
+        if source_type not in {'chats', 'projects', 'files'} or not self.ambient_can_capture(source_type, conversation_id, owner_id=owner_id): return None
         data = self._normalize(candidate)
-        metadata = {**data.get('metadata', {}), 'ambient': True}
+        metadata = {**data.get('metadata', {}), 'ambient': True, 'ambient_source': source_type}
         if conversation_id: metadata['conversation_id'] = str(conversation_id)
+        if project_id: metadata.update({'scope': 'project', 'project_id': str(project_id)})
+        if source_id: metadata['source_id'] = str(source_id)
         candidate = MemoryCandidate(type=data['type'], subject=data['subject'], content=data['content'],
-            confidence=data['confidence'], source='chat-conversation', verified=False, tags=data['tags'],
+            confidence=data['confidence'], source={'chats':'chat-conversation','projects':'project-context','files':'project-file'}[source_type], verified=False, tags=data['tags'],
             importance=data['importance'], sensitivity=data['sensitivity'], occurred_at=data['occurred_at'],
             evidence=data['evidence'], metadata=metadata, relationships=data['relationships'])
         return self.remember(candidate, owner_id=owner_id, request_id=request_id, force_review=True)
+
+    def expire_ambient_memories(self, *, owner_id: str = CANONICAL_OWNER, now_ts: float | None = None) -> int:
+        """Permanently expire only memories explicitly approved from Ambient Memory."""
+        self._require_owner(owner_id)
+        current = float(now_ts if now_ts is not None else time.time())
+        store = self._brain.store
+        with store.lock, store.con() as con:
+            rows = con.execute(f"SELECT id,metadata_json FROM memories WHERE {store.STORABLE_SQL} AND removed_at IS NULL").fetchall()
+        expired = []
+        for row in rows:
+            try: metadata = json.loads(row['metadata_json'] or '{}')
+            except (TypeError, ValueError): continue
+            value = metadata.get('ambient_expires_at') if metadata.get('ambient') else None
+            if value is not None:
+                try:
+                    if float(value) <= current: expired.append(str(row['id']))
+                except (TypeError, ValueError): pass
+        for memory_id in expired:
+            self._brain.delete(memory_id)
+        if expired:
+            try: self._brain.store.audit('memory', 'memory.ambient.retention_expired', {'count': len(expired)})
+            except Exception: pass
+        return len(expired)
 
     def temporal(self, *args, **kwargs):
         if not self.is_enabled():
@@ -380,6 +423,15 @@ class GovernedMemory:
             if is_never_store(sensitivity=data.get('sensitivity'), metadata=data.get('metadata')):
                 con.execute("UPDATE memory_candidates SET status='rejected',reason='never_store',updated_at=? WHERE id=?", (time.time(), candidate_id))
                 raise PermissionError('NEVER_STORE content cannot become canonical Memory')
+            metadata = dict(data.get('metadata') or {})
+            if metadata.get('ambient'):
+                retention = self.ambient_settings(owner_id=owner).get('retention', 'forever')
+                days = {'6_months': 183, '1_year': 365}.get(retention)
+                if days:
+                    metadata['ambient_expires_at'] = time.time() + days * 86400
+                else:
+                    metadata.pop('ambient_expires_at', None)
+                data['metadata'] = metadata
             con.execute("UPDATE memory_candidates SET status='promoting',updated_at=? WHERE id=?", (time.time(), candidate_id))
 
         memory_id = self._brain.remember(self._candidate(data, confirmed=True))
