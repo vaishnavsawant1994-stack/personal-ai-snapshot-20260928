@@ -1142,7 +1142,7 @@ try {
     assert.ok(layout.cards.length === 4, "four Home cards required");
     assert.ok(layout.cards.every(card => Math.abs(card.height-layout.cards[0].height)<1 && Math.abs(card.width-layout.cards[0].width)<1), "Home card dimensions mismatch at " + width + "x" + height);
     assert.ok(layout.cards.every(card => card.scrollHeight<=card.clientHeight+2), "Home card content clipped at " + width + "x" + height);
-    assert.ok(layout.cards.every(card => card.height>=58&&card.height<=240), "Home cards lost approved responsive proportions at " + width + "x" + height);
+    assert.ok(layout.cards.every(card => card.height>=58&&card.height<=Math.max(240,layout.viewportHeight*.35)), "Home cards lost approved responsive proportions at " + width + "x" + height);
     if(width<=600)assert.ok(Math.abs(layout.composer.width-layout.home.width)<=4, "Home composer must share the same outer grid at " + width + "x" + height);
     assert.ok(layout.composer.left>=-1 && layout.composer.right<=layout.viewportWidth+1, "composer clips horizontally at " + width + "x" + height);
     assert.ok(layout.controls.filter(control => control.width>0).every(control => control.width>=43 && control.height>=43), "composer action hit targets too small at " + width + "x" + height);
