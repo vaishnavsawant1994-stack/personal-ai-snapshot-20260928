@@ -463,7 +463,7 @@ class ModelRouter:
             'external_sensitive_allowed': self.allow_external_sensitive,
             'provider': provider.public() if provider else None,
             'providers': [
-                {**item.public(), 'configured': self._provider_can_run(item.id), 'owner_managed': item.id in self._owner_provider_configs, 'health': dict(self._health[item.id])}
+                {**item.public(), 'configured': self._provider_can_run(item.id), 'user_managed': item.id in self._owner_provider_configs, 'health': dict(self._health[item.id])}
                 for item in self.providers.values()
             ],
             'last_check': dict(self._last),
