@@ -51,6 +51,8 @@ let conversationCreateCount=0;
 let ambientCandidate={id:"candidate-qa",source:"chat-conversation",status:"pending",created_at:atToday(8),candidate:{subject:"Suggested preference",content:"The owner prefers concise responses.",type:"preference",confidence:0.82,source:"chat-conversation"}};
 let ambientCandidateEdits=[];
 let ambientSavedMemories=[{id:"memory-qa",subject:"Project context",type:"note",content:"Browser qualification fixture with source evidence",source:"owner",created_at:atToday(8),metadata_json:"{}"}];
+let ambientSettings={enabled:true,memory_enabled:true,capture_active:true,sources:{chats:true,projects:false,files:false},capabilities:{chats:true,projects:true,files:true},unavailable_sources:{},excluded_conversation_ids:[],pause_until:null,retention:"forever"};
+let ambientScanRequests=0;
 let turnClock=Date.now();
 let uiPreferenceState={continuous_voice:true,voice_rate:1,quiet_hours:true,privacy_memory_enabled:true,privacy_review_before_saving:true,privacy_allow_project_context_general:false,privacy_save_conversations:true,privacy_retention:'until_deleted',privacy_share_anonymous_usage_data:false,appearance_theme:'dark',appearance_accent:'blue',appearance_density:'comfortable',appearance_motion:'standard',appearance_text_size:'default',chat_enter_sends:true,chat_keep_composer_visible:true,chat_response_detail:'detailed',chat_response_style:'clear_step_by_step',chat_show_sources:true,chat_show_timestamps:true,chat_show_actions:true,chat_message_spacing:'comfortable',chat_new_context:'general',chat_project_context_enabled:false};
 let profileState={first_name:'Vishnu',last_name:'Owner',display_name:'Vishnu',email:'owner@example.test',email_verified:true,account_created_at:'2025-01-15T00:00:00Z',account_id_masked:'•••• 4821',avatar_available:false};
@@ -122,7 +124,9 @@ try {
       const input=JSON.parse(request.postData()||"{}");createdMemories.push(input);
       return route.fulfill({status:201,contentType:"application/json",body:JSON.stringify({memory:{id:"created-memory-"+createdMemories.length,...input}})});
     } else if (path === "/memory/ambient" && method === "GET") {
-      body={settings:{enabled:true,memory_enabled:true,capture_active:true,sources:{chats:true,projects:false,files:false},capabilities:{chats:true,projects:false,files:false},unavailable_sources:{projects:"Candidate generation is unavailable.",files:"Candidate generation is unavailable."},excluded_conversation_ids:[],pause_until:null,retention:"forever"},candidates:ambientCandidate?[ambientCandidate]:[],memories:ambientSavedMemories,activity:[]};
+      body={settings:ambientSettings,candidates:ambientCandidate?[ambientCandidate]:[],memories:ambientSavedMemories,activity:[]};
+    } else if (path === "/memory/ambient/scan" && method === "POST") {
+      ambientScanRequests++;body={candidates_created:0,projects_scanned:1,files_scanned:1,requires_owner_review:true};
     } else if (path.startsWith("/memory/candidates/") && method === "PATCH") {
       const edits=JSON.parse(request.postData()||"{}");ambientCandidate={...ambientCandidate,candidate:{...ambientCandidate.candidate,...edits}};ambientCandidateEdits.push(edits);body=ambientCandidate;
     } else if (path.startsWith("/memory/candidates/") && path.endsWith("/approve") && method === "POST") {
@@ -130,7 +134,7 @@ try {
     } else if (path.startsWith("/memory/candidates/") && method === "DELETE") {
       ambientCandidate=null;body={ok:true};
     } else if (path === "/memory/ambient/settings" && method === "PATCH") {
-      body={enabled:true,memory_enabled:true,sources:{chats:true,projects:false,files:false},capabilities:{chats:true,projects:false,files:false},excluded_conversation_ids:[],pause_until:null,retention:"forever"};
+      const changes=JSON.parse(request.postData()||"{}");ambientSettings={...ambientSettings,...changes,sources:{...ambientSettings.sources,...(changes.sources||{})}};body=ambientSettings;
     } else if (path === "/memory/graph" && method === "GET") {
       body={nodes:[{id:"memory-qa",subject:"Project context",type:"note"},{id:"memory-related",subject:"Responsive review details",type:"note"}],edges:[{source_id:"memory-qa",target_id:"memory-related"}]};
     } else if (path === "/memory/tree" && method === "GET") {
@@ -1558,6 +1562,12 @@ try {
   await page.waitForFunction(()=>document.querySelector('.rp-page[data-rp-page="memory"] .mx-main-toggle'));
   assert.equal(await page.locator('.rp-page[data-rp-page="memory"] .mx-saved').count(),1,'Ambient Memory renders a real-record browser fixture');
   assert.equal(await page.locator('.rp-page[data-rp-page="memory"] .mx-review-callout').isVisible(),true,'Ambient Memory explains approval before save');
+  await page.locator('[data-mx-source="projects"]').click();
+  assert.equal(ambientSettings.sources.projects,true,'Ambient source permissions persist');
+  await page.locator('[data-mx-scan]').click();
+  assert.equal(ambientScanRequests,1,'Enabled project and file sources can be scanned');
+  await page.locator('[data-mx-retention]').selectOption('6_months');
+  assert.equal(ambientSettings.retention,'6_months','Ambient retention selection persists');
   assert.equal(await page.locator('.rp-page[data-rp-page="memory"] .mx-candidate').count(),1,'Pending candidate comes from the owner review queue');
   await page.locator('[data-mx-review]').click();
   await page.locator('dialog input[name="subject"]').fill('Owner-edited browser candidate');

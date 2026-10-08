@@ -57,12 +57,22 @@ print(json.dumps({'event':'storage.ready',**storage_status}),flush=True)
 @asynccontextmanager
 async def lifespan(app):
     runtime['automations'].start();evaluation_task=None
+    async def ambient_retention_worker():
+        governed = runtime['second_brain']
+        while True:
+            try: await asyncio.to_thread(governed.expire_ambient_memories, owner_id='owner')
+            except Exception as exc: print(json.dumps({'event':'memory.ambient.retention_sweep_failed','error':type(exc).__name__}),flush=True)
+            await asyncio.sleep(3600)
+    retention_task=asyncio.create_task(ambient_retention_worker())
     if settings.model_evaluation_on_startup:
         async def evaluate_model():
             result=await asyncio.to_thread(runtime['model_evaluation'].run);safe={key:value for key,value in result.items() if key!='cases'};safe['case_results']=[{'case':item['case'],'passed':item['passed'],'error_code':item['error_code']} for item in result['cases']];print(json.dumps({'event':'model.dialogue_evaluation',**safe}),flush=True)
         evaluation_task=asyncio.create_task(evaluate_model())
     try:yield
     finally:
+        retention_task.cancel()
+        try: await retention_task
+        except asyncio.CancelledError: pass
         if evaluation_task and not evaluation_task.done():evaluation_task.cancel()
         runtime['voice'].stop();runtime['automations'].stop();runtime['telemetry'].persist();runtime['apns'].close()
 
