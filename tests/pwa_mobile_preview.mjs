@@ -1360,11 +1360,11 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.click("#historyButton");
   await page.click("#sidebarNewChat");
-  await page.waitForFunction(() => document.querySelector("#appDrawer").classList.contains("hidden") && !document.body.classList.contains("home-landing") && document.querySelectorAll("#messageStream .message").length === 0);
+  await page.waitForFunction(() => document.querySelector("#appDrawer").classList.contains("hidden") && document.body.classList.contains("chat-new-empty") && document.querySelectorAll("#messageStream .message").length === 0);
   await page.click("#historyButton");
   await page.click("#appConversations");
   await page.click("#newConversation");
-  await page.waitForFunction(() => !document.body.classList.contains("home-landing") && document.querySelectorAll("#messageStream .message").length === 0);
+  await page.waitForFunction(() => document.body.classList.contains("chat-new-empty") && document.querySelectorAll("#messageStream .message").length === 0);
   const sharedChatChrome=await page.evaluate(()=>({
     header:document.querySelector(".topbar").getBoundingClientRect(),
     menu:document.querySelector("#historyButton").getBoundingClientRect(),
