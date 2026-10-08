@@ -526,7 +526,7 @@ try {
     assert.ok(ownerPageText.includes(item), "Owner Controls Overview missing " + item);
   }
   await page.screenshot({ path: "artifacts/personal-ai-owner-controls-390x844.png", fullPage: true });
-  await page.locator('[data-oc-section="providers"]').click();
+  await page.locator('.oc-tabs [data-oc-section="providers"]').click();
   await page.waitForFunction(()=>document.querySelector('#moduleBody')?.innerText.includes('Your AI providers'));
   await page.locator('[data-oc-action="provider-add"]').first().click();
   assert.equal(await page.locator('.oc-provider-dialog').isVisible(),true,'Add provider must open the secure connection flow');
