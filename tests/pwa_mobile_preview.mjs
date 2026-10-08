@@ -528,7 +528,8 @@ try {
   await page.selectOption('.oc-provider-dialog [name="model"]','model-a');
   await page.locator('.oc-provider-dialog [type="submit"]').click();
   await page.waitForFunction(()=>document.querySelector('#moduleBody')?.innerText.includes('model-a'));
-  assert.ok(!(await page.evaluate(()=>localStorage.getItem('sk-browser-test-credential'))),'provider credential must never be stored in browser local storage');
+  assert.ok(!(await page.evaluate(()=>Array.from({length:localStorage.length},(_,i)=>localStorage.getItem(localStorage.key(i))).join('\n'))).includes('sk-browser-test-credential'),'provider credential must never be stored in browser local storage');
+  assert.ok(!(await page.locator('#moduleBody').innerText()).includes('sk-browser-test-credential'),'provider credential must never render after save');
 
   // Reload the app shell before checking its Home-only Timeline control.
   await page.reload();
