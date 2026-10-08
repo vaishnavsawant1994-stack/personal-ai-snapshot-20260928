@@ -142,6 +142,7 @@ try{
   assert.ok((await mobile.locator('#composer').boundingBox()).y>700,'mobile composer stays at the bottom of the viewport');
   await mobile.screenshot({path:'artifacts/chat-active-mobile.png',fullPage:true});
   await mobile.locator('#chatDetailsTop').click();
+  await mobile.locator('#chatDetailsMenuItem').click();
   await mobile.waitForFunction(()=>document.querySelector('#chatDetailMobile').classList.contains('open'));
   assert.match(await mobile.locator('#chatDetailMobile').innerText(),/Chat details/);
   assert.equal(await mobile.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'mobile page has no horizontal overflow');
