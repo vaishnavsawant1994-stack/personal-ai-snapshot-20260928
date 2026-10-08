@@ -4,6 +4,8 @@ from dataclasses import asdict, dataclass
 import io
 import json
 from pathlib import Path
+import sqlite3
+import threading
 import time
 from urllib.parse import urlsplit
 
@@ -105,6 +107,19 @@ class ModelRouter:
         self.providers = self._build_providers()
         selected = str(getattr(settings, 'ai_provider', 'local') or 'local').strip().lower()
         self.primary = self._safe_provider_id(selected)
+        self._settings_lock = threading.RLock()
+        self._owner_settings_path = None
+        self._owner_selected_provider = False
+        data_dir = getattr(settings, 'data_dir', None)
+        if data_dir is not None:
+            self._owner_settings_path = Path(data_dir) / 'owner-model-settings.sqlite3'
+            self._owner_settings_path.parent.mkdir(parents=True, exist_ok=True)
+            with self._model_settings_connection() as con:
+                con.execute('CREATE TABLE IF NOT EXISTS model_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at REAL NOT NULL)')
+                row = con.execute("SELECT value FROM model_settings WHERE key='default_provider'").fetchone()
+            if row and self._provider_can_run(row[0]):
+                self.primary = row[0]
+                self._owner_selected_provider = True
         fallback = getattr(settings, 'model_fallback_providers', ()) or ()
         if isinstance(fallback, str):
             fallback = tuple(item.strip() for item in fallback.split(',') if item.strip())
@@ -126,6 +141,36 @@ class ModelRouter:
         if value in self.providers:
             return value
         return 'invalid'
+
+    def _provider_can_run(self, provider_id: str) -> bool:
+        provider = self.providers.get(str(provider_id))
+        return bool(provider and provider.configured and (provider.private or provider.api_key))
+
+    def _model_settings_connection(self):
+        if self._owner_settings_path is None:
+            raise RuntimeError('persistent model settings are unavailable')
+        con = sqlite3.connect(self._owner_settings_path, timeout=15)
+        con.row_factory = sqlite3.Row
+        return con
+
+    def set_default_provider(self, provider_id: str) -> dict:
+        selected = self._safe_provider_id(str(provider_id or '').strip().lower())
+        if selected == 'invalid' or not self._provider_can_run(selected):
+            raise ValueError('provider is not configured and available')
+        allowed = set(getattr(self.settings, 'model_allowed_providers', ()) or ())
+        disabled = set(getattr(self.settings, 'model_disabled_providers', ()) or ())
+        if selected in disabled or (allowed and selected not in allowed):
+            raise ValueError('provider is restricted by the server model policy')
+        with self._settings_lock:
+            previous = self.primary
+            if self._owner_settings_path is not None:
+                with self._model_settings_connection() as con:
+                    con.execute("INSERT INTO model_settings(key,value,updated_at) VALUES('default_provider',?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at", (selected, time.time()))
+            self.primary = selected
+            self._owner_selected_provider = True
+            if previous != selected:
+                self.fallbacks = tuple(dict.fromkeys(([previous] if previous != 'invalid' else []) + [p for p in self.fallbacks if p != selected]))
+            return {'provider': selected, 'previous_provider': previous, 'persisted': self._owner_settings_path is not None}
 
     def _build_providers(self) -> dict[str, Provider]:
         explicit_local = bool(getattr(self.settings, 'local_ai_explicit', False))
@@ -174,7 +219,7 @@ class ModelRouter:
         candidates = []
         provider_order = [self.primary, *self.fallbacks]
         local = self.providers.get('self_hosted')
-        if self.local_first and local and local.configured:
+        if self.local_first and local and local.configured and not self._owner_selected_provider:
             provider_order.insert(0, 'self_hosted')
         for provider_id in provider_order:
             provider = self.providers.get(provider_id)
@@ -291,7 +336,7 @@ class ModelRouter:
             'external_sensitive_allowed': self.allow_external_sensitive,
             'provider': provider.public() if provider else None,
             'providers': [
-                {**item.public(), 'health': dict(self._health[item.id])}
+                {**item.public(), 'configured': self._provider_can_run(item.id), 'health': dict(self._health[item.id])}
                 for item in self.providers.values()
             ],
             'last_check': dict(self._last),

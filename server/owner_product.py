@@ -4,7 +4,9 @@ import base64
 import binascii
 import json
 import os
+import re
 import shutil
+import threading
 import time
 import uuid
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -15,7 +17,7 @@ from io import BytesIO
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Cookie, HTTPException
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from starlette.background import BackgroundTask
 
@@ -152,6 +154,17 @@ class WorkflowRunBody(BaseModel):
 
 class EmergencyStopBody(BaseModel):
     enabled: bool
+
+
+class OwnerPermissionsBody(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    mode: Literal['safe', 'balanced', 'custom']
+    rules: dict[str, Literal['allow', 'ask', 'never']]
+
+
+class OwnerDefaultProviderBody(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    provider_id: str = Field(min_length=1, max_length=80, pattern=r'^[a-z0-9_-]+$')
 
 
 class UiPreferencesBody(BaseModel):
@@ -344,6 +357,7 @@ def owner_product_router(runtime):
     memory = runtime['memory']
     second_brain = runtime['second_brain']
     knowledge = runtime['knowledge']
+    backup_lock = runtime.setdefault('owner_backup_lock', threading.RLock())
 
     def authenticate(device_id: str | None, token: str | None, scope: str):
         if not device_id or not token or not registry.authenticate(device_id, token):
@@ -354,6 +368,21 @@ def owner_product_router(runtime):
 
     def audit(action: str, *, device_id: str, **payload):
         memory.audit('owner-product', action, {'device_id': device_id, **payload})
+
+    def backup_file(backup_id: str):
+        service = runtime.get('backups')
+        if service is None:
+            raise HTTPException(503, 'Encrypted backup service is unavailable')
+        if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,159}\.paibackup', backup_id):
+            raise HTTPException(404, 'Backup not found')
+        candidate = service.backup_dir / backup_id
+        if candidate.is_symlink():
+            raise HTTPException(404, 'Backup not found')
+        path = candidate.resolve()
+        root = service.backup_dir.resolve()
+        if root not in path.parents or path.is_symlink() or not path.is_file():
+            raise HTTPException(404, 'Backup not found')
+        return service, path
 
     def require_fresh_reauthentication():
         context = current_trusted_request()
@@ -1041,6 +1070,100 @@ def owner_product_router(runtime):
         audit('knowledge.deleted', device_id=device_id, document_id=document_id)
         return {'ok': True, 'document_id': document_id}
 
+    @router.get('/owner/backups')
+    def owner_backups(
+        pa_device: str | None = Cookie(default=None),
+        pa_token: str | None = Cookie(default=None),
+    ):
+        device_id = authenticate(pa_device, pa_token, 'activities:read')
+        service = runtime.get('backups')
+        if service is None:
+            return {'available': False, 'can_create': False, 'backups': [], 'total_size_bytes': None}
+        all_paths = [path for path in service.backup_dir.glob('*.paibackup') if not path.is_symlink() and path.is_file()]
+        rows = []
+        for path in sorted(all_paths, key=lambda item: item.stat().st_mtime, reverse=True)[:100]:
+            if path.is_symlink() or not path.is_file():
+                continue
+            stat = path.stat()
+            with path.open('rb') as handle:
+                encrypted = handle.read(11) == b'PAIBACKUP2\n'
+            rows.append({
+                'id': path.name,
+                'created_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(stat.st_mtime)),
+                'size_bytes': stat.st_size,
+                'status': 'stored_unverified',
+                'encrypted': encrypted,
+            })
+        return {
+            'available': True,
+            'can_create': bool(registry.authorize(device_id, 'device:admin')) if hasattr(registry, 'authorize') else False,
+            'backups': rows,
+            'total_size_bytes': sum(path.stat().st_size for path in all_paths),
+            'backup_count': len(all_paths),
+            'storage': 'local encrypted backup directory',
+            'schedule': None,
+        }
+
+    @router.post('/owner/backups')
+    def owner_backup_create(
+        pa_device: str | None = Cookie(default=None),
+        pa_token: str | None = Cookie(default=None),
+    ):
+        device_id = authenticate(pa_device, pa_token, 'device:admin')
+        service = runtime.get('backups')
+        if service is None:
+            raise HTTPException(503, 'Encrypted backup service is unavailable')
+        from recovery.backup import BackupError
+        backup_id = f"owner-{time.strftime('%Y%m%d-%H%M%S', time.gmtime())}-{uuid.uuid4().hex[:10]}.paibackup"
+        try:
+            with backup_lock:
+                path = service.create(backup_id)
+                metadata = service.inspect(path)
+        except (BackupError, OSError) as exc:
+            audit('backup.create.failed', device_id=device_id, backup_id=backup_id, error_type=type(exc).__name__)
+            raise HTTPException(503, 'The encrypted backup could not be created or verified') from exc
+        audit('backup.created', device_id=device_id, backup_id=path.name, size_bytes=path.stat().st_size, encrypted=bool(metadata.get('encrypted')))
+        return {
+            'ok': True,
+            'backup': {
+                'id': path.name,
+                'created_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(path.stat().st_mtime)),
+                'size_bytes': path.stat().st_size,
+                'status': 'verified' if metadata.get('encrypted') else 'verified_legacy_unencrypted',
+                'encrypted': bool(metadata.get('encrypted')),
+                'file_count': len(metadata.get('files', [])),
+            },
+        }
+
+    @router.post('/owner/backups/{backup_id}/verify')
+    def owner_backup_verify(
+        backup_id: str,
+        pa_device: str | None = Cookie(default=None),
+        pa_token: str | None = Cookie(default=None),
+    ):
+        device_id = authenticate(pa_device, pa_token, 'activities:read')
+        service, path = backup_file(backup_id)
+        from recovery.backup import BackupError
+        try:
+            with backup_lock:
+                metadata = service.inspect(path)
+        except (BackupError, OSError) as exc:
+            audit('backup.verification.failed', device_id=device_id, backup_id=path.name, error_type=type(exc).__name__)
+            return {'ok': False, 'status': 'verification_failed', 'message': 'Backup integrity verification failed'}
+        audit('backup.verified', device_id=device_id, backup_id=path.name, encrypted=bool(metadata.get('encrypted')), file_count=len(metadata.get('files', [])))
+        return {'ok': True, 'status': 'verified', 'encrypted': bool(metadata.get('encrypted')), 'file_count': len(metadata.get('files', [])), 'created_at': metadata.get('created_at')}
+
+    @router.get('/owner/backups/{backup_id}/download')
+    def owner_backup_download(
+        backup_id: str,
+        pa_device: str | None = Cookie(default=None),
+        pa_token: str | None = Cookie(default=None),
+    ):
+        device_id = authenticate(pa_device, pa_token, 'activities:read')
+        _, path = backup_file(backup_id)
+        audit('backup.downloaded', device_id=device_id, backup_id=path.name)
+        return FileResponse(path, media_type='application/octet-stream', filename=path.name, headers={'Cache-Control': 'no-store'})
+
     @router.get('/activities')
     def activities(
         category: str | None = None,
@@ -1444,6 +1567,41 @@ def owner_product_router(runtime):
             'emergency_stop': bool(getattr(runtime['tools'], 'emergency_stop', False)),
             'model_evaluation': runtime['model_evaluation'].latest(),
         }
+
+    @router.get('/owner/permissions')
+    def owner_permissions_get(pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'device:admin')
+        tools = runtime.get('tools')
+        if tools is None or not callable(getattr(tools, 'owner_permissions', None)):
+            raise HTTPException(503, 'Owner permission policy is unavailable')
+        return tools.owner_permissions()
+
+    @router.patch('/owner/permissions')
+    def owner_permissions_patch(body: OwnerPermissionsBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'device:admin')
+        tools = runtime.get('tools')
+        if tools is None or not callable(getattr(tools, 'update_owner_permissions', None)):
+            raise HTTPException(503, 'Owner permission policy is unavailable')
+        try:
+            result = tools.update_owner_permissions(body.mode, body.rules)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        audit('owner.permissions.updated', device_id=device_id, mode=result['mode'], rules=result['rules'])
+        return {'ok': True, **result}
+
+    @router.patch('/owner/ai-provider/default')
+    def owner_default_provider(body: OwnerDefaultProviderBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'device:admin')
+        models = runtime.get('models')
+        setter = getattr(models, 'set_default_provider', None)
+        if not callable(setter):
+            raise HTTPException(503, 'Persistent provider selection is unavailable')
+        try:
+            result = setter(body.provider_id)
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        audit('model.default_provider.changed', device_id=device_id, provider_id=result['provider'], previous_provider=result['previous_provider'])
+        return {'ok': True, **result, 'model': models.status()}
 
     @router.post('/system/model-evaluation')
     def run_model_evaluation(
