@@ -1445,7 +1445,7 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.fill("#message", "Hello from browser QA");
   assert.equal(await page.locator(".v-shortcuts").isVisible(), false, "new empty chat must not duplicate Home quick actions");
-  assert.equal(await page.locator(".core-stage").evaluate(node => getComputedStyle(node).visibility), "visible", "new empty chat retains mini header sphere");
+  assert.equal(await page.locator(".topbar .header-core .core-stage").evaluate(node => getComputedStyle(node).visibility), "visible", "new empty chat retains mini header sphere");
   await page.screenshot({ path: "artifacts/personal-ai-new-chat-390x844.png", fullPage: true });
   await page.locator("#message").focus();
   assert.equal(await page.locator("#message").evaluate(node => document.activeElement === node), true, "composer input must receive keyboard focus");
