@@ -393,6 +393,9 @@
     document.body.classList.add('owner-controls-mode');
     const fromHash=location.hash.match(/^#owner-controls\/(overview|providers|services|permissions|security|backups|audit)$/)?.[1];
     state.section=fromHash||state.section||'overview';
+    document.getElementById('moduleTitle').textContent='Owner Controls';
+    document.getElementById('moduleText').textContent=pageSubtitle(state.section);
+    document.getElementById('moduleMetric').textContent='';
     state.loading=true;
     render();
     await loadData();
