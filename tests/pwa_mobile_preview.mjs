@@ -100,7 +100,7 @@ try {
       body={provider:"openai",models:["model-a","model-b"],credential_stored:false};
     } else if (path === "/owner/ai-providers" && method === "POST") {
       const input=JSON.parse(request.postData()||"{}");assert.equal(input.api_key,"sk-browser-test-credential");assert.equal(input.model,"model-b");
-      systemStatus.model={state:"configured",primary_provider:"self_hosted",providers:[{id:"openai",model:"model-b",configured:true,owner_managed:true,private:false,health:{state:"not_checked"}}]};
+      systemStatus.model={state:"configured",primary_provider:"self_hosted",providers:[{id:"openai",model:"model-b",configured:true,user_managed:true,private:false,health:{state:"not_checked"}}]};
       body={ok:true,provider:"openai",model:"model-b",credential_stored:true,model_status:systemStatus.model};
     } else if (path === "/owner/ai-providers/openai/models" && method === "GET") {
       body={provider:"openai",models:["model-a","model-b"]};
@@ -513,7 +513,7 @@ try {
     assert.ok(ownerPageText.includes(item), "Owner Controls Overview missing " + item);
   }
   await page.screenshot({ path: "artifacts/personal-ai-owner-controls-390x844.png", fullPage: true });
-  await page.locator('[data-oc-section="providers"]').click();
+  await page.locator('.oc-tabs [data-oc-section="providers"]').click();
   await page.waitForFunction(()=>document.querySelector('#moduleBody')?.innerText.includes('Your AI providers'));
   await page.locator('[data-oc-action="provider-add"]').first().click();
   assert.equal(await page.locator('.oc-provider-dialog').isVisible(),true,'Add provider must open the secure connection flow');
