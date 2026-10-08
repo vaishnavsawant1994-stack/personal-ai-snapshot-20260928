@@ -86,7 +86,7 @@
       id:item.id,
       name:item.display_name||item.name||(item.id==='self_hosted'?'Self-hosted model':String(item.id||'AI provider')),
       model:item.model||'Model not specified', health:item.health?.state||item.state||'configured',
-      primary:item.id===model.primary_provider, private:item.private===true, ownerManaged:item.user_managed===true,
+      primary:item.id===model.primary_provider, private:item.private===true, ownerManaged:item.user_managed===true||item.owner_managed===true,
     }));
   }
   function connectors() { return Array.isArray(state.data.connectors) ? state.data.connectors : safeArray(state.data.connectors,'connectors'); }
