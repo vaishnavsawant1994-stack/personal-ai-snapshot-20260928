@@ -181,6 +181,11 @@ class OwnerProviderTestBody(BaseModel):
     api_key: SecretStr = Field(min_length=16, max_length=4096)
 
 
+class OwnerProviderModelBody(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    model: str = Field(min_length=1, max_length=200)
+
+
 class UiPreferencesBody(BaseModel):
     model_config = ConfigDict(extra='forbid')
     profile_display_name: str = Field(default='', max_length=80)
@@ -1659,6 +1664,36 @@ def owner_product_router(runtime):
         except RuntimeError as exc:
             raise HTTPException(503, str(exc)) from exc
         audit('model.provider.connected', device_id=device_id, provider_id=result['provider'], model=result['model'])
+        return {'ok': True, **result, 'model_status': models.status()}
+
+    @router.get('/owner/ai-providers/{provider_id}/models')
+    def owner_provider_models(provider_id: str, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'device:admin')
+        limit_provider_attempts(device_id)
+        models = runtime.get('models')
+        if models is None or not callable(getattr(models, 'owner_provider_models', None)):
+            raise HTTPException(503, 'Provider model discovery is unavailable')
+        try:
+            return models.owner_provider_models(provider_id)
+        except ValueError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(503, str(exc)) from exc
+
+    @router.patch('/owner/ai-providers/{provider_id}/model')
+    def owner_provider_model_update(provider_id: str, body: OwnerProviderModelBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        device_id = authenticate(pa_device, pa_token, 'device:admin')
+        limit_provider_attempts(device_id)
+        models = runtime.get('models')
+        if models is None or not callable(getattr(models, 'set_owner_provider_model', None)):
+            raise HTTPException(503, 'Provider model configuration is unavailable')
+        try:
+            result = models.set_owner_provider_model(provider_id, body.model)
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(503, str(exc)) from exc
+        audit('model.provider.model_changed', device_id=device_id, provider_id=result['provider'], model=result['model'])
         return {'ok': True, **result, 'model_status': models.status()}
 
     @router.delete('/owner/ai-providers/{provider_id}')
