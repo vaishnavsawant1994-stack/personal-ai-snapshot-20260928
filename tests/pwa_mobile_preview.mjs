@@ -102,6 +102,10 @@ try {
       const input=JSON.parse(request.postData()||"{}");assert.equal(input.api_key,"sk-browser-test-credential");assert.equal(input.model,"model-b");
       systemStatus.model={state:"configured",primary_provider:"self_hosted",providers:[{id:"openai",model:"model-b",configured:true,owner_managed:true,private:false,health:{state:"not_checked"}}]};
       body={ok:true,provider:"openai",model:"model-b",credential_stored:true,model_status:systemStatus.model};
+    } else if (path === "/owner/ai-providers/openai/models" && method === "GET") {
+      body={provider:"openai",models:["model-a","model-b"]};
+    } else if (path === "/owner/ai-providers/openai/model" && method === "PATCH") {
+      const model=JSON.parse(request.postData()||"{}").model;systemStatus.model.providers[0].model=model;body={ok:true,provider:"openai",model,model_status:systemStatus.model};
     } else if (path === "/everyday/active" && method === "GET") {
       body = { items: everydayItems.filter(item => !['completed','cancelled','dismissed'].includes(item.status)) };
     } else if (path === "/everyday/timeline" && method === "GET") {
@@ -519,6 +523,11 @@ try {
   await page.selectOption('.oc-provider-dialog [name="model"]','model-b');
   await page.locator('.oc-provider-dialog [type="submit"]').click();
   await page.waitForFunction(()=>document.querySelector('#moduleBody')?.innerText.includes('Owner configured'));
+  await page.locator('[data-oc-provider-model="openai"]').click();
+  await page.waitForFunction(()=>!document.querySelector('.oc-provider-dialog [name="model"]')?.disabled);
+  await page.selectOption('.oc-provider-dialog [name="model"]','model-a');
+  await page.locator('.oc-provider-dialog [type="submit"]').click();
+  await page.waitForFunction(()=>document.querySelector('#moduleBody')?.innerText.includes('model-a'));
   assert.ok(!(await page.evaluate(()=>localStorage.getItem('sk-browser-test-credential'))),'provider credential must never be stored in browser local storage');
 
   // Reload the app shell before checking its Home-only Timeline control.
