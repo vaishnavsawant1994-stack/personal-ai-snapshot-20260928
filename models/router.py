@@ -207,6 +207,37 @@ class ModelRouter:
         _, available = self._test_owner_provider(provider_id, api_key)
         return {'provider': provider_id, 'models': available[:500], 'credential_stored': False}
 
+    def owner_provider_models(self, provider_id: str) -> dict:
+        provider_id = self._safe_provider_id(str(provider_id or '').strip().lower())
+        if provider_id not in self._owner_provider_configs or self.vault is None:
+            raise ValueError('This provider is not owner configured')
+        key = self.vault.get(f'ai-provider:{provider_id}:api-key')
+        if not key:
+            raise RuntimeError('Encrypted provider credential is unavailable')
+        _, available = self._test_owner_provider(provider_id, str(key))
+        return {'provider': provider_id, 'models': available[:500]}
+
+    def set_owner_provider_model(self, provider_id: str, model: str) -> dict:
+        provider_id = self._safe_provider_id(str(provider_id or '').strip().lower())
+        model = str(model or '').strip()
+        if provider_id not in self._owner_provider_configs:
+            raise ValueError('This provider is not owner configured')
+        if not model or len(model) > 200 or any(ord(char) < 32 for char in model):
+            raise ValueError('Select an available model')
+        result = self.owner_provider_models(provider_id)
+        if model not in result['models']:
+            raise ValueError('The selected model is not available for this provider account')
+        with self._settings_lock:
+            if provider_id not in self._owner_provider_configs:
+                raise ValueError('This provider was disconnected while its model was being changed')
+            with self._model_settings_connection() as con:
+                changed = con.execute('UPDATE owner_provider_config SET model=?,updated_at=? WHERE provider_id=?', (model, time.time(), provider_id)).rowcount
+            if changed != 1:
+                raise ValueError('This provider was disconnected while its model was being changed')
+            self._owner_provider_configs[provider_id] = model
+            self.providers[provider_id] = replace(self.providers[provider_id], model=model)
+        return {'provider': provider_id, 'model': model}
+
     def connect_owner_provider(self, provider_id: str, api_key: str, model: str) -> dict:
         """Validate a known provider using its live model endpoint, then store its key in the encrypted vault."""
         if self._owner_settings_path is None or self.vault is None:
