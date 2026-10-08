@@ -5,10 +5,12 @@ import json
 from typing import Any
 
 from models.hybrid import HybridRequest, PrivacyMode, SafeContext
+from future_intelligence.workers import WorkerRegistry
 
+from .capabilities import CapabilityRegistry
 from .context_pack import ContextPackBuilder
 from .lowering import bind_to_projection, lower_to_p10_tasks
-from .models import ReadinessStatus, WorkPlan
+from .models import ReadinessStatus, WorkPlan, WorkPlanStatus
 from .planner import StrategicWorkPlanner
 from .reviewer import PlanReviewStore
 
@@ -22,21 +24,16 @@ def install(cls) -> None:
     original_status = cls.status
     original_work_plan = cls.work_plan
 
-    def _available_tools(self) -> tuple[str, ...] | None:
+    def _tool_registry(self):
         executor = getattr(getattr(self, "operations", None), "executor", None)
-        registry = getattr(executor, "tools", None)
-        if registry is None or not hasattr(registry, "all"):
-            return None
-        try:
-            return tuple(
-                dict.fromkeys(
-                    str(tool.name)
-                    for tool in registry.all()
-                    if not bool(getattr(tool, "prohibited", False))
-                )
-            )
-        except Exception:
-            return None
+        return getattr(executor, "tools", None)
+
+    def _capabilities(self) -> CapabilityRegistry:
+        return CapabilityRegistry.from_tool_registry(_tool_registry(self))
+
+    def _available_tools(self) -> tuple[str, ...] | None:
+        capabilities = _capabilities(self)
+        return capabilities.available_tool_names() if capabilities.source_available else None
 
     def _patch_bridge(self) -> None:
         bridge = getattr(self, "_work_bridge", None)
@@ -59,11 +56,7 @@ def install(cls) -> None:
         def project_plan_preserving(p10_plan, p10_goal, *, force_new_version=False):
             with bridge.lock:
                 existing = bridge.work.latest_plan_for_source(str(p10_plan["id"]))
-                result = original_project_plan(
-                    p10_plan,
-                    p10_goal,
-                    force_new_version=force_new_version,
-                )
+                result = original_project_plan(p10_plan, p10_goal, force_new_version=force_new_version)
                 if (
                     existing is None
                     or force_new_version
@@ -111,6 +104,7 @@ def install(cls) -> None:
                 )
                 return bridge.work.save_plan(enriched, source_p10_plan_id=str(p10_plan["id"]))
 
+        bridge.project_goal = project_goal_preserving
         bridge.project_plan = project_plan_preserving
         bridge._hierarchical_preservation_installed = True
 
@@ -118,6 +112,7 @@ def install(cls) -> None:
         original_init(self, *args, **kwargs)
         _patch_bridge(self)
         self._hierarchical_last_review = None
+        self._worker_registry = WorkerRegistry.default()
 
     def _project_store(self):
         return getattr(self, "project_store", None)
@@ -159,17 +154,39 @@ def install(cls) -> None:
             per_source_limit=8,
             item_limit=1000,
         )
-        text = self.models.hybrid_chat(
-            prompt,
-            request=request,
-            context=safe_context,
-            system=system,
-        )
+        text = self.models.hybrid_chat(prompt, request=request, context=safe_context, system=system)
         try:
             parsed = json.loads(text)
         except (TypeError, ValueError, json.JSONDecodeError) as exc:
             raise ValueError("invalid strategic model response") from exc
         return parsed
+
+    def _apply_worker_review(self, candidate, review, capabilities):
+        assessment = self._worker_registry.assess_plan(candidate, capabilities)
+        blockers = tuple(dict.fromkeys((*review.blockers, *assessment.blockers)))
+        warnings = tuple(dict.fromkeys((*review.warnings, *assessment.warnings)))
+        status = ReadinessStatus.HOLD if blockers else ReadinessStatus.DEGRADED if warnings else ReadinessStatus.READY
+        score = max(0.0, min(review.score, assessment.score, 100.0 - 25.0 * len(blockers) - 5.0 * len(warnings)))
+        review = replace(
+            review,
+            status=status,
+            score=score,
+            blockers=blockers,
+            warnings=warnings,
+            checks={**dict(review.checks), "worker_assessment": assessment.to_dict()},
+        )
+        plan_status = WorkPlanStatus.HOLD if status is ReadinessStatus.HOLD else WorkPlanStatus.DEGRADED if status is ReadinessStatus.DEGRADED else WorkPlanStatus.READY
+        candidate = replace(
+            candidate,
+            readiness=status,
+            status=plan_status,
+            critic={
+                **dict(candidate.critic),
+                "worker_assessment": assessment.to_dict(),
+                "worker_authority": "proposal_only",
+            },
+        )
+        return candidate, review, assessment
 
     def propose_hierarchical_plan(
         self,
@@ -188,7 +205,8 @@ def install(cls) -> None:
             projection_input["project_id"] = str(project_id)
         goal_spec = bridge.project_goal(projection_input)
 
-        tools = _available_tools(self)
+        capabilities = _capabilities(self)
+        tools = capabilities.available_tool_names() if capabilities.source_available else None
         recent = list(getattr(self, "_outcomes", [])[-10:])
         context = ContextPackBuilder(
             memory=getattr(self, "memory", None),
@@ -205,11 +223,8 @@ def install(cls) -> None:
         strategic = StrategicWorkPlanner(
             lambda prompt, system: _generate_json(self, p10_goal, context, prompt, system)
         )
-        candidate, review = strategic.propose(
-            goal_spec,
-            context,
-            available_tools=tools,
-        )
+        candidate, review = strategic.propose(goal_spec, context, available_tools=tools)
+        candidate, review, worker_assessment = _apply_worker_review(self, candidate, review, capabilities)
         self._hierarchical_last_review = review.to_dict()
 
         if review.status is ReadinessStatus.HOLD:
@@ -219,6 +234,7 @@ def install(cls) -> None:
                 blockers=list(review.blockers),
                 warnings=list(review.warnings),
                 context_fingerprint=context.fingerprint,
+                worker_assessment=worker_assessment.to_dict(),
                 model_output_authority=False,
             )
             return {
@@ -231,6 +247,8 @@ def install(cls) -> None:
                     "knowledge_items": len(context.knowledge),
                     "evidence_items": len(context.evidence),
                 },
+                "workers": worker_assessment.to_dict(),
+                "capabilities": capabilities.status(),
                 "authority": "planning_only",
             }
 
@@ -254,6 +272,7 @@ def install(cls) -> None:
             readiness_score=review.score,
             warnings=list(review.warnings),
             context_fingerprint=context.fingerprint,
+            worker_count=len(worker_assessment.assignments),
             model_output_authority=False,
             execution_authority="existing_p10_p6_runtime",
         )
@@ -268,6 +287,8 @@ def install(cls) -> None:
                 "knowledge_items": len(context.knowledge),
                 "evidence_items": len(context.evidence),
             },
+            "workers": worker_assessment.to_dict(),
+            "capabilities": capabilities.status(),
             "authority": "existing_p10_p6_runtime",
         }
 
@@ -285,11 +306,14 @@ def install(cls) -> None:
 
     def status(self):
         result = original_status(self)
+        capabilities = _capabilities(self)
         result["hierarchical_planning"] = {
             "installed": True,
             "authority": "planning_only",
             "execution_authority": "existing_p10_p6_runtime",
             "last_review": self._hierarchical_last_review,
+            "workers": self._worker_registry.status(),
+            "capabilities": capabilities.status(),
         }
         return result
 

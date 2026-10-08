@@ -1,3 +1,4 @@
+from .capabilities import CapabilityRecord, CapabilityRegistry, CapabilityState
 from .context_pack import ContextEntry, ContextPack, ContextPackBuilder
 from .lowering import bind_to_projection, lower_to_p10_tasks
 from .migrations import WORK_SCHEMA_VERSION, migrate_work_schema
@@ -21,6 +22,9 @@ from .store import WorkStore
 
 __all__ = [
     "WORK_SCHEMA_VERSION",
+    "CapabilityRecord",
+    "CapabilityRegistry",
+    "CapabilityState",
     "ContextEntry",
     "ContextPack",
     "ContextPackBuilder",
