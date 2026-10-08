@@ -12,10 +12,12 @@ from future_intelligence.sovereignty import HybridIntelligenceRouter
 from future_intelligence.autonomy import AdvancedAutonomy
 from future_intelligence.autonomy_runtime import install as install_autonomy_runtime
 from future_intelligence.work_orchestration.p10_runtime import install as install_work_orchestration_runtime
+from future_intelligence.work_orchestration.hierarchical_runtime import install as install_hierarchical_work_planning
 from core.p10_approval_continuation import install as install_p10_turn_continuation
 
 install_autonomy_runtime(AdvancedAutonomy)
 install_work_orchestration_runtime(AdvancedAutonomy)
+install_hierarchical_work_planning(AdvancedAutonomy)
 
 
 class FutureIntelligenceProgram:
@@ -49,6 +51,7 @@ class FutureIntelligenceProgram:
             budgets=getattr(runtime.get('automations'),'budgets',None)
             if budgets is not None and hasattr(budgets,'emergency_stopped'): canonical_stop=budgets.emergency_stopped
         self.autonomy=AdvancedAutonomy(gate=self.gate,operations=self.operations,events=runtime.get('events'),path=root/'autonomy.sqlite3',executor=governed_executor,automations=runtime.get('automations'),models=runtime.get('models'),memory=runtime.get('second_brain') or runtime.get('memory'),knowledge=runtime.get('knowledge'),world=self.world,continuity=self.continuity_sync,emergency_stop_provider=canonical_stop)
+        self.autonomy.project_store=runtime.get('project_store') or runtime.get('projects')
         runtime['advanced_autonomy']=self.autonomy
         if turn_executor is not None: install_p10_turn_continuation(type(turn_executor))
 
