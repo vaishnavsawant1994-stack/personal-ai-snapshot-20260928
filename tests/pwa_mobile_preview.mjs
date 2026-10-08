@@ -1108,7 +1108,7 @@ try {
         header: rect(".topbar"),
         quick: rect(".v-shortcuts"),
         home: rect(".home-intro"),
-        cards: [...document.querySelectorAll(".v-shortcuts .v-card")].map(node => {const r=node.getBoundingClientRect();return {width:r.width,height:r.height,scrollHeight:node.scrollHeight,clientHeight:node.clientHeight}}),
+        cards: [...document.querySelectorAll(".chat-prompt-grid .chat-prompt-card")].map(node => {const r=node.getBoundingClientRect();return {width:r.width,height:r.height,scrollHeight:node.scrollHeight,clientHeight:node.clientHeight}}),
         controls: ["#attachmentButton","#sendButton","#micButton"].map(selector => rect(selector)),
       };
     });
@@ -1139,10 +1139,10 @@ try {
       await page.screenshot({ path: "artifacts/" + responsiveScreenshots.get(width), fullPage: true });
     }
     assert.ok(layout.quick.left >= -1 && layout.quick.right <= layout.viewportWidth + 1, "quick actions clipped at " + width + "x" + height);
-    assert.ok(layout.cards.length === 4, "four Home cards required");
-    assert.ok(layout.cards.every(card => Math.abs(card.height-layout.cards[0].height)<1 && Math.abs(card.width-layout.cards[0].width)<1), "Home card dimensions mismatch at " + width + "x" + height);
-    assert.ok(layout.cards.every(card => card.scrollHeight<=card.clientHeight+2), "Home card content clipped at " + width + "x" + height);
-    assert.ok(layout.cards.every(card => card.height>=58&&card.height<=210), "Home cards lost approved responsive proportions at " + width + "x" + height);
+    assert.ok(layout.cards.length === 4, "four New Chat suggestion cards required");
+    assert.ok(layout.cards.every(card => Math.abs(card.height-layout.cards[0].height)<1 && Math.abs(card.width-layout.cards[0].width)<1), "New Chat card dimensions mismatch at " + width + "x" + height);
+    assert.ok(layout.cards.every(card => card.scrollHeight<=card.clientHeight+2), "New Chat card content clipped at " + width + "x" + height);
+    assert.ok(layout.cards.every(card => card.height>=58&&card.height<=210), "New Chat cards lost approved responsive proportions at " + width + "x" + height);
     if(width<=600)assert.ok(Math.abs(layout.composer.width-layout.home.width)<=4, "Home composer must share the same outer grid at " + width + "x" + height);
     assert.ok(layout.composer.left>=-1 && layout.composer.right<=layout.viewportWidth+1, "composer clips horizontally at " + width + "x" + height);
     assert.ok(layout.controls.filter(control => control.width>0).every(control => control.width>=43 && control.height>=43), "composer action hit targets too small at " + width + "x" + height);
