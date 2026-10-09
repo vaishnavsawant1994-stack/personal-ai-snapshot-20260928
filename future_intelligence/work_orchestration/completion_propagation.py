@@ -46,13 +46,16 @@ def canonical_task_rows(
         passed = bool(completion.get("passed"))
 
         if raw_status == "COMPLETED":
-            if passed or canonical_status == "COMPLETED":
+            if passed:
                 canonical_status = "COMPLETED"
             elif canonical_status not in {"VERIFYING", "REVIEWING", "BLOCKED", "HOLD"}:
                 canonical_status = "VERIFYING"
         elif passed:
+            # Completion proof cannot invent execution completion before P10 is terminal.
             canonical_status = raw_status
         else:
+            # Active/approval/recovery execution state remains authoritative until
+            # execution is terminal; the judge only gates completion.
             canonical_status = raw_status
 
         rows.append(
@@ -92,14 +95,22 @@ def canonical_live_projection(
     counts = Counter(row["status"] for row in rows)
     raw_plan_state = _upper(p10_plan.get("state"))
     work_status = _upper(work_plan.get("status"), raw_plan_state)
-    state = work_status if raw_plan_state == "COMPLETED" else raw_plan_state
-    if raw_plan_state == "COMPLETED" and work_status == "COMPLETED":
-        state = "COMPLETED"
+    completion = dict(work_plan.get("completion") or {})
+    plan_passed = bool(completion.get("complete"))
+    if raw_plan_state == "COMPLETED":
+        if plan_passed:
+            state = "COMPLETED"
+        elif work_status in {"VERIFYING", "REVIEWING", "HOLD", "BLOCKED"}:
+            state = work_status
+        else:
+            state = "VERIFYING"
+    else:
+        state = raw_plan_state
 
     return {
         "state": state,
         "execution_state": raw_plan_state,
-        "completion": dict(work_plan.get("completion") or {}),
+        "completion": completion,
         "task_counts": dict(counts),
         "ready_task_ids": sorted(ready),
         "active_task_ids": [row["task_id"] for row in rows if row["status"] in _ACTIVE],
@@ -173,9 +184,18 @@ def canonicalize_global_summary(
             p10_plan, work_plan, _, _ = bundle
             raw_state = _upper(p10_plan.get("state"))
             canonical_state = _upper(work_plan.get("status"), raw_state)
+            completion = dict(work_plan.get("completion") or {})
             row["execution_state"] = raw_state
-            row["state"] = canonical_state if raw_state == "COMPLETED" else raw_state
-            row["completion"] = dict(work_plan.get("completion") or {})
+            if raw_state == "COMPLETED":
+                if bool(completion.get("complete")):
+                    row["state"] = "COMPLETED"
+                elif canonical_state in {"VERIFYING", "REVIEWING", "HOLD", "BLOCKED"}:
+                    row["state"] = canonical_state
+                else:
+                    row["state"] = "VERIFYING"
+            else:
+                row["state"] = raw_state
+            row["completion"] = completion
         projects.append(row)
 
     active = sum(task_counts[state] for state in _ACTIVE)
