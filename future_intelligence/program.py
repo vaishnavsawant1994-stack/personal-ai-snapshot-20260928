@@ -18,6 +18,7 @@ from future_intelligence.work_orchestration.completion_runtime import install as
 from future_intelligence.work_orchestration.project_mode_runtime import install as install_project_autonomy_modes
 from future_intelligence.work_orchestration.completion_propagation import install as install_completion_propagation, bind_notifications as bind_canonical_completion_notifications
 from future_intelligence.work_orchestration.notification_bridge import WorkNotificationBridge
+from future_intelligence.work_orchestration.memory_promotion import WorkMemoryPromotionBridge
 from core.p10_approval_continuation import install as install_p10_turn_continuation
 
 install_autonomy_runtime(AdvancedAutonomy)
@@ -65,6 +66,9 @@ class FutureIntelligenceProgram:
         self.work_notifications=None
         if runtime.get('events') is not None and runtime.get('notifications') is not None:
             self.work_notifications=WorkNotificationBridge(runtime['events'],runtime['notifications']); bind_canonical_completion_notifications(self.work_notifications,self.autonomy); runtime['work_notifications']=self.work_notifications
+        self.work_memory_promotion=None
+        if runtime.get('events') is not None and runtime.get('second_brain') is not None:
+            self.work_memory_promotion=WorkMemoryPromotionBridge(runtime['events'],self.autonomy,runtime['second_brain']); runtime['work_memory_promotion']=self.work_memory_promotion
         if turn_executor is not None: install_p10_turn_continuation(type(turn_executor))
 
     def status(self):
