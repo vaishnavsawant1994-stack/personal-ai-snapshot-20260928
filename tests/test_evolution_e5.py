@@ -128,16 +128,14 @@ def test_auto_evolve_is_reserved_and_disabled():
         EvolutionConfig(mode=EvolutionMode.AUTO_EVOLVE)
 
 
-def test_e5_has_no_approval_handoff_or_execution_api():
+def test_e5_service_has_no_approval_handoff_or_execution_api_even_when_e6_is_installed():
     evidence_store, _ingestor, evolution_store, service = _service()
     try:
         assert not hasattr(service, "approve")
         assert not hasattr(service, "handoff")
         assert not hasattr(service, "execute")
         assert service.status()["handoff_available"] is False
-        assert evolution_store.connection.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='evolution_handoffs'"
-        ).fetchone() is None
+        assert service.status()["execution_authority"] is False
     finally:
         evidence_store.close()
         evolution_store.close()
