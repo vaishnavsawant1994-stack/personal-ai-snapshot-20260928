@@ -1,3 +1,4 @@
+from .config import EvolutionConfig
 from .curator import EvolutionCurator
 from .migrations import EVOLUTION_SCHEMA_VERSION, migrate_evolution_schema
 from .models import (
@@ -21,6 +22,7 @@ __all__ = [
     "CurationResult",
     "EvidenceScan",
     "EvolutionCandidate",
+    "EvolutionConfig",
     "EvolutionCurator",
     "EvolutionCycle",
     "EvolutionDecision",
