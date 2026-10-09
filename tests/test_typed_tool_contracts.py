@@ -36,7 +36,7 @@ def test_input_contract_rejects_non_object():
 def test_output_contract_rejects_false_before_verification():
     tool = make_tool(risk=Risk.REVERSIBLE, output_validator=lambda result: result.get("ok") is True)
     with pytest.raises(ValueError, match="output contract"):
-        ToolRegistry.verify_result(None, tool, {}, {"ok": False})
+        ToolRegistry.verify_result(object.__new__(ToolRegistry), tool, {}, {"ok": False})
 
 
 def test_valid_output_retains_existing_verification_semantics():
