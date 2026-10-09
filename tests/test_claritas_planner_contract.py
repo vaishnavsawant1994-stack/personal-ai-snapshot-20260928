@@ -74,3 +74,33 @@ def test_valid_plan_is_reduced_to_allowlisted_fields():
         "goal": "inspect",
         "steps": [{"tool": "safe_read", "description": "read", "parameters": {"path": "notes.txt"}}],
     }
+
+
+@pytest.mark.parametrize("dependencies", [[{"unexpected": "object"}], [[1]], [None], [7]])
+def test_malformed_dependencies_raise_invalid_plan_not_type_error(dependencies):
+    planner, _ = planner_with(None)
+    with pytest.raises(InvalidPlan, match="invalid dependencies"):
+        planner.validate({
+            "steps": [
+                {"id": "first", "tool": "safe_read"},
+                {"id": "second", "tool": "safe_read", "depends_on": dependencies},
+            ]
+        })
+
+
+def test_tool_call_budget_must_cover_declared_steps():
+    planner, _ = planner_with(None)
+    with pytest.raises(InvalidPlan, match="tool-call budget"):
+        planner.validate({
+            "execution_budget": {"max_tool_calls": 1},
+            "steps": [{"tool": "safe_read"}, {"tool": "safe_read"}],
+        })
+
+
+def test_tool_call_budget_allows_equal_step_count():
+    planner, _ = planner_with(None)
+    result = planner.validate({
+        "execution_budget": {"max_tool_calls": 2},
+        "steps": [{"tool": "safe_read"}, {"tool": "safe_read"}],
+    })
+    assert len(result["steps"]) == 2
