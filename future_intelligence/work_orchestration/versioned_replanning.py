@@ -71,7 +71,6 @@ def _enrich_projection(
     if before is None:
         return after
     old_by_task = {_task_id_from_order(order): order for order in before.work_orders}
-    new_by_task = {_task_id_from_order(order): order for order in after.work_orders}
     enriched_orders = []
     for base in after.work_orders:
         task_id = _task_id_from_order(base)
@@ -245,27 +244,42 @@ def install(cls) -> None:
             bridge = getattr(self, "_work_bridge", None)
             delta = None
             work_plan = None
+            projection_error_type = None
             if bridge is not None:
-                before = bridge.work_plan_for_p10(plan_id)
-                projected = bridge.project_plan(plan, goal, force_new_version=True)
-                enriched = _enrich_projection(
-                    before,
-                    projected,
-                    preserved_semantic_task_ids=preserved_semantic_ids,
-                    reason=reason,
-                    trigger=trigger,
-                )
-                work_plan = bridge.work.save_plan(enriched, source_p10_plan_id=str(plan_id))
-                delta = diff_work_plans(
-                    before,
-                    work_plan,
-                    source_p10_plan_id=str(plan_id),
-                    reason=reason,
-                    trigger=trigger,
-                    preserved_completed_task_ids=tuple(sorted(completed_by_id)),
-                    retired_task_ids=tuple(item["id"] for item in retired_now),
-                )
-                PlanDeltaStore(bridge.connection).record(delta)
+                try:
+                    before = bridge.work_plan_for_p10(plan_id)
+                    projected = bridge.project_plan(plan, goal, force_new_version=True)
+                    enriched = _enrich_projection(
+                        before,
+                        projected,
+                        preserved_semantic_task_ids=preserved_semantic_ids,
+                        reason=reason,
+                        trigger=trigger,
+                    )
+                    work_plan = bridge.work.save_plan(enriched, source_p10_plan_id=str(plan_id))
+                    delta = diff_work_plans(
+                        before,
+                        work_plan,
+                        source_p10_plan_id=str(plan_id),
+                        reason=reason,
+                        trigger=trigger,
+                        preserved_completed_task_ids=tuple(sorted(completed_by_id)),
+                        retired_task_ids=tuple(item["id"] for item in retired_now),
+                    )
+                    PlanDeltaStore(bridge.connection).record(delta)
+                except Exception as exc:
+                    projection_error_type = type(exc).__name__
+                    try:
+                        self._event(
+                            "replan_projection_error",
+                            goal_id=plan["goal_id"],
+                            plan_id=plan_id,
+                            replan_count=plan["replan_count"],
+                            error_type=projection_error_type,
+                            authority="p10_replan_already_persisted",
+                        )
+                    except Exception:
+                        pass
 
             self._event(
                 "replanned_versioned",
@@ -278,8 +292,17 @@ def install(cls) -> None:
                 retired=len(retired_now),
                 delta_id=delta.id if delta is not None else None,
                 work_plan_id=work_plan.id if work_plan is not None else None,
+                projection_error_type=projection_error_type,
                 authority="planning_only",
             )
+            if projection_error_type is not None:
+                result = dict(plan)
+                result["work_projection"] = {
+                    "state": "failed",
+                    "error_type": projection_error_type,
+                    "p10_replan_persisted": True,
+                }
+                return result
             return plan
 
     def work_plan_versions(self, plan_id, *, owner_id="owner"):
