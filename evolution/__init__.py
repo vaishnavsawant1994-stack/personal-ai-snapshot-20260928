@@ -1,3 +1,5 @@
+from .adoption import AdoptionRecord, OwnerBodyAdoptionService
+from .code_body import CodeBodyEvolutionService, CodeBodyRun, CodeBodyRunStatus
 from .config import EvolutionConfig
 from .curator import EvolutionCurator
 from .handoff import EvolutionHandoff, EvolutionHandoffService
@@ -11,15 +13,27 @@ from .models import (
     RiskLevel,
 )
 from .protected_scope import PROTECTED_PATTERNS, ProtectedScopeMatch, protected_scope_matches
+from .review import GitHubPublicReviewVerifier, ReviewVerification, ReviewVerifier
 from .scanner import EvidenceScan, EvolutionScanner
 from .service import EvolutionCycle, EvolutionService
 from .store import EvolutionStore
 from .synthesizer import CandidateSynthesizer
+from .verification import (
+    GuardedVerificationProvider,
+    LocalSubprocessVerificationProvider,
+    VerificationCheck,
+    VerificationProvider,
+    VerificationReport,
+)
 
 __all__ = [
     "EVOLUTION_SCHEMA_VERSION",
+    "AdoptionRecord",
     "CandidateStatus",
     "CandidateSynthesizer",
+    "CodeBodyEvolutionService",
+    "CodeBodyRun",
+    "CodeBodyRunStatus",
     "CurationResult",
     "EvidenceScan",
     "EvolutionCandidate",
@@ -33,9 +47,18 @@ __all__ = [
     "EvolutionScanner",
     "EvolutionService",
     "EvolutionStore",
+    "GitHubPublicReviewVerifier",
+    "GuardedVerificationProvider",
+    "LocalSubprocessVerificationProvider",
+    "OwnerBodyAdoptionService",
     "PROTECTED_PATTERNS",
     "ProtectedScopeMatch",
+    "ReviewVerification",
+    "ReviewVerifier",
     "RiskLevel",
+    "VerificationCheck",
+    "VerificationProvider",
+    "VerificationReport",
     "migrate_evolution_schema",
     "protected_scope_matches",
 ]

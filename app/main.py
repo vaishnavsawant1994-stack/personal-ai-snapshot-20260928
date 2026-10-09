@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import threading
+import time
 
 from agent.effect_runtime import EffectAwareDurableAgentExecutor
 from automation.engine import AutomationEngine
@@ -18,8 +19,21 @@ from devices.gateway import DeviceGateway
 from devices.registry import DeviceRegistry
 from evidence import EvidenceStore
 from evidence.ingestion import EvidenceIngestor
-from evolution import EvolutionHandoffService, EvolutionMode, EvolutionService, EvolutionStore
+from evolution import (
+    CodeBodyEvolutionService,
+    EvolutionHandoffService,
+    EvolutionMode,
+    EvolutionService,
+    EvolutionStore,
+    GitHubPublicReviewVerifier,
+    GuardedVerificationProvider,
+    LocalSubprocessVerificationProvider,
+    OwnerBodyAdoptionService,
+)
+from evolution.runtime_config import CodeBodyRuntimeConfig
 from future_intelligence.program import FutureIntelligenceProgram
+from future_intelligence.work_orchestration import LocalGitRepositoryProvider
+from identity import IdentityStore
 from integrations.plugins import PluginManifestRegistry
 from integrations.runtime import build_integrations
 from knowledge.governance import KnowledgeAuthority
@@ -55,22 +69,36 @@ def build_runtime():
     proactive=AttentionRelevanceEngine(settings.data_dir/'proactive.sqlite3',events=events,second_brain=second_brain,enabled=settings.proactive_enabled,interruptions_per_hour=settings.proactive_interruptions_per_hour,default_cooldown_seconds=settings.proactive_default_cooldown_seconds)
     integrations,adapters,oauth,oauth_providers=build_integrations(settings,vault); plugins=PluginManifestRegistry(settings.data_dir/'plugins'); plugins.load(); apns=APNsProvider(settings,device_registry,events); notifications=NotificationService(settings.data_dir/'notifications.sqlite3',device_registry,apns,events,owner_preferences=preferences); tools=ToolRegistry(settings); tools.set_autonomy_mode(str(preferences.get('autonomy_mode',settings.autonomy_mode)))
     agent_executor=EffectAwareDurableAgentExecutor(models=models,tools=tools,memory=memory,events=events,second_brain=second_brain,knowledge=knowledge,telemetry=telemetry); executor=DurableApprovalTurnRuntime(agent_executor,continuity,settings.data_dir/'turn-runtime.sqlite3',events=events)
-    evidence_store=EvidenceStore(settings.data_dir/'evidence.sqlite3'); evidence_ingestor=EvidenceIngestor(evidence_store); evolution_store=EvolutionStore(connection=evidence_store.connection)
+    evidence_store=EvidenceStore(settings.data_dir/'evidence.sqlite3'); evidence_ingestor=EvidenceIngestor(evidence_store); evolution_store=EvolutionStore(connection=evidence_store.connection); identity_store=IdentityStore(settings.data_dir/'identity.sqlite3')
     try:evolution_mode=EvolutionMode(str(preferences.get('evolution_mode',EvolutionMode.CO_EVOLVE.value)))
     except ValueError:evolution_mode=EvolutionMode.CO_EVOLVE
-    evolution=EvolutionService(store=evolution_store,ingestor=evidence_ingestor,mode=evolution_mode)
+    evolution=EvolutionService(store=evolution_store,ingestor=evidence_ingestor,mode=evolution_mode); code_body_config=CodeBodyRuntimeConfig.from_environment(data_dir=settings.data_dir)
     def context_provider():
         latest=continuity.latest_thread(); return {'devices':device_registry.list(),'integrations':integrations.list(),'memory_count':len(second_brain.graph().get('nodes',[])),'continuity':latest or {},'focus_mode':bool(preferences.get('focus_mode',False))}
     automations=AutomationEngine(settings.data_dir/'automations.sqlite3',executor=executor,events=events,context_provider=context_provider,default_timeout_seconds=settings.workflow_default_timeout_seconds,default_retries=settings.workflow_default_retries)
     capability_objects=register_builtin_tools(tools,memory,settings,models=models,automation_engine=automations,apns=apns,second_brain=second_brain,events=events,proactive_engine=proactive,continuity_service=continuity,integration_adapters=adapters,memory_enabled=lambda: bool(preferences.get('memory_enabled',True)))
     voice=RealtimeVoiceSession(models,executor,events); voice_qualification=VoiceQualificationRecorder(settings.data_dir/'voice-qualification.sqlite3',events=events); p3_qualification=P3QualificationProgram(settings.data_dir/'p3-qualification.sqlite3'); wake_phrase=WakePhraseGate(events,phrases=(str(preferences.get('wake_phrase','Hey Personal')),)); events.subscribe('voice.transcript',lambda event:wake_phrase.accept(event.get('text',''))); events.subscribe('state',lambda event:telemetry.increment(f"state.{event.get('state','unknown')}")); events.subscribe('voice.reply',lambda event:telemetry.increment('voice.replies'))
-    runtime={'settings':settings,'events':events,'runtime_state':events.runtime_state,'memory':memory,'models':models,'second_brain':second_brain,'knowledge':knowledge,'knowledge_store':knowledge_store,'vector_store':vector,'device_registry':device_registry,'owner_access':owner_access,'device_gateway':device_gateway,'continuity':continuity,'proactive':proactive,'tools':tools,'executor':executor,'turn_runtime':executor,'agent_executor':agent_executor,'effect_ledger':agent_executor.effect_ledger,'evidence_store':evidence_store,'evidence_ingestor':evidence_ingestor,'evolution_store':evolution_store,'evolution':evolution,'evolution_handoff':None,'automations':automations,'integrations':integrations,'integration_adapters':adapters,'oauth':oauth,'oauth_providers':oauth_providers,'plugins':plugins,'vault':vault,'voice':voice,'voice_qualification':voice_qualification,'p3_qualification':p3_qualification,'wake_phrase':wake_phrase,'apns':apns,'notifications':notifications,'telemetry':telemetry,'preferences':preferences,'backups':backups,'computer':capability_objects.get('computer'),'primary_continuity_thread_id':primary_thread_id}; p3_qualification.runtime=runtime
+    runtime={'settings':settings,'events':events,'runtime_state':events.runtime_state,'memory':memory,'models':models,'second_brain':second_brain,'knowledge':knowledge,'knowledge_store':knowledge_store,'vector_store':vector,'device_registry':device_registry,'owner_access':owner_access,'device_gateway':device_gateway,'continuity':continuity,'proactive':proactive,'tools':tools,'executor':executor,'turn_runtime':executor,'agent_executor':agent_executor,'effect_ledger':agent_executor.effect_ledger,'evidence_store':evidence_store,'evidence_ingestor':evidence_ingestor,'identity_store':identity_store,'evolution_store':evolution_store,'evolution':evolution,'evolution_handoff':None,'code_body_config':code_body_config,'repository_provider':None,'code_body':None,'body_adoption':None,'code_worker_epoch':int(time.time()),'automations':automations,'integrations':integrations,'integration_adapters':adapters,'oauth':oauth,'oauth_providers':oauth_providers,'plugins':plugins,'vault':vault,'voice':voice,'voice_qualification':voice_qualification,'p3_qualification':p3_qualification,'wake_phrase':wake_phrase,'apns':apns,'notifications':notifications,'telemetry':telemetry,'preferences':preferences,'backups':backups,'computer':capability_objects.get('computer'),'primary_continuity_thread_id':primary_thread_id}; p3_qualification.runtime=runtime
     future=FutureIntelligenceProgram(settings.data_dir/'future-intelligence',runtime=runtime); runtime.update({'future_intelligence':future,'everyday_intelligence':future.everyday,'life_graph':future.life_graph,'personal_operations':future.operations,'world_understanding':future.world,'personal_ai_everywhere':future.everywhere,'hybrid_intelligence':future.hybrid,'advanced_autonomy':future.autonomy})
     if hasattr(executor,'attach_autonomy'): executor.attach_autonomy(future.autonomy)
     work_bridge=getattr(future.autonomy,'_work_bridge',None)
     if work_bridge is not None:
         if hasattr(agent_executor,'attach_work_store'): agent_executor.attach_work_store(work_bridge.work)
-        runtime['evolution_handoff']=EvolutionHandoffService(evolution_store=evolution_store,work_store=work_bridge.work)
+        handoff=EvolutionHandoffService(evolution_store=evolution_store,work_store=work_bridge.work); runtime['evolution_handoff']=handoff
+        if code_body_config.repository_root is not None:
+            try:
+                repository_provider=LocalGitRepositoryProvider(repository=code_body_config.repository,repository_root=code_body_config.repository_root,workspace_root=code_body_config.workspace_root)
+                inner_verifier=None
+                if code_body_config.local_verification_enabled:
+                    inner_verifier=LocalSubprocessVerificationProvider((('compile', (sys.executable,'-m','compileall','-q','app','agent','automation','core','evidence','evolution','future_intelligence','identity','security','server','tools')),('evolution-safety-tests',(sys.executable,'-m','pytest','-q','tests/test_evolution_e5.py','tests/test_evolution_e6_handoff.py','tests/test_evolution_e7_code_body.py'))),enabled=True,timeout_seconds=code_body_config.verification_timeout_seconds)
+                verification_provider=GuardedVerificationProvider(repository_provider=repository_provider,inner=inner_verifier) if inner_verifier is not None else None
+                review_verifier=GitHubPublicReviewVerifier(repository=code_body_config.repository)
+                code_body=CodeBodyEvolutionService(handoffs=handoff,work_store=work_bridge.work,evidence_store=evidence_store,identity_store=identity_store,repository_provider=repository_provider,verification_provider=verification_provider,review_verifier=review_verifier)
+                adoption=OwnerBodyAdoptionService(evolution_store=evolution_store,code_body=code_body,identity_store=identity_store,repository_provider=repository_provider)
+                runtime.update({'repository_provider':repository_provider,'code_body':code_body,'body_adoption':adoption})
+                events.emit('evolution.code_body_ready',repository=code_body_config.repository,local_verification=bool(verification_provider))
+            except Exception as exc:
+                events.emit('evolution.code_body_unavailable',error_type=type(exc).__name__)
     benchmark=CapabilityBenchmark(settings.data_dir/'capability-benchmark.sqlite3',runtime=runtime); model_evaluation=ModelDialogueEvaluation(settings.data_dir/'model-dialogue-evaluation.sqlite3',models,audit=memory.audit); scenarios=CompetitiveScenarioSuite(runtime,benchmark); runtime.update({'benchmark':benchmark,'model_evaluation':model_evaluation,'capability_scenarios':scenarios}); benchmark_tools.register(tools,benchmark,scenarios)
     def append_continuity(kind,text,device_id=None,conversation_id=None,event_id=None):
         # Canonical request-aware surfaces persist their own conversation events.
@@ -106,7 +134,7 @@ def main():
     if settings.control_server_enabled:threading.Thread(target=start_server,args=(runtime,),daemon=True).start()
     window=CanonicalMainWindow(events=runtime['events'],executor=runtime['executor'],memory=runtime['memory'],runtime=runtime); window.show(); floating_presence=FloatingPresence(runtime=runtime); runtime['floating_presence']=floating_presence; floating_presence.show()
     if runtime['preferences'].get('launch_voice_on_start'):window.toggle_voice()
-    code=app.exec(); floating_presence.close(); runtime['voice'].stop(); runtime['automations'].stop(); runtime['notifications'].close(); runtime['telemetry'].persist(); runtime['apns'].close(); runtime['evidence_store'].close(); return code
+    code=app.exec(); floating_presence.close(); runtime['voice'].stop(); runtime['automations'].stop(); runtime['notifications'].close(); runtime['telemetry'].persist(); runtime['apns'].close(); runtime['evidence_store'].close(); runtime['identity_store'].close(); return code
 
 
 if __name__=='__main__':raise SystemExit(main())

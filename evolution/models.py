@@ -35,6 +35,8 @@ class CandidateStatus(StrEnum):
     REJECTED = "rejected"
     RESTRICTED = "restricted"
     HANDED_OFF = "handed_off"
+    ADOPTION_APPROVED = "adoption_approved"
+    ADOPTED = "adopted"
 
 
 class RiskLevel(StrEnum):
@@ -50,6 +52,7 @@ class EvolutionDecision(StrEnum):
     REJECT = "reject"
     RESTRICT = "restrict"
     APPROVE = "approve"
+    ADOPT = "adopt"
 
 
 @dataclass(frozen=True)

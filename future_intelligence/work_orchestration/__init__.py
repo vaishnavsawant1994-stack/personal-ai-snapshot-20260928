@@ -35,6 +35,12 @@ from .p10_bridge import P10WorkBridge
 from .planner import InvalidStrategicPlan, StrategicWorkPlanner
 from .recovery import RecoveryDecision, RecoveryReason, requires_manual_recovery
 from .replanning import PlanDelta, PlanDeltaAction, PlanDeltaItem, PlanDeltaStore, diff_work_plans
+from .repository import (
+    LocalGitRepositoryProvider,
+    RepositoryStatus,
+    RepositoryWorkspaceProvider,
+    RepositoryWorkspaceSession,
+)
 from .reviewer import PlanReview, PlanReviewer, PlanReviewStore
 from .store import WorkStore
 from .workspace import WorkWorkspace, WorkspaceState
@@ -60,6 +66,7 @@ __all__ = [
     "GoalSpec",
     "InvalidStrategicPlan",
     "LeaseLostError",
+    "LocalGitRepositoryProvider",
     "Milestone",
     "MilestoneCompletionDecision",
     "P10WorkBridge",
@@ -73,6 +80,9 @@ __all__ = [
     "ReadinessStatus",
     "RecoveryDecision",
     "RecoveryReason",
+    "RepositoryStatus",
+    "RepositoryWorkspaceProvider",
+    "RepositoryWorkspaceSession",
     "ResourceScope",
     "RetryDisposition",
     "StrategicWorkPlanner",

@@ -16,11 +16,29 @@ class EvolutionRejectBody(BaseModel):
     reason: str = Field(min_length=1, max_length=2000)
 
 
+class CodeCommitBody(BaseModel):
+    message: str = Field(min_length=1, max_length=500)
+
+
+class CodeReviewBody(BaseModel):
+    review_ref: str = Field(min_length=1, max_length=2000)
+
+
+class AdoptionApprovalBody(BaseModel):
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class ActivationConfirmationBody(BaseModel):
+    running_revision: str = Field(min_length=7, max_length=160)
+
+
 def evolution_router(runtime):
     registry = runtime["device_registry"]
     service = runtime["evolution"]
     store = runtime["evolution_store"]
     handoffs = runtime.get("evolution_handoff")
+    code_body = runtime.get("code_body")
+    adoption = runtime.get("body_adoption")
 
     def require_owner_device(
         authorization: str | None = Header(default=None),
@@ -49,6 +67,7 @@ def evolution_router(runtime):
     @router.get("/status")
     def status():
         candidates = store.list_candidates()
+        code_config = runtime.get("code_body_config")
         return {
             "mode": service.mode.value,
             "authority": "owner",
@@ -58,6 +77,14 @@ def evolution_router(runtime):
             "deferred": sum(item.status is CandidateStatus.DEFERRED for item in candidates),
             "restricted": sum(item.status is CandidateStatus.RESTRICTED for item in candidates),
             "handed_off": sum(item.status is CandidateStatus.HANDED_OFF for item in candidates),
+            "adoption_approved": sum(item.status is CandidateStatus.ADOPTION_APPROVED for item in candidates),
+            "adopted": sum(item.status is CandidateStatus.ADOPTED for item in candidates),
+            "code_body_enabled": code_body is not None,
+            "local_code_verification_enabled": bool(
+                code_config is not None and code_config.local_verification_enabled
+            ),
+            "merge_authority": "not_exposed",
+            "deploy_authority": "not_exposed",
         }
 
     @router.post("/scan")
@@ -85,6 +112,12 @@ def evolution_router(runtime):
         if handoffs is not None:
             handoff = handoffs.get(candidate_id)
             result["handoff"] = handoff.to_dict() if handoff is not None else None
+        if code_body is not None:
+            run = code_body.latest(candidate_id)
+            result["code_body"] = run.to_dict() if run is not None else None
+        if adoption is not None:
+            record = adoption.get(candidate_id)
+            result["adoption"] = record.__dict__ if record is not None else None
         return result
 
     @router.post("/candidates/{candidate_id}/approve")
@@ -119,5 +152,83 @@ def evolution_router(runtime):
         except (PermissionError, ValueError) as exc:
             raise HTTPException(409, str(exc))
         return {"status": "rejected", "authority": "owner", "candidate_id": candidate_id}
+
+    @router.post("/candidates/{candidate_id}/code/prepare")
+    def prepare_code(candidate_id: str):
+        if code_body is None:
+            raise HTTPException(503, "Code-body evolution is not enabled on this runtime")
+        try:
+            run = code_body.prepare(
+                candidate_id,
+                worker_id="evolution-code-worker",
+                runtime_epoch=int(runtime.get("code_worker_epoch", 0)),
+            )
+        except KeyError:
+            raise HTTPException(404, "Evolution candidate not found")
+        except (PermissionError, ValueError, RuntimeError) as exc:
+            raise HTTPException(409, str(exc))
+        return {"status": run.status.value, "code_body": run.to_dict()}
+
+    @router.post("/candidates/{candidate_id}/code/commit")
+    def commit_code(candidate_id: str, body: CodeCommitBody):
+        if code_body is None:
+            raise HTTPException(503, "Code-body evolution is not enabled on this runtime")
+        try:
+            run = code_body.commit(candidate_id, message=body.message)
+        except KeyError:
+            raise HTTPException(404, "Evolution candidate not found")
+        except (PermissionError, ValueError, RuntimeError) as exc:
+            raise HTTPException(409, str(exc))
+        return {"status": run.status.value, "code_body": run.to_dict()}
+
+    @router.post("/candidates/{candidate_id}/code/verify")
+    def verify_code(candidate_id: str):
+        if code_body is None:
+            raise HTTPException(503, "Code-body evolution is not enabled on this runtime")
+        try:
+            run = code_body.verify(candidate_id)
+        except KeyError:
+            raise HTTPException(404, "Evolution candidate not found")
+        except (PermissionError, ValueError, RuntimeError) as exc:
+            raise HTTPException(409, str(exc))
+        return {"status": run.status.value, "code_body": run.to_dict()}
+
+    @router.post("/candidates/{candidate_id}/code/review")
+    def verify_review(candidate_id: str, body: CodeReviewBody):
+        if code_body is None:
+            raise HTTPException(503, "Code-body evolution is not enabled on this runtime")
+        try:
+            run = code_body.attach_review(candidate_id, review_ref=body.review_ref)
+        except KeyError:
+            raise HTTPException(404, "Evolution candidate not found")
+        except (PermissionError, ValueError, RuntimeError) as exc:
+            raise HTTPException(409, str(exc))
+        return {"status": run.status.value, "code_body": run.to_dict()}
+
+    @router.post("/candidates/{candidate_id}/adoption/approve")
+    def approve_adoption(candidate_id: str, body: AdoptionApprovalBody):
+        if adoption is None:
+            raise HTTPException(503, "Body adoption service is unavailable")
+        try:
+            record = adoption.approve(candidate_id, owner_id="owner", reason=body.reason)
+        except KeyError:
+            raise HTTPException(404, "Evolution candidate not found")
+        except (PermissionError, ValueError, RuntimeError) as exc:
+            raise HTTPException(409, str(exc))
+        return {"status": record.status, "authority": "owner", "adoption": record.__dict__}
+
+    @router.post("/candidates/{candidate_id}/activation/confirm")
+    def confirm_activation(candidate_id: str, body: ActivationConfirmationBody):
+        if adoption is None:
+            raise HTTPException(503, "Body adoption service is unavailable")
+        try:
+            record = adoption.confirm_activation(
+                candidate_id,
+                running_revision=body.running_revision,
+                actor="trusted_owner_activation_confirmation",
+            )
+        except (KeyError, PermissionError, ValueError, RuntimeError) as exc:
+            raise HTTPException(409, str(exc))
+        return {"status": record.status, "adoption": record.__dict__}
 
     return router

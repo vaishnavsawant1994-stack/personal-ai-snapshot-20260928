@@ -115,7 +115,11 @@ class EvolutionHandoffService:
         candidate = self.evolution_store.get_candidate(candidate_id)
         if candidate is None:
             raise KeyError(candidate_id)
-        if candidate.status is CandidateStatus.HANDED_OFF:
+        if self.get(candidate_id) is not None or candidate.status in {
+            CandidateStatus.HANDED_OFF,
+            CandidateStatus.ADOPTION_APPROVED,
+            CandidateStatus.ADOPTED,
+        }:
             raise ValueError("handed-off candidate cannot be retroactively rejected")
         decision_id = f"owner-reject-{_digest(candidate.id, str(reason))[:24]}"
         self.evolution_store.record_decision(
@@ -140,9 +144,9 @@ class EvolutionHandoffService:
             raise PermissionError("only the canonical owner may approve an evolution candidate")
         existing = self.get(candidate_id)
         if existing is not None:
-            candidate = self.evolution_store.get_candidate(candidate_id)
-            if candidate is not None and candidate.status is not CandidateStatus.HANDED_OFF:
-                self.evolution_store.update_candidate(candidate.id, status=CandidateStatus.HANDED_OFF)
+            # The immutable handoff is already authoritative. Never replay an
+            # older implementation-approval request into a later lifecycle
+            # state such as ADOPTION_APPROVED or ADOPTED.
             return existing
 
         candidate = self.evolution_store.get_candidate(candidate_id)
