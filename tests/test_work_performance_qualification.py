@@ -54,7 +54,7 @@ def _seed_work(path):
                     title=f"Work {project_index}-{version}-{order_index}",
                     objective="Keep product projections bounded",
                     worker_type="project",
-                    status=WorkOrderStatus.RUNNING if order_index == 0 else WorkOrderStatus.WAITING,
+                    status=WorkOrderStatus.RUNNING if order_index == 0 else WorkOrderStatus.QUEUED,
                     dependencies=dependencies,
                     resource_scope=ResourceScope(metadata={"p10_task_id": f"task-{project_index}-{version}-{order_index}"}),
                 )
