@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import secrets
 import sqlite3
 import tempfile
@@ -12,7 +11,13 @@ from recovery.backup import BackupService
 
 from .authority import HostContinuationAuthority
 from .bundle import PortableContinuityBundleCodec
-from .checkpoint import CheckpointArtifact, ContinuityCheckpointService
+from .checkpoint import ContinuityCheckpointService
+from .import_receipts import (
+    ContinuityImportReceiptStore,
+    ContinuityImportRecoveryRequired,
+    IMPORT_RECEIPT_FILENAME,
+    bundle_sha256,
+)
 from .models import ContinuityCheckpoint, TransferGrant
 from .store import ContinuityAuthorityError, ContinuityStore
 from .verifier import ContinuityCompatibilityVerifier
@@ -51,6 +56,8 @@ class AgentContinuityService:
     Export may run on the live source, but it ends by fencing that host. Import is
     deliberately maintenance-only because the encrypted restore replaces durable
     databases and normal runtime connections must not remain open while that occurs.
+    A target-local, non-restorable import receipt prevents blind replay after the
+    restore boundary has been crossed.
     """
 
     def __init__(
@@ -63,6 +70,7 @@ class AgentContinuityService:
         running_git_revision: str,
         checkpoint_service: ContinuityCheckpointService | None = None,
         codec: PortableContinuityBundleCodec | None = None,
+        import_receipts: ContinuityImportReceiptStore | None = None,
         maintenance_mode: bool = False,
     ) -> None:
         self.store = store
@@ -74,6 +82,9 @@ class AgentContinuityService:
             raise ValueError("running_git_revision is required")
         self.checkpoint_service = checkpoint_service
         self.codec = codec or PortableContinuityBundleCodec()
+        self.import_receipts = import_receipts or ContinuityImportReceiptStore(
+            backups.data_dir / IMPORT_RECEIPT_FILENAME
+        )
         self.maintenance_mode = bool(maintenance_mode)
         self._restart_required = False
 
@@ -223,12 +234,14 @@ class AgentContinuityService:
             raise ContinuityAuthorityError(
                 "continuity import requires a stopped runtime / maintenance process"
             )
-        payload, header = self.codec.decrypt_payload(bundle_path, token=transfer_token)
+        bundle = Path(bundle_path).expanduser().resolve()
+        payload, header = self.codec.decrypt_payload(bundle, token=transfer_token)
         rewrapped_handle = tempfile.NamedTemporaryFile(
             prefix="vishnu-continuity-rewrapped-", suffix=".paibackup", delete=False
         )
         rewrapped = Path(rewrapped_handle.name)
         rewrapped_handle.close()
+        claimed_grant_id: str | None = None
         try:
             checkpoint = ContinuityCheckpoint.from_dict(dict(header["checkpoint"]))
             grant = self._grant_from_header(header, token=transfer_token)
@@ -246,29 +259,47 @@ class AgentContinuityService:
             # Rewrap the authenticated portable payload with the target host's
             # owner root key. The source root key never crosses the boundary.
             self.backups._encrypt_payload(payload, rewrapped)
-            restore = self.backups.restore(rewrapped)
 
-            # The source snapshot intentionally predates checkpoint/grant rows to
-            # avoid circular checkpoint hashes. Recreate those records from the
-            # authenticated outer header, then atomically consume the one-time
-            # grant and replace source authority with target authority epoch+1.
-            self.store.record_checkpoint(checkpoint)
-            self.store.prepare_transfer_grant(grant)
-            next_epoch = grant.source_epoch + 1
-            target_token = self.authority.target_token(next_epoch)
-            lease = self.store.consume_transfer(
+            # Claim the destructive boundary in a target-local ledger that the
+            # source checkpoint cannot overwrite. After this point any failure is
+            # an uncertain import and requires explicit recovery, never replay.
+            self.import_receipts.claim(
                 grant_id=grant.id,
-                grant_token=transfer_token,
-                target_host_id=self.authority.host_id,
-                target_authority_token=target_token,
-                ttl_seconds=self.authority.ttl_seconds,
+                checkpoint_id=checkpoint.id,
+                bundle_hash=bundle_sha256(bundle),
             )
-            self._verify_restored_body(self.backups.data_dir, checkpoint)
-            self.store.mark_checkpoint_verified(
-                checkpoint.id,
-                host_id=self.authority.host_id,
-                epoch=lease.epoch,
-            )
+            claimed_grant_id = grant.id
+            try:
+                restore = self.backups.restore(rewrapped)
+
+                # The source snapshot intentionally predates checkpoint/grant rows
+                # to avoid circular checkpoint hashes. Recreate those records from
+                # the authenticated outer header, then consume the one-time grant.
+                self.store.record_checkpoint(checkpoint)
+                self.store.prepare_transfer_grant(grant)
+                next_epoch = grant.source_epoch + 1
+                target_token = self.authority.target_token(next_epoch)
+                lease = self.store.consume_transfer(
+                    grant_id=grant.id,
+                    grant_token=transfer_token,
+                    target_host_id=self.authority.host_id,
+                    target_authority_token=target_token,
+                    ttl_seconds=self.authority.ttl_seconds,
+                )
+                self._verify_restored_body(self.backups.data_dir, checkpoint)
+                self.store.mark_checkpoint_verified(
+                    checkpoint.id,
+                    host_id=self.authority.host_id,
+                    epoch=lease.epoch,
+                )
+                self.import_receipts.mark_completed(grant.id)
+            except Exception as exc:
+                self.import_receipts.mark_recovery_required(
+                    grant.id,
+                    error_type=type(exc).__name__,
+                )
+                raise
+
             self._restart_required = True
             return {
                 "ok": True,
@@ -280,6 +311,8 @@ class AgentContinuityService:
                 "credentials_rebind_required": True,
                 "restart_required": True,
             }
+        except ContinuityImportRecoveryRequired:
+            raise
         finally:
             payload.unlink(missing_ok=True)
             rewrapped.unlink(missing_ok=True)
