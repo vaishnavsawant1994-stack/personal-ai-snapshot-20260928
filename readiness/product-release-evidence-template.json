@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "work_orchestration_baseline": "29eb0dde3c55f3dfa402bb673716dafac70582c3",
+  "rc_sha": "",
+  "gates": {
+    "work_orchestration": {"status": "PASS", "qualified_sha": "29eb0dde3c55f3dfa402bb673716dafac70582c3", "evidence": ["PR #95 exact-SHA Work Orchestration release qualification"]},
+    "api_authority_security": {"status": "HOLD", "qualified_sha": "", "evidence": []},
+    "persistence_backup_restore": {"status": "HOLD", "qualified_sha": "", "evidence": []},
+    "authentication_accounts": {"status": "HOLD", "qualified_sha": "", "evidence": []},
+    "final_ui_browser": {"status": "HOLD", "qualified_sha": "", "evidence": []},
+    "physical_iphone": {"status": "HOLD", "qualified_sha": "", "evidence": []},
+    "native_desktop": {"status": "HOLD", "qualified_sha": "", "evidence": []},
+    "signed_artifacts": {"status": "HOLD", "qualified_sha": "", "evidence": []},
+    "signed_release_manifest": {"status": "HOLD", "qualified_sha": "", "evidence": []},
+    "updater": {"status": "HOLD", "qualified_sha": "", "evidence": []},
+    "rollback": {"status": "HOLD", "qualified_sha": "", "evidence": []},
+    "cloud_topology": {"status": "HOLD", "qualified_sha": "", "evidence": []},
+    "domain_networking": {"status": "HOLD", "qualified_sha": "", "evidence": []},
+    "observability": {"status": "HOLD", "qualified_sha": "", "evidence": []},
+    "provider_failover": {"status": "HOLD", "qualified_sha": "", "evidence": []},
+    "voice_e2e": {"status": "HOLD", "qualified_sha": "", "evidence": []},
+    "connector_e2e": {"status": "HOLD", "qualified_sha": "", "evidence": []},
+    "production_soak": {"status": "HOLD", "qualified_sha": "", "evidence": []},
+    "full_repository_rc": {"status": "HOLD", "qualified_sha": "", "evidence": []},
+    "owner_acceptance": {"status": "HOLD", "qualified_sha": "", "evidence": []},
+    "production_deployment": {"status": "HOLD", "qualified_sha": "", "evidence": []},
+    "post_deploy_rollback": {"status": "HOLD", "qualified_sha": "", "evidence": []}
+  }
+}
