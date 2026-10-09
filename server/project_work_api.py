@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections import Counter
-from typing import Any
 
 from fastapi import APIRouter, Cookie, HTTPException
 from pydantic import BaseModel, Field
@@ -51,6 +50,10 @@ class ProjectWorkService:
         return str(project.get("goal") or project.get("description") or project.get("name") or "").strip()[:4000]
 
     @staticmethod
+    def _desired_outcome(project: dict, desired: str) -> str:
+        return str(project.get("success_criteria") or project.get("description") or desired).strip()[:2000]
+
+    @staticmethod
     def _success_criteria(project: dict) -> list[str]:
         raw = str(project.get("success_criteria") or "").strip()
         return [raw[:1000]] if raw else []
@@ -78,7 +81,17 @@ class ProjectWorkService:
             result.extend(str(item) for item in getattr(profile, "supported_capabilities", ()) if str(item).strip())
         return list(dict.fromkeys(result))[:50]
 
-    def _ensure_goal(self, project: dict, *, force_new: bool = False) -> dict:
+    def _goal_matches_project(self, existing: dict, project: dict, desired: str) -> bool:
+        return (
+            str(existing.get("description") or "").strip() == desired
+            and str(existing.get("desired_outcome") or "").strip() == self._desired_outcome(project, desired)
+            and list(existing.get("constraints") or []) == self._constraints(project)
+            and list(existing.get("success_criteria") or []) == self._success_criteria(project)
+            and (existing.get("deadline") or None) == (project.get("target_date") or None)
+            and existing.get("state") != "CANCELLED"
+        )
+
+    def _ensure_goal(self, project: dict, *, force_new: bool = False, session_id: str | None = None) -> dict:
         autonomy = self._autonomy()
         bridge = autonomy._work_bridge
         desired = self._project_goal_text(project)
@@ -89,14 +102,15 @@ class ProjectWorkService:
             if record and record.get("source_p10_goal_id"):
                 try:
                     existing = autonomy.goal(record["source_p10_goal_id"], owner_id="owner")
-                    if str(existing.get("description") or "").strip() == desired and existing.get("state") != "CANCELLED":
+                    if self._goal_matches_project(existing, project, desired):
                         return existing
                 except KeyError:
                     pass
         goal = autonomy.create_goal(
             desired,
             owner_id="owner",
-            desired_outcome=str(project.get("success_criteria") or project.get("description") or desired)[:2000],
+            desired_outcome=self._desired_outcome(project, desired),
+            session_id=session_id,
             constraints=self._constraints(project),
             priority=70,
             deadline=project.get("target_date"),
@@ -110,10 +124,18 @@ class ProjectWorkService:
         bridge.project_goal({**goal, "project_id": project["id"]})
         return goal
 
-    def create_plan(self, project_id: str, *, query: str | None = None, playbook_id: str | None = None, force_new_goal: bool = False) -> dict:
+    def create_plan(
+        self,
+        project_id: str,
+        *,
+        query: str | None = None,
+        playbook_id: str | None = None,
+        force_new_goal: bool = False,
+        session_id: str | None = None,
+    ) -> dict:
         project = self._project(project_id)
         autonomy = self._autonomy()
-        goal = self._ensure_goal(project, force_new=force_new_goal)
+        goal = self._ensure_goal(project, force_new=force_new_goal, session_id=session_id)
         result = autonomy.propose_hierarchical_plan(
             goal["id"],
             owner_id="owner",
@@ -126,8 +148,7 @@ class ProjectWorkService:
         return {"project_id": project["id"], "goal_id": goal["id"], **result}
 
     def _plan_record(self, project_id: str, p10_plan_id: str | None = None) -> dict | None:
-        autonomy = self._autonomy()
-        records = autonomy._work_bridge.work.project_plan_records(project_id)
+        records = self._autonomy()._work_bridge.work.project_plan_records(project_id)
         if p10_plan_id is None:
             return records[-1] if records else None
         return next((record for record in records if str(record.get("source_p10_plan_id") or "") == str(p10_plan_id)), None)
@@ -224,8 +245,20 @@ class ProjectWorkService:
         self._project(project_id)
         autonomy = self._autonomy()
         records = autonomy._work_bridge.work.project_plan_records(project_id)
-        plans = []
+        # project_plan_records includes every WorkPlan version. Group by the stable
+        # source P10 plan so the Projects history returns one plan history entry,
+        # not one duplicated entry per version.
+        latest_by_source: dict[str, dict] = {}
+        source_order: list[str] = []
         for record in records:
+            source = str(record.get("source_p10_plan_id") or "")
+            key = source or f"work:{record['plan'].id}"
+            if key not in latest_by_source:
+                source_order.append(key)
+            latest_by_source[key] = record
+        plans = []
+        for key in source_order:
+            record = latest_by_source[key]
             source = record.get("source_p10_plan_id")
             item = {"source_p10_plan_id": source, "work_plan": record["plan"].to_dict()}
             if source:
@@ -264,11 +297,25 @@ class ProjectWorkService:
         self._autonomy().resume(p10_plan_id, owner_id="owner")
         return self.snapshot(project_id)
 
-    def cancel(self, project_id: str, p10_plan_id: str, *, reason: str) -> dict:
+    def cancel(
+        self,
+        project_id: str,
+        p10_plan_id: str,
+        *,
+        reason: str,
+        device_id: str | None = None,
+        session_id: str | None = None,
+    ) -> dict:
         self.assert_project_plan(project_id, p10_plan_id)
         autonomy = self._autonomy()
         if hasattr(autonomy, "cancel_governed"):
-            autonomy.cancel_governed(p10_plan_id, owner_id="owner", reason=reason)
+            autonomy.cancel_governed(
+                p10_plan_id,
+                owner_id="owner",
+                device_id=device_id,
+                session_id=session_id,
+                reason=reason,
+            )
         else:
             autonomy.cancel(p10_plan_id, owner_id="owner", reason=reason)
         return self.snapshot(project_id)
@@ -322,9 +369,15 @@ def project_work_router(runtime: dict, store) -> APIRouter:
 
     @router.post("/{project_id}/work/plan")
     def create_work_plan(project_id: str, body: ProjectWorkPlanBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
-        authenticate(pa_device, pa_token, require_trusted_session=True)
+        context = authenticate(pa_device, pa_token, require_trusted_session=True)
         try:
-            return service.create_plan(project_id, query=body.query, playbook_id=body.playbook_id, force_new_goal=body.force_new_goal)
+            return service.create_plan(
+                project_id,
+                query=body.query,
+                playbook_id=body.playbook_id,
+                force_new_goal=body.force_new_goal,
+                session_id=context.session_id,
+            )
         except Exception as exc:
             return translate_error(exc)
 
@@ -362,9 +415,15 @@ def project_work_router(runtime: dict, store) -> APIRouter:
 
     @router.post("/{project_id}/work/{plan_id}/cancel")
     def cancel_work(project_id: str, plan_id: str, body: ProjectWorkCancelBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
-        authenticate(pa_device, pa_token, require_trusted_session=True)
+        context = authenticate(pa_device, pa_token, require_trusted_session=True)
         try:
-            return service.cancel(project_id, plan_id, reason=body.reason)
+            return service.cancel(
+                project_id,
+                plan_id,
+                reason=body.reason,
+                device_id=context.device_id,
+                session_id=context.session_id,
+            )
         except Exception as exc:
             return translate_error(exc)
 
