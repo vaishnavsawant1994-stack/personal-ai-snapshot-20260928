@@ -1,5 +1,5 @@
-const CACHE='personal-ai-iphone-v34';
-const SHELL=['/iphone/','/iphone/manifest.webmanifest','/iphone/projects-workspace.css','/iphone/projects-workspace.js','/iphone/projects-workspace-views.css','/iphone/projects-workspace-views.js','/iphone/home-chat-redesign.js','/iphone/home-chat-redesign-core.js','/iphone/projects-work-runtime.js','/iphone/projects-work-visualization-runtime.js','/iphone/global-work-awareness.js','/iphone/owner-controls.css','/iphone/owner-controls.js'];
+const CACHE='personal-ai-iphone-v35';
+const SHELL=['/iphone/','/iphone/manifest.webmanifest','/iphone/projects-workspace.css','/iphone/projects-workspace.js','/iphone/projects-workspace-views.css','/iphone/projects-workspace-views.js','/iphone/home-chat-redesign.js','/iphone/home-chat-redesign-core.js','/iphone/projects-work-runtime.js','/iphone/project-autonomy-controls.js','/iphone/projects-work-visualization-runtime.js','/iphone/global-work-awareness.js','/iphone/owner-controls.css','/iphone/owner-controls.js'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
