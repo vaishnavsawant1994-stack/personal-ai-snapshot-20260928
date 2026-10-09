@@ -70,6 +70,28 @@ class WorkStore:
         ).fetchone()
         return GoalSpec.from_dict(json.loads(row[0])) if row else None
 
+    def project_goal_records(self, project_id: str) -> list[dict]:
+        rows = self.connection.execute(
+            """
+            SELECT payload_json, source_p10_goal_id
+            FROM work_goals
+            WHERE project_id = ?
+            ORDER BY updated_at, created_at, id
+            """,
+            (str(project_id),),
+        ).fetchall()
+        return [
+            {
+                "goal": GoalSpec.from_dict(json.loads(row["payload_json"])),
+                "source_p10_goal_id": row["source_p10_goal_id"],
+            }
+            for row in rows
+        ]
+
+    def latest_project_goal_record(self, project_id: str) -> dict | None:
+        records = self.project_goal_records(project_id)
+        return records[-1] if records else None
+
     def next_plan_version(self, goal_id: str) -> int:
         row = self.connection.execute(
             "SELECT COALESCE(MAX(version), 0) + 1 FROM work_plans WHERE goal_id = ?",
@@ -89,6 +111,28 @@ class WorkStore:
             (source_p10_plan_id,),
         ).fetchone()
         return WorkPlan.from_dict(json.loads(row[0])) if row else None
+
+    def project_plan_records(self, project_id: str) -> list[dict]:
+        rows = self.connection.execute(
+            """
+            SELECT payload_json, source_p10_plan_id
+            FROM work_plans
+            WHERE project_id = ?
+            ORDER BY created_at, version, id
+            """,
+            (str(project_id),),
+        ).fetchall()
+        return [
+            {
+                "plan": WorkPlan.from_dict(json.loads(row["payload_json"])),
+                "source_p10_plan_id": row["source_p10_plan_id"],
+            }
+            for row in rows
+        ]
+
+    def latest_project_plan_record(self, project_id: str) -> dict | None:
+        records = self.project_plan_records(project_id)
+        return records[-1] if records else None
 
     def get_plan(self, plan_id: str) -> WorkPlan | None:
         row = self.connection.execute(
