@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from evolution import CandidateStatus
@@ -17,25 +17,37 @@ class EvolutionRejectBody(BaseModel):
 
 
 def evolution_router(runtime):
-    router = APIRouter(prefix="/api/evolution", tags=["evolution"])
     registry = runtime["device_registry"]
     service = runtime["evolution"]
     store = runtime["evolution_store"]
     handoffs = runtime.get("evolution_handoff")
 
-    def require_owner():
+    def require_owner_device(
+        authorization: str | None = Header(default=None),
+        x_device_id: str | None = Header(default=None),
+    ) -> str:
         context = current_trusted_request()
-        if context is None:
-            raise HTTPException(401, "Trusted owner session required")
-        if not registry.is_active(context.device_id):
+        if context is not None:
+            device_id = str(context.device_id)
+        else:
+            device_id = str(x_device_id or "").strip()
+            token = str(authorization or "").removeprefix("Bearer ").strip()
+            if not device_id or not token or not registry.authenticate(device_id, token):
+                raise HTTPException(401, "Trusted owner device authentication required")
+        if not registry.is_active(device_id):
             raise HTTPException(401, "Trusted device is revoked")
-        if hasattr(registry, "authorize") and not registry.authorize(context.device_id, "ai:chat"):
+        if hasattr(registry, "authorize") and not registry.authorize(device_id, "ai:chat"):
             raise HTTPException(403, "This device is not permitted to review evolution proposals")
-        return context
+        return device_id
+
+    router = APIRouter(
+        prefix="/api/evolution",
+        tags=["evolution"],
+        dependencies=[Depends(require_owner_device)],
+    )
 
     @router.get("/status")
     def status():
-        require_owner()
         candidates = store.list_candidates()
         return {
             "mode": service.mode.value,
@@ -50,7 +62,6 @@ def evolution_router(runtime):
 
     @router.post("/scan")
     def scan():
-        require_owner()
         cycle = service.run_cycle()
         return {
             "mode": cycle.mode.value,
@@ -61,13 +72,11 @@ def evolution_router(runtime):
 
     @router.get("/candidates")
     def list_candidates(limit: int = Query(default=50, ge=1, le=200)):
-        require_owner()
         items = store.list_candidates()[-limit:]
         return {"candidates": [item.to_dict() for item in items]}
 
     @router.get("/candidates/{candidate_id}")
     def candidate_detail(candidate_id: str):
-        require_owner()
         item = store.get_candidate(candidate_id)
         if item is None:
             raise HTTPException(404, "Evolution candidate not found")
@@ -80,7 +89,6 @@ def evolution_router(runtime):
 
     @router.post("/candidates/{candidate_id}/approve")
     def approve_candidate(candidate_id: str, body: EvolutionApprovalBody):
-        require_owner()
         if handoffs is None:
             raise HTTPException(503, "Evolution handoff service unavailable")
         try:
@@ -102,7 +110,6 @@ def evolution_router(runtime):
 
     @router.post("/candidates/{candidate_id}/reject")
     def reject_candidate(candidate_id: str, body: EvolutionRejectBody):
-        require_owner()
         if handoffs is None:
             raise HTTPException(503, "Evolution handoff service unavailable")
         try:
