@@ -91,8 +91,8 @@
   document.addEventListener('click',intercept,true);
   window.addEventListener('vishnu:new-chat',()=>{
     selectedProjectId='';
-    document.body.classList.remove('home-landing');
-    document.body.classList.add('chat-new-empty');
+    document.body.classList.remove('home-landing','chat-response-clean');
+    document.body.classList.add('chat-new-empty','chat-experience','chat-empty-state');
     setLabel('');
   });
   // Synchronize an already-active project conversation without blocking first paint.
