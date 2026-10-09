@@ -1,9 +1,9 @@
 /* Sequential loader for Home/Chat plus canonical Projects Work surfaces. */
 (()=>{
   // Owner-frozen shared mobile chrome contract. Chat Experience changes the
-  // conversation layout, so preserve the shared fixed SMS composer and the
-  // context dock after every Home/Chat state transition. Inline !important
-  // properties deliberately outrank screen-specific stylesheet overrides.
+  // conversation layout, so preserve the shared fixed SMS composer, context
+  // dock, and conversation-details control after every Home/Chat transition.
+  // Inline !important properties deliberately outrank screen-specific CSS.
   const enforceSharedMobileComposerChrome=()=>{
     if(!document.getElementById('vishnuSharedMobileComposerGuard')){
       const style=document.createElement('style');
@@ -15,15 +15,17 @@
       }`;
       document.head.append(style);
     }
-    const composer=document.getElementById('composer'),dock=document.getElementById('vChatDock');
+    const composer=document.getElementById('composer'),dock=document.getElementById('vChatDock'),details=document.getElementById('chatDetailsTop');
     if(!composer)return;
     const mobile=matchMedia('(max-width:760px)').matches;
     const chat=mobile&&document.body.classList.contains('chat-experience')&&!document.body.classList.contains('home-landing');
     const composerProps=['position','z-index','left','right','bottom','width','max-width','margin'];
     const dockProps=['position','z-index','left','right','transform','bottom','width','margin'];
+    const detailProps=['display','visibility','opacity','pointer-events','width','height'];
     if(!chat){
       composerProps.forEach(name=>composer.style.removeProperty(name));
       if(dock)dockProps.forEach(name=>dock.style.removeProperty(name));
+      if(details)detailProps.forEach(name=>details.style.removeProperty(name));
       return;
     }
     const keyboard=document.body.classList.contains('keyboard-open');
@@ -50,6 +52,14 @@
       dock.style.setProperty('bottom',dockBottom,'important');
       dock.style.setProperty('width','min(820px,calc(100% - 28px))','important');
       dock.style.setProperty('margin','0','important');
+    }
+    if(details){
+      details.style.setProperty('display','grid','important');
+      details.style.setProperty('visibility','visible','important');
+      details.style.setProperty('opacity','1','important');
+      details.style.setProperty('pointer-events','auto','important');
+      details.style.setProperty('width','44px','important');
+      details.style.setProperty('height','44px','important');
     }
   };
   const scheduleSharedMobileComposerChrome=()=>requestAnimationFrame(enforceSharedMobileComposerChrome);
