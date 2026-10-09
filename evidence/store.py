@@ -181,6 +181,33 @@ class EvidenceStore:
         ).fetchone()
         return Claim.from_dict(json.loads(row[0])) if row else None
 
+    def list_claims(
+        self,
+        *,
+        project_id: str | None = None,
+        work_order_id: str | None = None,
+        state: ClaimState | None = None,
+    ) -> list[Claim]:
+        clauses: list[str] = []
+        params: list[str] = []
+        if project_id is not None:
+            clauses.append("project_id = ?")
+            params.append(project_id)
+        if work_order_id is not None:
+            clauses.append("work_order_id = ?")
+            params.append(work_order_id)
+        if state is not None:
+            clauses.append("state = ?")
+            params.append(state.value)
+        sql = "SELECT payload_json FROM claims"
+        if clauses:
+            sql += " WHERE " + " AND ".join(clauses)
+        sql += " ORDER BY created_at, id"
+        return [
+            Claim.from_dict(json.loads(row[0]))
+            for row in self.connection.execute(sql, tuple(params)).fetchall()
+        ]
+
     def update_claim_state(
         self,
         claim_id: str,
