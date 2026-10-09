@@ -21,15 +21,27 @@
     visual.onerror=()=>console.warn('Canonical Projects visualizations could not be loaded.');
     document.body.append(visual);
   };
+  const loadProjectAutonomy=()=>{
+    let controls=document.querySelector('script[data-project-autonomy-controls]');
+    if(window.__vishnuProjectAutonomyUI){loadVisualizations();return}
+    if(controls){controls.addEventListener('load',loadVisualizations,{once:true});return}
+    controls=document.createElement('script');
+    controls.src='/iphone/project-autonomy-controls.js';
+    controls.async=false;
+    controls.dataset.projectAutonomyControls='true';
+    controls.onload=loadVisualizations;
+    controls.onerror=()=>console.warn('Project autonomy controls could not be loaded.');
+    document.body.append(controls);
+  };
   const ensureCanonicalWork=()=>{
     let script=document.querySelector('script[data-canonical-project-work]');
-    if(window.__vishnuCanonicalProjectWork){loadVisualizations();return}
-    if(script){script.addEventListener('load',loadVisualizations,{once:true});return}
+    if(window.__vishnuCanonicalProjectWork){loadProjectAutonomy();return}
+    if(script){script.addEventListener('load',loadProjectAutonomy,{once:true});return}
     script=document.createElement('script');
     script.src='/iphone/projects-work-runtime.js';
     script.async=false;
     script.dataset.canonicalProjectWork='true';
-    script.onload=loadVisualizations;
+    script.onload=loadProjectAutonomy;
     script.onerror=()=>console.warn('Canonical Projects Work UI could not be loaded.');
     document.body.append(script);
   };
