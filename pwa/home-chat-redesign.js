@@ -1,12 +1,24 @@
 /* Sequential loader for Home/Chat plus canonical Projects Work surfaces. */
 (()=>{
+  const loadChatContextOwner=()=>{
+    if(window.__vishnuChatContextOwner||document.querySelector('script[data-chat-context-owner]'))return;
+    const context=document.createElement('script');
+    context.src='/iphone/chat-context-owner.js';
+    context.async=false;
+    context.dataset.chatContextOwner='true';
+    context.onerror=()=>console.warn('Chat project-context controller could not be loaded.');
+    document.body.append(context);
+  };
   const loadAttentionCenter=()=>{
-    if(window.__vishnuWorkAttentionCenter||document.querySelector('script[data-work-attention-center]'))return;
+    if(window.__vishnuWorkAttentionCenter){loadChatContextOwner();return}
+    const existing=document.querySelector('script[data-work-attention-center]');
+    if(existing){existing.addEventListener('load',loadChatContextOwner,{once:true});existing.addEventListener('error',loadChatContextOwner,{once:true});return}
     const attention=document.createElement('script');
     attention.src='/iphone/work-attention-center.js';
     attention.async=false;
     attention.dataset.workAttentionCenter='true';
-    attention.onerror=()=>console.warn('Work Attention Center could not be loaded.');
+    attention.onload=loadChatContextOwner;
+    attention.onerror=()=>{console.warn('Work Attention Center could not be loaded.');loadChatContextOwner()};
     document.body.append(attention);
   };
   const loadGlobalAwareness=()=>{
