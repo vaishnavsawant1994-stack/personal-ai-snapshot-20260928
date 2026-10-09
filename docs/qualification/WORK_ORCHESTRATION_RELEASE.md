@@ -24,6 +24,12 @@ refer to the same exact 40-character Git commit SHA:
 
 Missing, false, stale, malformed, or SHA-mismatched evidence produces `HOLD`.
 
+The protected `main` ruleset is strict: the required `test` and `security` contexts
+must be green for the current ready-for-review candidate. Exact-head release
+qualification therefore happens only after the pull request is Ready for review; a
+candidate change made after that transition invalidates earlier evidence and requires
+fresh checks on the new head.
+
 ## Authority boundary
 
 This layer is qualification metadata only. It cannot execute tools, approve owner
