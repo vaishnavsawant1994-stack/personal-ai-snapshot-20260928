@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
 
+from future_intelligence.work_orchestration.living_projection import LivingAgentWorkProjection
 from future_intelligence.work_orchestration.review_attention import ReviewAwareWorkAttentionService
 from security.request_context import current_trusted_request
 
@@ -26,12 +27,15 @@ def work_attention_router(runtime: dict, store) -> APIRouter:
     def attention_list(limit: int = Query(default=100, ge=1, le=200)):
         context = require_owner()
         try:
-            return service.summary(
+            snapshot = service.summary(
                 owner_id="owner",
                 device_id=context.device_id,
                 session_id=context.session_id,
                 limit=limit,
             )
+            work_snapshot = service.work_service.summary(work_order_limit=500)
+            snapshot["living"] = LivingAgentWorkProjection.project(work_snapshot, snapshot)
+            return snapshot
         except RuntimeError as exc:
             raise HTTPException(409, str(exc)) from exc
 
