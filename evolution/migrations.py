@@ -3,7 +3,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import datetime, timezone
 
-EVOLUTION_SCHEMA_VERSION = 1
+EVOLUTION_SCHEMA_VERSION = 2
 
 
 def _now() -> str:
@@ -81,5 +81,45 @@ def migrate_evolution_schema(connection: sqlite3.Connection) -> int:
             connection.execute(
                 "INSERT INTO evolution_schema_migrations(version, name, applied_at) VALUES (?, ?, ?)",
                 (1, "read_only_candidate_curation_foundation", _now()),
+            )
+            applied.add(1)
+
+        if 2 not in applied:
+            connection.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS evolution_handoffs (
+                    id TEXT PRIMARY KEY,
+                    candidate_id TEXT NOT NULL UNIQUE,
+                    work_order_id TEXT NOT NULL UNIQUE,
+                    goal_id TEXT NOT NULL,
+                    plan_id TEXT NOT NULL,
+                    base_body_revision TEXT NOT NULL,
+                    approved_decision_id TEXT NOT NULL UNIQUE,
+                    handoff_hash TEXT NOT NULL UNIQUE,
+                    payload_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(candidate_id) REFERENCES evolution_candidates(id) ON DELETE RESTRICT,
+                    FOREIGN KEY(approved_decision_id) REFERENCES evolution_decisions(id) ON DELETE RESTRICT
+                );
+
+                CREATE TRIGGER IF NOT EXISTS evolution_handoffs_immutable_update
+                BEFORE UPDATE ON evolution_handoffs
+                BEGIN
+                    SELECT RAISE(ABORT, 'evolution handoffs are immutable');
+                END;
+
+                CREATE TRIGGER IF NOT EXISTS evolution_handoffs_immutable_delete
+                BEFORE DELETE ON evolution_handoffs
+                BEGIN
+                    SELECT RAISE(ABORT, 'evolution handoffs are immutable');
+                END;
+
+                CREATE INDEX IF NOT EXISTS idx_evolution_handoffs_created
+                    ON evolution_handoffs(created_at, id);
+                """
+            )
+            connection.execute(
+                "INSERT INTO evolution_schema_migrations(version, name, applied_at) VALUES (?, ?, ?)",
+                (2, "owner_approved_immutable_work_handoffs", _now()),
             )
     return EVOLUTION_SCHEMA_VERSION
