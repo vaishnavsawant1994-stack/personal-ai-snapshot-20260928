@@ -41,7 +41,7 @@ def test_output_contract_rejects_false_before_verification():
 
 def test_valid_output_retains_existing_verification_semantics():
     tool = make_tool(risk=Risk.READ_ONLY, output_validator=lambda result: isinstance(result, dict))
-    result = ToolRegistry.verify_result(None, tool, {}, {"ok": True})
+    result = ToolRegistry.verify_result(object.__new__(ToolRegistry), tool, {}, {"ok": True})
     assert result.verified is True
 
 
