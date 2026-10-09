@@ -73,10 +73,7 @@ class PortableContinuityBundleCodec:
             "kdf": "HKDF-SHA256",
             "salt": base64.b64encode(salt).decode("ascii"),
             "nonce": base64.b64encode(nonce).decode("ascii"),
-            "grant_id": grant.id,
-            "source_host_id": grant.source_host_id,
-            "target_host_id": grant.target_host_id,
-            "source_epoch": grant.source_epoch,
+            "grant": grant.public_dict(include_token=False),
             "checkpoint": checkpoint.to_dict(),
         }
         encoded = self._header_bytes(header)
@@ -146,6 +143,8 @@ class PortableContinuityBundleCodec:
                         raise ValueError("unsupported continuity header")
                     salt = base64.b64decode(header["salt"], validate=True)
                     nonce = base64.b64decode(header["nonce"], validate=True)
+                    if not isinstance(header.get("grant"), dict) or not isinstance(header.get("checkpoint"), dict):
+                        raise ValueError("missing authenticated transfer metadata")
                 except Exception as exc:
                     raise ContinuityBundleError("continuity bundle header is invalid") from exc
                 if len(salt) != 16 or len(nonce) != 12:
@@ -180,7 +179,6 @@ class PortableContinuityBundleCodec:
                         raise ContinuityBundleError("continuity bundle authentication failed") from exc
                     dst.flush()
                     os.fsync(dst.fileno())
-            # Only authenticated header data is returned.
             ContinuityCheckpoint.from_dict(dict(header["checkpoint"]))
             return target, header
         except Exception:
