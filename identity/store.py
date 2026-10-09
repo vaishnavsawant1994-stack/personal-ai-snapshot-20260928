@@ -98,7 +98,20 @@ class IdentityStore:
         git_revision = str(git_revision or "").strip()
         if not git_revision:
             raise ValueError("git_revision is required")
-        revision_id = manifest.revision_id
+        revision_id = manifest.revision_id_for(git_revision)
+        existing = self.connection.execute(
+            """
+            SELECT git_revision, manifest_hash
+            FROM software_body_revisions
+            WHERE revision_id = ?
+            """,
+            (revision_id,),
+        ).fetchone()
+        if existing is not None:
+            if existing["git_revision"] != git_revision or existing["manifest_hash"] != manifest.manifest_hash:
+                raise ValueError("body revision identity collision")
+            return revision_id
+
         now = _now()
         contracts = manifest.contracts
         with self.connection:
@@ -159,11 +172,15 @@ class IdentityStore:
         now = _now()
         with self.connection:
             target = self.connection.execute(
-                "SELECT revision_id FROM software_body_revisions WHERE revision_id = ?",
+                "SELECT revision_id, status FROM software_body_revisions WHERE revision_id = ?",
                 (revision_id,),
             ).fetchone()
             if target is None:
                 raise KeyError(revision_id)
+            if target["status"] == BodyRevisionStatus.REJECTED.value:
+                raise ValueError("rejected body revision cannot be activated")
+            if target["status"] == BodyRevisionStatus.ACTIVE.value:
+                return
             self.connection.execute(
                 """
                 UPDATE software_body_revisions
