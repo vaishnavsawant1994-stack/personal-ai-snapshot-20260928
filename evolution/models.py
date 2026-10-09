@@ -34,6 +34,7 @@ class CandidateStatus(StrEnum):
     DEFERRED = "deferred"
     REJECTED = "rejected"
     RESTRICTED = "restricted"
+    HANDED_OFF = "handed_off"
 
 
 class RiskLevel(StrEnum):
@@ -48,6 +49,7 @@ class EvolutionDecision(StrEnum):
     DEFER = "defer"
     REJECT = "reject"
     RESTRICT = "restrict"
+    APPROVE = "approve"
 
 
 @dataclass(frozen=True)
