@@ -35,10 +35,11 @@ class IdentityRuntimeStatus:
 class IdentityRuntime:
     """Live Body/Self context with a strict no-authority boundary.
 
-    The first exact running revision may establish the initial Body baseline only
-    when the lineage database is empty. Once lineage exists, this runtime never
-    auto-activates a different revision; adoption remains an owner-governed E7
-    operation.
+    The first exact running revision may establish the initial Body baseline when
+    lineage is empty. Later releases never auto-activate. An operator may provide
+    an exact trusted release revision plus an explicit activation flag at deploy
+    time; both must match the running revision. This is external release authority,
+    not a model/Self/evolution self-grant.
     """
 
     def __init__(
@@ -48,9 +49,13 @@ class IdentityRuntime:
         running_git_revision: str | None,
         body_manifest_path: str | Path | None = None,
         events=None,
+        trusted_release_revision: str | None = None,
+        allow_trusted_release_activation: bool = False,
     ) -> None:
         self.store = store
         self.running_git_revision = str(running_git_revision or "").strip() or None
+        self.trusted_release_revision = str(trusted_release_revision or "").strip() or None
+        self.allow_trusted_release_activation = bool(allow_trusted_release_activation)
         self.events = events
         if body_manifest_path is None:
             body_manifest_path = Path(__file__).resolve().parents[1] / "config" / "vishnu-body.yaml"
@@ -67,6 +72,30 @@ class IdentityRuntime:
         row = self.store.connection.execute("SELECT COUNT(*) FROM software_body_revisions").fetchone()
         return int(row[0]) if row else 0
 
+    def _trusted_release_matches(self) -> bool:
+        return bool(
+            self.allow_trusted_release_activation
+            and self.running_git_revision
+            and self.trusted_release_revision
+            and self.running_git_revision == self.trusted_release_revision
+        )
+
+    def _activate_trusted_running_release(self) -> str:
+        if not self._trusted_release_matches():
+            raise PermissionError("trusted release activation requires an exact running-revision match")
+        revision_id = self.store.record_body_revision(
+            self.body,
+            git_revision=self.running_git_revision,
+            status=BodyRevisionStatus.CANDIDATE,
+        )
+        self.store.activate_body_revision(revision_id, actor="trusted_release_operator")
+        self.store.set_state(
+            "last_trusted_release_activation",
+            {"revision_id": revision_id, "git_revision": self.running_git_revision},
+        )
+        self._emit("identity.trusted_release_activated", revision_id=revision_id)
+        return revision_id
+
     def _bootstrap(self) -> None:
         active = self.store.active_body_revision()
         count = self._body_count()
@@ -81,6 +110,10 @@ class IdentityRuntime:
             self._bootstrap_state = "baseline_initialized"
             self._emit("identity.body_baseline_initialized", revision_id=revision_id)
             return
+        if active is None and self._trusted_release_matches():
+            self._activate_trusted_running_release()
+            self._bootstrap_state = "trusted_release_activated"
+            return
         if active is None and count > 0:
             self._bootstrap_state = "lineage_present_no_active_body"
             self._emit("identity.body_activation_required", revision_count=count)
@@ -90,6 +123,10 @@ class IdentityRuntime:
             self._emit("identity.body_revision_unknown")
             return
         if self.running_git_revision and str(active.get("git_revision")) != self.running_git_revision:
+            if self._trusted_release_matches():
+                self._activate_trusted_running_release()
+                self._bootstrap_state = "trusted_release_activated"
+                return
             self._bootstrap_state = "running_body_mismatch"
             self._emit(
                 "identity.body_mismatch",
