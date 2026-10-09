@@ -1,5 +1,20 @@
 /* Sequential loader for Home/Chat plus canonical Projects Work surfaces. */
 (()=>{
+  // Preserve the canonical active conversation while Home clears its visible
+  // transcript. This wrapper installs before the async status check resolves,
+  // so refresh cannot race the later Home/core adapter. Deliberate clears such
+  // as delete/new-session enter Home with no active id and remain cleared.
+  if(typeof window.enterHomeLanding==='function'&&!window.__vishnuHomeBindingGuard){
+    window.__vishnuHomeBindingGuard=true;
+    const canonicalHome=window.enterHomeLanding;
+    window.enterHomeLanding=function(...args){
+      const activeId=typeof currentConversationId==='undefined'?null:currentConversationId;
+      const result=canonicalHome.apply(this,args);
+      if(activeId&&typeof currentConversationId!=='undefined')currentConversationId=activeId;
+      return result;
+    };
+  }
+
   // Owner-frozen shared mobile chrome contract. Chat Experience changes the
   // conversation layout, so preserve the shared fixed SMS composer, context
   // dock, and conversation-details control after every Home/Chat transition.
