@@ -14,6 +14,7 @@ from future_intelligence.autonomy_runtime import install as install_autonomy_run
 from future_intelligence.work_orchestration.p10_runtime import install as install_work_orchestration_runtime
 from future_intelligence.work_orchestration.hierarchical_runtime import install as install_hierarchical_work_planning
 from future_intelligence.work_orchestration.versioned_replanning import install as install_versioned_replanning
+from future_intelligence.work_orchestration.completion_runtime import install as install_completion_judge
 from future_intelligence.work_orchestration.notification_bridge import WorkNotificationBridge
 from core.p10_approval_continuation import install as install_p10_turn_continuation
 
@@ -21,6 +22,7 @@ install_autonomy_runtime(AdvancedAutonomy)
 install_work_orchestration_runtime(AdvancedAutonomy)
 install_hierarchical_work_planning(AdvancedAutonomy)
 install_versioned_replanning(AdvancedAutonomy)
+install_completion_judge(AdvancedAutonomy)
 
 
 class FutureIntelligenceProgram:
