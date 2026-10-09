@@ -115,6 +115,8 @@ class ProjectAutonomyService:
     ) -> dict:
         project = self._project(project_id)
         resolved = ProjectAutonomyMode(str(mode))
+        if advance_now and resolved is not ProjectAutonomyMode.ACTIVE:
+            raise ValueError("advance_now requires active mode")
         settings = self._autonomy().set_project_autonomy_mode(project["id"], resolved.value, updated_by="owner")
         response = {
             **self.get(project["id"]),
@@ -125,8 +127,6 @@ class ProjectAutonomyService:
             "advance": None,
         }
         if advance_now:
-            if resolved is not ProjectAutonomyMode.ACTIVE:
-                raise ValueError("advance_now requires active mode")
             plan_id = self._latest_plan_id(project["id"])
             if plan_id:
                 response["advance"] = self._autonomy().advance_project_plan(
