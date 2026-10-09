@@ -1,4 +1,12 @@
 from .capabilities import CapabilityRecord, CapabilityRegistry, CapabilityState
+from .completion import (
+    CompletionBlocker,
+    CompletionJudge,
+    CompletionReport,
+    CompletionState,
+    MilestoneCompletionDecision,
+    WorkOrderCompletionDecision,
+)
 from .context_pack import ContextEntry, ContextPack, ContextPackBuilder
 from .lowering import bind_to_projection, lower_to_p10_tasks
 from .migrations import WORK_SCHEMA_VERSION, migrate_work_schema
@@ -26,6 +34,10 @@ __all__ = [
     "CapabilityRecord",
     "CapabilityRegistry",
     "CapabilityState",
+    "CompletionBlocker",
+    "CompletionJudge",
+    "CompletionReport",
+    "CompletionState",
     "ContextEntry",
     "ContextPack",
     "ContextPackBuilder",
@@ -35,6 +47,7 @@ __all__ = [
     "GoalSpec",
     "InvalidStrategicPlan",
     "Milestone",
+    "MilestoneCompletionDecision",
     "P10WorkBridge",
     "PlanDelta",
     "PlanDeltaAction",
@@ -47,6 +60,7 @@ __all__ = [
     "ResourceScope",
     "StrategicWorkPlanner",
     "WorkOrder",
+    "WorkOrderCompletionDecision",
     "WorkOrderStatus",
     "WorkPlan",
     "WorkPlanStatus",
