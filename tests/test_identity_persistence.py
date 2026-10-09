@@ -1,3 +1,5 @@
+import pytest
+
 from identity import BodyManifest, BodyRevisionStatus, IdentityStore, SelfProfile
 
 
@@ -48,6 +50,29 @@ def test_body_activation_preserves_lineage_and_supersedes_prior_active_revision(
         assert store.get_body_revision(first_id)["status"] == BodyRevisionStatus.SUPERSEDED.value
         assert store.get_body_revision(second_id)["status"] == BodyRevisionStatus.ACTIVE.value
         assert len(store.list_events(event_type="body.revision.activated")) == 2
+
+
+def test_body_registration_is_idempotent_but_distinguishes_git_revisions():
+    with IdentityStore() as store:
+        body = _body(1)
+        first = store.record_body_revision(body, git_revision="commit-a")
+        repeated = store.record_body_revision(body, git_revision="commit-a")
+        second = store.record_body_revision(body, git_revision="commit-b")
+
+        assert first == repeated
+        assert first != second
+        assert len(store.list_events(event_type="body.revision.recorded")) == 2
+
+
+def test_rejected_body_revision_cannot_be_activated():
+    with IdentityStore() as store:
+        revision_id = store.record_body_revision(
+            _body(1),
+            git_revision="rejected",
+            status=BodyRevisionStatus.REJECTED,
+        )
+        with pytest.raises(ValueError, match="rejected"):
+            store.activate_body_revision(revision_id, actor="owner")
 
 
 def test_identity_state_is_transactional_key_value_state():
