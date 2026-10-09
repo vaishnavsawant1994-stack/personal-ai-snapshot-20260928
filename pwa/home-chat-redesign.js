@@ -1,45 +1,64 @@
 /* Sequential loader for Home/Chat plus canonical Projects Work surfaces. */
 (()=>{
-  // Owner-frozen shared mobile chrome contract. The Chat Experience stylesheet
-  // deliberately changes the conversation layout, so re-assert the shared
-  // fixed SMS composer and context dock after all static stylesheets load.
-  // This keeps Home and Chat on the same 24px bottom inset and prevents the
-  // project-context chip from being covered by the composer.
+  // Owner-frozen shared mobile chrome contract. Chat Experience changes the
+  // conversation layout, so preserve the shared fixed SMS composer and the
+  // context dock after every Home/Chat state transition. Inline !important
+  // properties deliberately outrank screen-specific stylesheet overrides.
   const enforceSharedMobileComposerChrome=()=>{
-    if(document.getElementById('vishnuSharedMobileComposerGuard'))return;
-    const style=document.createElement('style');
-    style.id='vishnuSharedMobileComposerGuard';
-    style.textContent=`@media(max-width:760px){
-      body.chat-experience:not(.home-landing) #composer{
-        position:fixed!important;
-        z-index:45!important;
-        left:max(var(--shared-chrome-x,18px),env(safe-area-inset-left))!important;
-        right:max(var(--shared-chrome-x,18px),env(safe-area-inset-right))!important;
-        bottom:var(--shared-composer-bottom,24px)!important;
-        width:auto!important;
-        max-width:var(--shared-chrome-max,720px)!important;
-        margin:0 auto!important;
-      }
-      body.chat-experience:not(.home-landing) #vChatDock{
-        position:fixed!important;
-        z-index:46!important;
-        left:50%!important;
-        right:auto!important;
-        transform:translateX(-50%)!important;
-        bottom:calc(var(--shared-composer-bottom,24px) + var(--shared-composer-h,54px) + 10px)!important;
-        width:min(820px,calc(100% - 28px))!important;
-        margin:0!important;
-      }
-      body.chat-experience:not(.home-landing) .message-stream{
-        scroll-padding-bottom:calc(var(--shared-composer-bottom,24px) + var(--shared-composer-h,54px) + 58px)!important;
-      }
-      body.chat-experience.keyboard-open:not(.home-landing) #vChatDock{
-        bottom:max(calc(var(--shared-composer-bottom,24px) + var(--shared-composer-h,54px) + 10px),calc(100dvh - var(--keyboard-visible-height,100dvh) + var(--shared-composer-bottom,24px) + var(--shared-composer-h,54px) + 10px))!important;
-      }
-    }`;
-    document.head.append(style);
+    if(!document.getElementById('vishnuSharedMobileComposerGuard')){
+      const style=document.createElement('style');
+      style.id='vishnuSharedMobileComposerGuard';
+      style.textContent=`@media(max-width:760px){
+        body.chat-experience:not(.home-landing) .message-stream{
+          scroll-padding-bottom:calc(var(--shared-composer-bottom,24px) + var(--shared-composer-h,54px) + 58px)!important;
+        }
+      }`;
+      document.head.append(style);
+    }
+    const composer=document.getElementById('composer'),dock=document.getElementById('vChatDock');
+    if(!composer)return;
+    const mobile=matchMedia('(max-width:760px)').matches;
+    const chat=mobile&&document.body.classList.contains('chat-experience')&&!document.body.classList.contains('home-landing');
+    const composerProps=['position','z-index','left','right','bottom','width','max-width','margin'];
+    const dockProps=['position','z-index','left','right','transform','bottom','width','margin'];
+    if(!chat){
+      composerProps.forEach(name=>composer.style.removeProperty(name));
+      if(dock)dockProps.forEach(name=>dock.style.removeProperty(name));
+      return;
+    }
+    const keyboard=document.body.classList.contains('keyboard-open');
+    const composerBottom=keyboard
+      ? 'max(var(--shared-composer-bottom,24px),calc(100dvh - var(--keyboard-visible-height,100dvh) + var(--shared-composer-bottom,24px)))'
+      : 'var(--shared-composer-bottom,24px)';
+    composer.style.setProperty('position','fixed','important');
+    composer.style.setProperty('z-index','45','important');
+    composer.style.setProperty('left','max(var(--shared-chrome-x,18px),env(safe-area-inset-left))','important');
+    composer.style.setProperty('right','max(var(--shared-chrome-x,18px),env(safe-area-inset-right))','important');
+    composer.style.setProperty('bottom',composerBottom,'important');
+    composer.style.setProperty('width','auto','important');
+    composer.style.setProperty('max-width','var(--shared-chrome-max,720px)','important');
+    composer.style.setProperty('margin','0 auto','important');
+    if(dock){
+      const dockBottom=keyboard
+        ? 'max(calc(var(--shared-composer-bottom,24px) + var(--shared-composer-h,54px) + 10px),calc(100dvh - var(--keyboard-visible-height,100dvh) + var(--shared-composer-bottom,24px) + var(--shared-composer-h,54px) + 10px))'
+        : 'calc(var(--shared-composer-bottom,24px) + var(--shared-composer-h,54px) + 10px)';
+      dock.style.setProperty('position','fixed','important');
+      dock.style.setProperty('z-index','46','important');
+      dock.style.setProperty('left','50%','important');
+      dock.style.setProperty('right','auto','important');
+      dock.style.setProperty('transform','translateX(-50%)','important');
+      dock.style.setProperty('bottom',dockBottom,'important');
+      dock.style.setProperty('width','min(820px,calc(100% - 28px))','important');
+      dock.style.setProperty('margin','0','important');
+    }
   };
+  const scheduleSharedMobileComposerChrome=()=>requestAnimationFrame(enforceSharedMobileComposerChrome);
   enforceSharedMobileComposerChrome();
+  new MutationObserver(scheduleSharedMobileComposerChrome).observe(document.body,{attributes:true,attributeFilter:['class']});
+  window.addEventListener('resize',scheduleSharedMobileComposerChrome);
+  window.visualViewport?.addEventListener('resize',scheduleSharedMobileComposerChrome);
+  window.visualViewport?.addEventListener('scroll',scheduleSharedMobileComposerChrome);
+  document.addEventListener('focusin',event=>{if(event.target?.id==='message')scheduleSharedMobileComposerChrome()});
 
   const loadChatContextOwner=()=>{
     if(window.__vishnuChatContextOwner||document.querySelector('script[data-chat-context-owner]'))return;
