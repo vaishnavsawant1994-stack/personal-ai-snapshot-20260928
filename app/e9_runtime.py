@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 from automation.work_bridge import AutomationWorkBridge
 from evolution import ContinuousEvolutionRuntime
 from identity import IdentityRuntime
@@ -11,18 +13,20 @@ def attach_e9_runtime(runtime: dict) -> dict:
     """Attach E9 convergence services after E1–E8 and P10 are fully constructed."""
 
     events = runtime["events"]
+    trusted_release_revision = str(os.environ.get("VISHNU_TRUSTED_RELEASE_REVISION") or "").strip() or None
+    trusted_release_activate = str(os.environ.get("VISHNU_TRUSTED_RELEASE_ACTIVATE") or "").strip().lower() in {"1", "true", "yes", "activate"}
     identity = IdentityRuntime(
         store=runtime["identity_store"],
         running_git_revision=runtime.get("running_git_revision"),
         events=events,
+        trusted_release_revision=trusted_release_revision,
+        allow_trusted_release_activation=trusted_release_activate,
     )
     runtime["identity_runtime"] = identity
     agent_executor = runtime.get("agent_executor")
     if agent_executor is not None and hasattr(agent_executor, "attach_identity_context"):
         agent_executor.attach_identity_context(identity.context_dict)
 
-    # E7 code-body mutation now requires both E8 host authority and active Body
-    # compatibility. Self remains intentionally irrelevant to authorization.
     code_body = runtime.get("code_body")
     authority = runtime.get("continuation_authority")
     if code_body is not None and authority is not None and hasattr(code_body, "attach_continuation_authority"):
@@ -55,8 +59,6 @@ def attach_e9_runtime(runtime: dict) -> dict:
     extension_grants = ExtensionGrantStore(runtime["settings"].data_dir / "extension-grants.sqlite3")
     runtime["extension_grants"] = extension_grants
     for plugin in runtime.get("plugins").list() if runtime.get("plugins") is not None else ():
-        # Legacy PluginManifest declarations are imported as requests only. No
-        # permission is granted as a side effect of discovery or enablement.
         from integrations.extension_contracts import ExtensionManifest
         extension_grants.install(
             ExtensionManifest(
@@ -74,9 +76,7 @@ def attach_e9_runtime(runtime: dict) -> dict:
     events.emit(
         "e9.runtime_ready",
         identity_state=identity.status().bootstrap_state,
-        work_authority=(
-            getattr(getattr(runtime.get("advanced_autonomy"), "_canonical_work_authority", None), "mode", "unavailable")
-        ),
+        work_authority=getattr(getattr(runtime.get("advanced_autonomy"), "_canonical_work_authority", None), "mode", "unavailable"),
         continuous_evolution=continuous.enabled,
         providers=len(runtime["provider_inventory"]),
     )
