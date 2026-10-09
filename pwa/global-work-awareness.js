@@ -10,6 +10,8 @@
   const ACTIVE=new Set(['RUNNING','VERIFYING','RECOVERING','RETRYING']);
   const BLOCKED=new Set(['BLOCKED','UNCERTAIN','RECOVERY_REQUIRED','FAILED']);
   const DONE=new Set(['COMPLETED','CANCELLED']);
+  const SECTION_ALIASES={'work-plan':'plan','live-work':'live','evidence':'plan'};
+  const PROJECT_SECTIONS=new Set(['overview','chat','plan','files','approvals','discussions','activity','live','status','structure']);
   let current={authority:'read_only_projection',projects:[],work_orders:[],counts:{},living:{state:'idle',detail:''}};
   let attention={authority:'read_only_projection',counts:{total:0,approval:0,recovery:0,review:0,blocked:0,urgent:0},items:[]};
   let refreshTimer=0,overlayApplied=false,deepLinkApplied=false;
@@ -30,6 +32,7 @@
       current=summary;attention=attentionSnapshot;
       window.__vishnuGlobalWorkAwareness.snapshot=current;
       window.__vishnuGlobalWorkAwareness.attention=attention;
+      window.__vishnuGlobalWorkAwareness.living=attention?.living?.authority==='presentation_only'?attention.living:null;
       renderAll();
       applyInboundDeepLink();
     }catch(error){
@@ -67,12 +70,13 @@
     else if(typeof openModule==='function')openModule('projects');
   }
   function canonicalAttentionCount(){return Math.max(0,Number(attention?.counts?.total||0))}
+  function livingProjection(){return attention?.living?.authority==='presentation_only'?attention.living:null}
 
   function ensureStyles(){
     if(document.getElementById('globalWorkAwarenessStyles'))return;
     const style=document.createElement('style');style.id='globalWorkAwarenessStyles';style.textContent=`
       .gwa-panel{width:min(920px,96%);margin:4px auto 12px;border:1px solid rgba(124,164,224,.18);border-radius:20px;background:linear-gradient(150deg,rgba(11,20,34,.82),rgba(8,14,24,.72));padding:14px 16px;box-shadow:0 16px 48px rgba(0,0,0,.18)}
-      .gwa-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.gwa-head strong{display:block;font-size:.92rem}.gwa-head small{display:block;color:#7f8ba0;margin-top:4px;line-height:1.4}.gwa-state{font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;border:1px solid rgba(127,174,236,.2);border-radius:999px;padding:5px 8px;color:#9fd4ff;white-space:nowrap}.gwa-state.attention{color:#ff9fb2}.gwa-state.approval{color:#d3c3ff}.gwa-state.verifying{color:#8fe5c4}
+      .gwa-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.gwa-head strong{display:block;font-size:.92rem}.gwa-head small{display:block;color:#7f8ba0;margin-top:4px;line-height:1.4}.gwa-state{font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;border:1px solid rgba(127,174,236,.2);border-radius:999px;padding:5px 8px;color:#9fd4ff;white-space:nowrap}.gwa-state.needs_attention,.gwa-state.blocked,.gwa-state.recovering{color:#ff9fb2}.gwa-state.waiting_approval{color:#d3c3ff}.gwa-state.verifying,.gwa-state.reviewing{color:#8fe5c4}
       .gwa-metrics{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}.gwa-metric{border:1px solid rgba(129,164,218,.12);border-radius:999px;padding:5px 8px;color:#8c98ad;font-size:.69rem}.gwa-metric.attention{color:#ffb0c0;border-color:rgba(255,113,141,.22)}.gwa-list{display:grid;gap:7px;margin-top:10px}.gwa-row{width:100%;border:1px solid rgba(129,164,218,.11);border-radius:13px;background:rgba(7,13,23,.62);color:#dbe5f5;padding:9px 11px;text-align:left;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;cursor:pointer}.gwa-row:hover{border-color:rgba(105,184,255,.28)}.gwa-row strong{font-size:.79rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.gwa-row span{color:#8390a5;font-size:.68rem}.gwa-row em{font-style:normal;font-size:.66rem;color:#9fd4ff}.gwa-row em.blocked{color:#ff9fb2}.gwa-row em.approval{color:#d3c3ff}.gwa-row em.verifying{color:#8fe5c4}
       .gwa-today{margin:0 0 18px}.gwa-today .today-section-head{margin-bottom:8px}.gwa-today-count{color:#8c98ad;font-size:.76rem}.gwa-today-list{display:grid;gap:8px}.gwa-today-row{border:1px solid rgba(129,164,218,.12);border-radius:14px;background:rgba(7,13,23,.58);padding:11px 12px;color:inherit;text-align:left;cursor:pointer;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px}.gwa-dot{width:8px;height:8px;border-radius:50%;background:#69b8ff;box-shadow:0 0 12px rgba(105,184,255,.5)}.gwa-dot.blocked{background:#ff718d}.gwa-dot.approval{background:#9b84ff}.gwa-dot.verifying{background:#8fe5c4}.gwa-today-row strong{font-size:.82rem;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.gwa-today-row small{display:block;color:#7f8ba0;margin-top:3px}.gwa-today-row em{font-style:normal;color:#93a2b8;font-size:.68rem;white-space:nowrap}
       .gwa-nav-count{margin-left:auto;min-width:20px;height:20px;padding:0 6px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;background:rgba(255,113,141,.18);border:1px solid rgba(255,113,141,.3);color:#ffb7c5;font-size:.65rem;font-weight:650;font-variant-numeric:tabular-nums}.gwa-nav-count[hidden]{display:none!important}.gwa-deep-target{outline:2px solid rgba(105,184,255,.65)!important;outline-offset:3px!important}
@@ -81,6 +85,16 @@
   }
 
   function stateCopy(){
+    const living=livingProjection();
+    if(living){
+      const state=String(living.state||'idle');
+      const activity=String(living.activity||'');
+      const headings={
+        needs_attention:'Needs Attention',waiting_approval:'Needs Approval',recovering:'Recovering',reviewing:'Reviewing',blocked:'Blocked',
+        replanning:'Replanning',verifying:'Verifying',coding:'Coding',browsing:'Browsing',researching:'Researching',working:'Working',planning:'Planning',completed:'Completed',celebrating:'Completed',idle:'Idle'
+      };
+      if(state!=='idle')return [headings[state]||label(state),activity];
+    }
     const total=canonicalAttentionCount(),urgent=Number(attention?.counts?.urgent||0);
     if(total&&urgent)return ['Needs Attention',`${total} owner attention item${total===1?'':'s'} require review.`];
     const state=String(current.living?.state||'idle');
@@ -100,11 +114,16 @@
       if(overlayApplied&&typeof setState==='function')setState(stateName);
       overlayApplied=false;
       delete document.body.dataset.globalWorkState;
+      delete document.body.dataset.globalWorkIntensity;
       return;
     }
+    const living=livingProjection();
     const heading=document.getElementById('stateLabel'),detail=document.getElementById('status');
     if(heading)heading.textContent=copy[0];if(detail)detail.textContent=copy[1];
-    document.body.dataset.globalWorkState=canonicalAttentionCount()?'needs_attention':String(current.living?.state||'idle');
+    document.body.dataset.globalWorkState=String(living?.state||(canonicalAttentionCount()?'needs_attention':current.living?.state||'idle'));
+    document.body.dataset.globalWorkIntensity=String(Number(living?.intensity||0));
+    document.body.dataset.globalWorkWorkers=String(Number(living?.workers_active||0));
+    document.body.dataset.globalWorkProjects=String(Number(living?.projects_active||0));
     overlayApplied=true;
   }
 
@@ -131,11 +150,11 @@
   function renderHome(){
     const anchor=document.getElementById('homeProjectsSection');if(!anchor)return;
     let panel=document.getElementById('globalWorkPulse');
-    const orders=attentionOrders(),c=current.counts||{},a=attention.counts||{};
+    const orders=attentionOrders(),c=current.counts||{},a=attention.counts||{},living=livingProjection();
     if(!Number(current.projects_with_work||0)&&!orders.length&&!canonicalAttentionCount()){panel?.remove();return}
     if(!panel){panel=document.createElement('section');panel.id='globalWorkPulse';panel.className='gwa-panel';panel.setAttribute('aria-live','polite');anchor.parentNode.insertBefore(panel,anchor)}
     const copy=stateCopy()||['Project Work',`${Number(current.projects_with_work||0)} planned project${Number(current.projects_with_work||0)===1?'':'s'}.`];
-    const state=canonicalAttentionCount()?'attention':String(current.living?.state||'idle');
+    const state=String(living?.state||(canonicalAttentionCount()?'needs_attention':current.living?.state||'idle'));
     panel.innerHTML=`<div class="gwa-head"><div><strong>${esc(copy[0]==='Working'?'Vishnu is working':copy[0])}</strong><small>${esc(copy[1])} Canonical Work state only.</small></div><span class="gwa-state ${esc(state)}">${esc(label(state))}</span></div><div class="gwa-metrics"><span class="gwa-metric attention">${Number(a.total||0)} need attention</span><span class="gwa-metric">${Number(c.active||0)} active</span><span class="gwa-metric">${Number(a.approval||0)} approval</span><span class="gwa-metric">${Number(a.recovery||0)} recovery</span><span class="gwa-metric">${Number(a.review||0)} review</span><span class="gwa-metric">${Number(a.blocked||0)} blocked</span><span class="gwa-metric">${Number(c.ready||0)} ready</span></div>${orders.length?`<div class="gwa-list">${orders.slice(0,3).map(order=>`<button type="button" class="gwa-row" data-gwa-project="${esc(order.projectId)}" data-gwa-order="${esc(order.id)}"><span><strong>${esc(order.title)}</strong><span>${esc(order.projectName)} · ${esc(order.worker)}</span></span><em class="${statusClass(order)}">${esc(order.ready?'Ready':label(order.status))}</em></button>`).join('')}</div>`:''}`;
     panel.querySelectorAll('[data-gwa-order]').forEach(button=>button.onclick=()=>{const order=orders.find(item=>item.id===button.dataset.gwaOrder&&item.projectId===button.dataset.gwaProject);if(order)openLive(order)});
   }
@@ -168,8 +187,10 @@
     deepLinkApplied=true;
     try{
       if(project){
+        const normalizedSection=SECTION_ALIASES[section]||section;
+        const targetSection=PROJECT_SECTIONS.has(normalizedSection)?normalizedSection:'live';
         if(typeof openModule==='function')openModule('projects');
-        if(typeof openProject==='function')await openProject(project,['overview','chat','plan','files','approvals','discussions','activity','live','status','structure'].includes(section)?section:'live');
+        if(typeof openProject==='function')await openProject(project,targetSection);
         highlightDeepTarget(workOrder);
         return;
       }
