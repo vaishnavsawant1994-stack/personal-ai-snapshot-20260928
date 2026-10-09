@@ -7,6 +7,14 @@
   const bridge=()=>window.vishnuChatBridge;
   let selectedProjectId='';
 
+  // Chat Details remains reachable through the canonical three-dot conversation menu.
+  // The responsive Chat stylesheet introduced a second top-details button and hid the
+  // canonical menu; override that presentation-only rule after all Chat CSS is loaded.
+  const menuStyle=document.createElement('style');
+  menuStyle.dataset.chatCanonicalMenu='true';
+  menuStyle.textContent='body.chat-experience .topbar-actions .chat-menu-button:not(.hidden){display:grid!important}body.chat-experience .chat-top-details{display:none!important}';
+  document.head.append(menuStyle);
+
   function setLabel(name=''){
     const label=name?'Project · '+name:'General chat · No project context';
     const chip=$('vContextChip');
