@@ -58,7 +58,6 @@ def install(cls) -> None:
             _safe_event(self, "work_projection_error", goal_id=plan.get("goal_id"), plan_id=plan.get("id"), phase="plan", error_type=type(exc).__name__)
 
     def _observe_completion(self, plan: dict[str, Any], task_id: str) -> None:
-        """Preserve the qualified Evidence->Claim proof boundary after Work settlement."""
         bridge = _bridge(self)
         if bridge is None:
             return
@@ -84,14 +83,7 @@ def install(cls) -> None:
                     execution_authority="canonical_work",
                 )
         except Exception as exc:
-            _safe_event(
-                self,
-                "work_evidence_error",
-                goal_id=plan.get("goal_id"),
-                plan_id=plan.get("id"),
-                task_id=task_id,
-                error_type=type(exc).__name__,
-            )
+            _safe_event(self, "work_evidence_error", goal_id=plan.get("goal_id"), plan_id=plan.get("id"), task_id=task_id, error_type=type(exc).__name__)
 
     def __init__(self, *args, **kwargs):
         original_init(self, *args, **kwargs)
@@ -101,12 +93,14 @@ def install(cls) -> None:
         if getattr(self, "_db", None) is not None:
             try:
                 self._work_bridge = P10WorkBridge(self._db, lock=getattr(self, "_lock", None))
-                summary = self._work_bridge.backfill()
+                # Promote the bridge before projecting old durable P10 documents so
+                # startup/backfill metadata reflects the same authority used for new work.
                 self._canonical_work_authority = P10CanonicalWorkAuthority(
                     self._work_bridge,
                     events=getattr(self, "events", None),
                     runtime_epoch=int(time.time()),
                 )
+                summary = self._work_bridge.backfill()
                 _safe_event(
                     self,
                     "work_projection_ready",
@@ -122,25 +116,19 @@ def install(cls) -> None:
 
     def create_goal(self, *args, **kwargs):
         goal = original_create_goal(self, *args, **kwargs); _project_goal(self, goal); return goal
-
     def create_plan(self, *args, **kwargs):
         plan = original_create_plan(self, *args, **kwargs); _project_plan(self, plan); return plan
-
     def replan(self, *args, **kwargs):
         plan = original_replan(self, *args, **kwargs); _project_plan(self, plan, force_new_version=True); return plan
-
     def mark_task(self, *args, **kwargs):
         plan = original_mark_task(self, *args, **kwargs)
         if not getattr(self, "_canonical_work_execution_active", False):
             _project_plan(self, plan)
         return plan
-
     def pause(self, *args, **kwargs):
         plan = original_pause(self, *args, **kwargs); _project_plan(self, plan); return plan
-
     def resume(self, *args, **kwargs):
         plan = original_resume(self, *args, **kwargs); _project_plan(self, plan); return plan
-
     def cancel(self, *args, **kwargs):
         plan = original_cancel(self, *args, **kwargs); _project_plan(self, plan); return plan
 
@@ -148,8 +136,7 @@ def install(cls) -> None:
         authority = _authority(self)
         if authority is None:
             raise RuntimeError("canonical Work execution authority unavailable")
-        before = self.plan(plan_id, owner_id=kwargs.get("owner_id", "owner"))
-        _project_plan(self, before)
+        before = self.plan(plan_id, owner_id=kwargs.get("owner_id", "owner")); _project_plan(self, before)
         task_before = next((item for item in before.get("tasks", []) if item.get("id") == task_id), None)
         if task_before is None:
             raise KeyError("task not found")
@@ -158,15 +145,12 @@ def install(cls) -> None:
         try:
             plan = original_execute_task(self, plan_id, task_id, *args, **kwargs)
         except Exception as exc:
-            authority.recover_exception(claim, exc)
-            raise
+            authority.recover_exception(claim, exc); raise
         finally:
             self._canonical_work_execution_active = False
-        goal = self.goal(plan["goal_id"], owner_id=plan.get("owner_id"))
-        task = next((item for item in plan.get("tasks", []) if item.get("id") == task_id), None)
+        goal = self.goal(plan["goal_id"], owner_id=plan.get("owner_id")); task = next((item for item in plan.get("tasks", []) if item.get("id") == task_id), None)
         if task is None:
-            authority.recover_exception(claim, RuntimeError("P10 task disappeared after dispatch"))
-            raise RuntimeError("task disappeared after dispatch")
+            authority.recover_exception(claim, RuntimeError("P10 task disappeared after dispatch")); raise RuntimeError("task disappeared after dispatch")
         authority.settle(plan, goal, task, claim)
         _project_plan(self, plan)
         _observe_completion(self, plan, task_id)
@@ -177,56 +161,39 @@ def install(cls) -> None:
         authority = _authority(self)
         if authority is None:
             raise RuntimeError("canonical Work execution authority unavailable")
-        claim = authority.latest_waiting_claim(plan_id, task_id)
-        self._canonical_work_execution_active = True
+        claim = authority.latest_waiting_claim(plan_id, task_id); self._canonical_work_execution_active = True
         try:
             plan = original_approve_task(self, plan_id, task_id, *args, **kwargs)
         except Exception as exc:
-            authority.recover_exception(claim, exc)
-            raise
+            authority.recover_exception(claim, exc); raise
         finally:
             self._canonical_work_execution_active = False
-        goal = self.goal(plan["goal_id"], owner_id=plan.get("owner_id"))
-        task = next((item for item in plan.get("tasks", []) if item.get("id") == task_id), None)
+        goal = self.goal(plan["goal_id"], owner_id=plan.get("owner_id")); task = next((item for item in plan.get("tasks", []) if item.get("id") == task_id), None)
         if task is None:
-            authority.recover_exception(claim, RuntimeError("P10 task disappeared after approval"))
-            raise RuntimeError("task disappeared after approval")
-        authority.settle(plan, goal, task, claim)
-        _project_plan(self, plan)
-        _observe_completion(self, plan, task_id)
-        return plan
+            authority.recover_exception(claim, RuntimeError("P10 task disappeared after approval")); raise RuntimeError("task disappeared after approval")
+        authority.settle(plan, goal, task, claim); _project_plan(self, plan); _observe_completion(self, plan, task_id); return plan
 
     def deny_task(self, plan_id, task_id, *args, **kwargs):
-        authority = _authority(self)
-        plan = original_deny_task(self, plan_id, task_id, *args, **kwargs)
+        authority = _authority(self); plan = original_deny_task(self, plan_id, task_id, *args, **kwargs)
         if authority is not None:
             authority.cancel_waiting(plan_id, task_id, reason="owner denied pending P10 action")
-        _project_plan(self, plan)
-        return plan
+        _project_plan(self, plan); return plan
 
     def cancel_governed(self, plan_id, *args, **kwargs):
-        authority = _authority(self)
-        plan = original_cancel_governed(self, plan_id, *args, **kwargs)
+        authority = _authority(self); plan = original_cancel_governed(self, plan_id, *args, **kwargs)
         if authority is not None:
             for task in plan.get("tasks", []):
                 try:
                     authority.cancel_waiting(plan_id, str(task.get("id")), reason=str(kwargs.get("reason") or "owner cancelled"))
                 except (KeyError, RuntimeError, ValueError):
                     pass
-        _project_plan(self, plan)
-        return plan
+        _project_plan(self, plan); return plan
 
     def status(self):
-        result = original_status(self)
-        bridge = _bridge(self)
-        work_status = bridge.status() if bridge is not None else {"mode": "disabled", "goals": 0, "plans": 0, "orders": 0, "evidence": 0, "claims": 0}
-        work_status["execution_authority"] = "canonical_work" if _authority(self) is not None else "unavailable"
-        result["work_orchestration"] = work_status
-        return result
+        result = original_status(self); bridge = _bridge(self); work_status = bridge.status() if bridge is not None else {"mode": "disabled", "goals": 0, "plans": 0, "orders": 0, "evidence": 0, "claims": 0}; work_status["execution_authority"] = "canonical_work" if _authority(self) is not None else "unavailable"; result["work_orchestration"] = work_status; return result
 
     def work_plan(self, plan_id, *, owner_id="owner"):
-        self.plan(plan_id, owner_id=owner_id)
-        bridge = _bridge(self)
+        self.plan(plan_id, owner_id=owner_id); bridge = _bridge(self)
         if bridge is None:
             raise RuntimeError("work orchestration unavailable")
         projected = bridge.work_plan_for_p10(plan_id)
@@ -243,19 +210,4 @@ def install(cls) -> None:
             raise RuntimeError("work orchestration unavailable")
         return [item.to_dict() for item in bridge.evidence_for_task(plan_id, task_id)]
 
-    cls.__init__ = __init__
-    cls.create_goal = create_goal
-    cls.create_plan = create_plan
-    cls.replan = replan
-    cls.mark_task = mark_task
-    cls.pause = pause
-    cls.resume = resume
-    cls.cancel = cancel
-    cls.execute_task = execute_task
-    cls.approve_task = approve_task
-    cls.deny_task = deny_task
-    cls.cancel_governed = cancel_governed
-    cls.status = status
-    cls.work_plan = work_plan
-    cls.work_evidence = work_evidence
-    cls._work_orchestration_runtime_installed = True
+    cls.__init__ = __init__; cls.create_goal = create_goal; cls.create_plan = create_plan; cls.replan = replan; cls.mark_task = mark_task; cls.pause = pause; cls.resume = resume; cls.cancel = cancel; cls.execute_task = execute_task; cls.approve_task = approve_task; cls.deny_task = deny_task; cls.cancel_governed = cancel_governed; cls.status = status; cls.work_plan = work_plan; cls.work_evidence = work_evidence; cls._work_orchestration_runtime_installed = True
