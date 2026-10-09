@@ -127,6 +127,29 @@ def test_project_plan_reuses_matching_goal_and_can_force_a_new_goal(tmp_path):
     assert third["goal_id"] != first["goal_id"]
 
 
+def test_project_input_change_creates_new_session_bound_goal(tmp_path):
+    service, store, autonomy = _service(tmp_path)
+    project = _project(store)
+    first = service.create_plan(project["id"], session_id="session-a")
+    first_goal = autonomy.goal(first["goal_id"], owner_id="owner")
+    assert first_goal["session_id"] == "session-a"
+
+    store.update(
+        project["id"],
+        {
+            "success_criteria": "deliverable is complete and independently reviewed",
+            "instructions": "Require an explicit review before completion.",
+        },
+    )
+    second = service.create_plan(project["id"], session_id="session-b")
+    second_goal = autonomy.goal(second["goal_id"], owner_id="owner")
+
+    assert second["goal_id"] != first["goal_id"]
+    assert second_goal["session_id"] == "session-b"
+    assert second_goal["success_criteria"] == ["deliverable is complete and independently reviewed"]
+    assert second_goal["constraints"] == ["Require an explicit review before completion."]
+
+
 def test_live_work_execute_uses_existing_p10_path_and_updates_snapshot(tmp_path):
     service, store, _autonomy = _service(tmp_path)
     project = _project(store)
@@ -157,7 +180,13 @@ def test_project_live_controls_pause_resume_and_cancel_existing_p10_plan(tmp_pat
     assert paused["live_work"]["state"] == "PAUSED"
     resumed = service.resume(project["id"], plan_id)
     assert resumed["live_work"]["state"] == "READY"
-    cancelled = service.cancel(project["id"], plan_id, reason="owner stopped this project")
+    cancelled = service.cancel(
+        project["id"],
+        plan_id,
+        reason="owner stopped this project",
+        device_id="device-1",
+        session_id="session-1",
+    )
     assert cancelled["live_work"]["state"] == "CANCELLED"
 
 
@@ -171,7 +200,7 @@ def test_project_work_plan_cannot_be_controlled_from_another_project(tmp_path):
         service.pause(second["id"], created["p10_plan"]["id"])
 
 
-def test_project_work_history_exposes_versioned_work_without_new_history_database(tmp_path):
+def test_project_work_history_exposes_one_grouped_source_with_versioned_work(tmp_path):
     service, store, autonomy = _service(tmp_path)
     project = _project(store)
     created = service.create_plan(project["id"])
@@ -192,6 +221,9 @@ def test_project_work_history_exposes_versioned_work_without_new_history_databas
     history = service.history(project["id"])
 
     assert history["authority"] == "history_only"
-    source = next(item for item in history["plans"] if item["source_p10_plan_id"] == plan_id)
+    assert len(history["plans"]) == 1
+    source = history["plans"][0]
+    assert source["source_p10_plan_id"] == plan_id
+    assert source["work_plan"]["version"] == 2
     assert [version["version"] for version in source["versions"]] == [1, 2]
     assert source["deltas"][0]["reason"] == "owner requested review"
