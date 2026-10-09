@@ -15,6 +15,43 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+_SENSITIVE_KEYS = {
+    "token",
+    "password",
+    "secret",
+    "authorization",
+    "cookie",
+    "api_key",
+    "apikey",
+    "credential",
+    "private_key",
+    "access_key",
+    "refresh_token",
+}
+
+
+def _sanitize(value: Any, *, depth: int = 0) -> Any:
+    if depth >= 6:
+        return "[bounded]"
+    if isinstance(value, Mapping):
+        clean = {}
+        for key, nested in list(value.items())[:80]:
+            normalized = str(key).strip().lower().replace("-", "_")
+            if normalized in _SENSITIVE_KEYS or any(
+                normalized.endswith("_" + marker) for marker in _SENSITIVE_KEYS
+            ):
+                continue
+            clean[str(key)[:120]] = _sanitize(nested, depth=depth + 1)
+        return clean
+    if isinstance(value, (list, tuple, set)):
+        return [_sanitize(item, depth=depth + 1) for item in list(value)[:100]]
+    if isinstance(value, str):
+        return value[:2000]
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    return str(value)[:2000]
+
+
 class PlanDeltaAction(StrEnum):
     ADD = "add"
     MODIFY = "modify"
@@ -88,7 +125,9 @@ class PlanDelta:
             reason=str(data.get("reason") or "changed conditions"),
             trigger=str(data.get("trigger") or "manual"),
             items=tuple(PlanDeltaItem.from_dict(item) for item in data.get("items", [])),
-            preserved_completed_task_ids=tuple(str(x) for x in data.get("preserved_completed_task_ids", [])),
+            preserved_completed_task_ids=tuple(
+                str(x) for x in data.get("preserved_completed_task_ids", [])
+            ),
             retired_task_ids=tuple(str(x) for x in data.get("retired_task_ids", [])),
             created_at=str(data.get("created_at") or _now()),
         )
@@ -105,26 +144,27 @@ def _semantic_map(plan: WorkPlan | None) -> dict[str, dict[str, Any]]:
     out: dict[str, dict[str, Any]] = {}
     for order in plan.work_orders:
         task_id = _task_id(order)
-        scope = order.resource_scope.to_dict()
-        out[task_id] = {
-            "title": order.title,
-            "objective": order.objective,
-            "worker_type": order.worker_type,
-            "priority": order.priority,
-            "dependencies": [id_to_task.get(dep, dep) for dep in order.dependencies],
-            "allowed_capabilities": list(order.allowed_capabilities),
-            "resource_scope": scope,
-            "expected_output": order.expected_output,
-            "success_criteria": list(order.success_criteria),
-            "evidence_contract": order.evidence_contract.to_dict(),
-            "verification_strategy": dict(order.verification_strategy),
-            "falsifier": order.falsifier,
-            "retest_strategy": dict(order.retest_strategy),
-            "approval_policy": dict(order.approval_policy),
-            "retry_policy": dict(order.retry_policy),
-            "time_budget_seconds": order.time_budget_seconds,
-            "cost_budget": order.cost_budget,
-        }
+        out[task_id] = _sanitize(
+            {
+                "title": order.title,
+                "objective": order.objective,
+                "worker_type": order.worker_type,
+                "priority": order.priority,
+                "dependencies": [id_to_task.get(dep, dep) for dep in order.dependencies],
+                "allowed_capabilities": list(order.allowed_capabilities),
+                "resource_scope": order.resource_scope.to_dict(),
+                "expected_output": order.expected_output,
+                "success_criteria": list(order.success_criteria),
+                "evidence_contract": order.evidence_contract.to_dict(),
+                "verification_strategy": dict(order.verification_strategy),
+                "falsifier": order.falsifier,
+                "retest_strategy": dict(order.retest_strategy),
+                "approval_policy": dict(order.approval_policy),
+                "retry_policy": dict(order.retry_policy),
+                "time_budget_seconds": order.time_budget_seconds,
+                "cost_budget": order.cost_budget,
+            }
+        )
     return out
 
 
