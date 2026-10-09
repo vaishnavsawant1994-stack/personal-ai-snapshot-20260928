@@ -39,7 +39,12 @@ def install(cls) -> None:
         path = getattr(project_store, "path", None)
         if path is None:
             raise RuntimeError("ProjectStore is unavailable for autonomy mode enforcement")
-        return ProjectAutonomyModeStore(path)
+        cached = getattr(self, "_project_autonomy_mode_store", None)
+        if cached is not None and getattr(cached, "path", None) == path:
+            return cached
+        cached = ProjectAutonomyModeStore(path)
+        self._project_autonomy_mode_store = cached
+        return cached
 
     def project_autonomy_mode(self, project_id: str):
         return _mode_store(self).get(project_id).to_dict()
@@ -88,6 +93,9 @@ def install(cls) -> None:
         stop_reason = "no_ready_work"
         bounded_steps = max(1, min(int(max_steps), 20))
         for _ in range(bounded_steps):
+            if self._canonical_stop_active():
+                stop_reason = "emergency_stop"
+                break
             plan = self.plan(plan_id, owner_id=owner_id)
             state = str(plan.get("state") or "").upper()
             if state in _STOP_STATES:
@@ -131,6 +139,11 @@ def install(cls) -> None:
             if updated_state in _STOP_STATES - {"COMPLETED"}:
                 stop_reason = f"task_state:{updated_state.lower()}"
                 break
+            if updated_state == "COMPLETED" and hasattr(self, "work_order_completion"):
+                completion = self.work_order_completion(plan_id, task_id, owner_id=owner_id)
+                if not bool(completion.get("passed")):
+                    stop_reason = f"completion_state:{str(completion.get('state') or 'blocked').lower()}"
+                    break
             if str(refreshed.get("state") or "").upper() in _STOP_STATES:
                 stop_reason = f"plan_state:{str(refreshed.get('state')).lower()}"
                 break
@@ -145,6 +158,7 @@ def install(cls) -> None:
             "stop_reason": stop_reason,
             "emergency_stop": bool(self._canonical_stop_active()),
             "execution_authority": "existing_p10_p6_runtime",
+            "completion_authority": "deterministic_completion_judge",
         }
 
     def status(self):
@@ -154,6 +168,7 @@ def install(cls) -> None:
             "modes": [item.value for item in ProjectAutonomyMode],
             "default": ProjectAutonomyMode.ASSISTED.value,
             "execution_authority": "existing_p10_p6_runtime",
+            "completion_authority": "deterministic_completion_judge",
             "emergency_stop_authoritative": True,
         }
         return result
