@@ -5,6 +5,7 @@ import threading
 import time
 
 from agent.effect_runtime import EffectAwareDurableAgentExecutor
+from app.e9_runtime import attach_e9_runtime, start_e9_services, stop_e9_services
 from automation.engine import AutomationEngine
 from capabilities.benchmark import CapabilityBenchmark
 from capabilities.dialogue_evaluation import ModelDialogueEvaluation
@@ -103,8 +104,6 @@ def build_runtime():
                 events.emit('evolution.code_body_unavailable',error_type=type(exc).__name__)
     benchmark=CapabilityBenchmark(settings.data_dir/'capability-benchmark.sqlite3',runtime=runtime); model_evaluation=ModelDialogueEvaluation(settings.data_dir/'model-dialogue-evaluation.sqlite3',models,audit=memory.audit); scenarios=CompetitiveScenarioSuite(runtime,benchmark); runtime.update({'benchmark':benchmark,'model_evaluation':model_evaluation,'capability_scenarios':scenarios}); benchmark_tools.register(tools,benchmark,scenarios)
     def append_continuity(kind,text,device_id=None,conversation_id=None,event_id=None):
-        # Canonical request-aware surfaces persist their own conversation events.
-        # Legacy/unscoped emitters fall back to the active continuity thread here.
         if not text or conversation_id:return
         source_device=str(device_id or 'desktop')
         try:
@@ -112,33 +111,34 @@ def build_runtime():
             if thread is None:thread=continuity.resume(source_device)['thread']
             continuity.append(thread['id'],device_id=source_device,kind=kind,payload={'text':str(text)},event_id=str(event_id) if event_id else None)
         except Exception:pass
-    events.subscribe('conversation.user',lambda event:append_continuity('user_message',event.get('text'),event.get('device_id'),event.get('conversation_id'),event.get('event_id') or event.get('message_id'))); events.subscribe('conversation.assistant',lambda event:append_continuity('assistant_message',event.get('text'),event.get('device_id'),event.get('conversation_id'),event.get('event_id') or event.get('message_id'))); events.subscribe('proactive.ingest',lambda event:proactive.consider(str(event.get('source','unknown')),dict(event.get('payload') or {}),context={**context_provider(),**dict(event.get('context') or {})})); events.subscribe('automation.failed',lambda event:proactive.consider('automation',{'kind':'failure','id':event.get('automation_id'),'failed':True,'importance':.7,'message':f"An automation failed: {event.get('error','unknown error')}"},context=context_provider())); events.subscribe('workflow.failed',lambda event:proactive.consider('workflow',{'kind':'failure','id':event.get('run_id'),'failed':True,'importance':.75,'message':f"A workflow needs attention: {event.get('error','workflow failed')}"},context=context_provider())); events.subscribe('workflow.approval_required',lambda event:proactive.consider('workflow',{'kind':'approval','id':event.get('run_id'),'needs_approval':True,'urgency':.7,'importance':.8,'message':f"A workflow is waiting for your approval to use {event.get('tool','a tool')}."},context=context_provider())); return runtime
+    events.subscribe('conversation.user',lambda event:append_continuity('user_message',event.get('text'),event.get('device_id'),event.get('conversation_id'),event.get('event_id') or event.get('message_id'))); events.subscribe('conversation.assistant',lambda event:append_continuity('assistant_message',event.get('text'),event.get('device_id'),event.get('conversation_id'),event.get('event_id') or event.get('message_id'))); events.subscribe('proactive.ingest',lambda event:proactive.consider(str(event.get('source','unknown')),dict(event.get('payload') or {}),context={**context_provider(),**dict(event.get('context') or {})})); events.subscribe('automation.failed',lambda event:proactive.consider('automation',{'kind':'failure','id':event.get('automation_id'),'failed':True,'importance':.7,'message':f"An automation failed: {event.get('error','unknown error')}"},context=context_provider())); events.subscribe('workflow.failed',lambda event:proactive.consider('workflow',{'kind':'failure','id':event.get('run_id'),'failed':True,'importance':.75,'message':f"A workflow needs attention: {event.get('error','workflow failed')}"},context=context_provider())); events.subscribe('workflow.approval_required',lambda event:proactive.consider('workflow',{'kind':'approval','id':event.get('run_id'),'needs_approval':True,'urgency':.7,'importance':.8,'message':f"A workflow is waiting for your approval to use {event.get('tool','a tool')}."},context=context_provider()))
+    attach_e9_runtime(runtime)
+    return runtime
 
 
 def start_server(runtime):
     if not settings.control_server_enabled:return
     from server.api import create_app
     from server.agent_continuity_api import agent_continuity_router
+    from server.evidence_api import evidence_router
     from server.evolution_api import evolution_router
+    from server.identity_api import identity_router
     import uvicorn
     app=create_app(runtime['executor'],settings,device_registry=runtime['device_registry'],device_gateway=runtime['device_gateway'],second_brain=runtime['second_brain'],automations=runtime['automations'],runtime=runtime)
-    app.include_router(evolution_router(runtime))
-    app.include_router(agent_continuity_router(runtime))
+    app.include_router(evolution_router(runtime)); app.include_router(identity_router(runtime)); app.include_router(evidence_router(runtime)); app.include_router(agent_continuity_router(runtime))
     uvicorn.run(app,host=settings.control_server_host,port=settings.control_server_port,log_level='warning')
 
 
 def main():
     from PyQt6.QtWidgets import QApplication
     from desktop.floating_presence import FloatingPresence
-    # Keep the historical lazy MainWindow import contract for headless/cloud
-    # qualification while Stage 5 selects its canonical semantic-state wrapper.
     from ui.main_window import MainWindow
     from ui.canonical_main_window import CanonicalMainWindow
-    app=QApplication(sys.argv); app.setApplicationName('Vishnu'); runtime=build_runtime(); runtime['automations'].start()
+    app=QApplication(sys.argv); app.setApplicationName('Vishnu'); runtime=build_runtime(); runtime['automations'].start(); start_e9_services(runtime)
     if settings.control_server_enabled:threading.Thread(target=start_server,args=(runtime,),daemon=True).start()
     window=CanonicalMainWindow(events=runtime['events'],executor=runtime['executor'],memory=runtime['memory'],runtime=runtime); window.show(); floating_presence=FloatingPresence(runtime=runtime); runtime['floating_presence']=floating_presence; floating_presence.show()
     if runtime['preferences'].get('launch_voice_on_start'):window.toggle_voice()
-    code=app.exec(); floating_presence.close(); runtime['voice'].stop(); runtime['automations'].stop(); runtime['notifications'].close(); runtime['telemetry'].persist(); runtime['apns'].close(); runtime['evidence_store'].close(); runtime['identity_store'].close(); return code
+    code=app.exec(); floating_presence.close(); runtime['voice'].stop(); stop_e9_services(runtime); runtime['automations'].stop(); runtime['notifications'].close(); runtime['telemetry'].persist(); runtime['apns'].close(); runtime['evidence_store'].close(); runtime['identity_store'].close(); return code
 
 
 if __name__=='__main__':raise SystemExit(main())
