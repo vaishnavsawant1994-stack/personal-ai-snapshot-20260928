@@ -5,23 +5,37 @@ from pathlib import PurePosixPath
 from typing import Iterable
 
 
-# These paths define authority, secrets, identity, evolution guardrails, release
-# safety, or the tests that freeze those boundaries. Ordinary evidence-backed
-# evolution work may not modify them through the E7 code worker.
+# These paths define authority, durable evidence, identity, self-evolution,
+# capability execution, code-work isolation, release safety, or the regression
+# tests that freeze those boundaries. Ordinary evidence-backed evolution work
+# may not modify them through the E7 code worker. Changes to these surfaces need
+# a separate human-controlled maintenance/release path.
 PROTECTED_CODE_PATHS: tuple[str, ...] = (
     "config/vishnu-body.yaml",
     "identity/",
+    "evidence/",
+    "evolution/",
     "security/",
+    "capabilities/",
+    "tools/",
+    "future_intelligence/work_orchestration/",
     "core/permissions.py",
     "core/security.py",
+    "core/storage.py",
     "core/durable_approval_runtime.py",
-    "evolution/protected_scope.py",
-    "evolution/curator.py",
-    "evolution/adoption.py",
+    "core/p10_approval_continuation.py",
+    "agent/durable_executor.py",
+    "agent/executor.py",
+    "server/evolution_api.py",
+    "server/cloud_security.py",
+    "server/approval_api.py",
+    "server/approvals_center_api.py",
     ".github/workflows/",
     "tests/test_evolution_e5.py",
     "tests/test_evolution_e6_handoff.py",
     "tests/test_evolution_e7_code_body.py",
+    "tests/test_evolution_e7_policy.py",
+    "tests/test_evolution_e7_review.py",
 )
 
 
