@@ -6,7 +6,7 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import StrEnum
-from typing import Any
+from typing import Any, Callable
 
 from evidence import Evidence, EvidenceProvenance, EvidenceStore, VerificationState
 from future_intelligence.work_orchestration.attempts import WorkAttemptStatus
@@ -120,7 +120,8 @@ class CodeBodyEvolutionService:
     This service prepares/records local implementation work, runs only a supplied
     verification provider, verifies an externally created code-review reference,
     and records a *candidate* Body revision. It has no push, merge, deploy, or
-    Body-activation operation.
+    Body-activation operation. E8 may additionally bind all mutating lifecycle
+    methods to the currently active continuation-authority host.
     """
 
     def __init__(
@@ -134,6 +135,7 @@ class CodeBodyEvolutionService:
         verification_provider: VerificationProvider | None = None,
         review_verifier: ReviewVerifier | None = None,
         body_manifest_path: str = "config/vishnu-body.yaml",
+        continuation_authority_guard: Callable[[], object] | None = None,
     ) -> None:
         self.handoffs = handoffs
         self.work_store = work_store
@@ -143,7 +145,15 @@ class CodeBodyEvolutionService:
         self.verification_provider = verification_provider
         self.review_verifier = review_verifier
         self.body_manifest_path = str(body_manifest_path)
+        self._continuation_authority_guard = continuation_authority_guard
         self._migrate()
+
+    def attach_continuation_authority(self, guard: Callable[[], object] | None) -> None:
+        self._continuation_authority_guard = guard
+
+    def _assert_continuation_authority(self) -> None:
+        if self._continuation_authority_guard is not None:
+            self._continuation_authority_guard()
 
     def _migrate(self) -> None:
         with self.work_store.connection:
@@ -204,6 +214,7 @@ class CodeBodyEvolutionService:
         runtime_epoch: int,
         lease_seconds: int = 900,
     ) -> CodeBodyRun:
+        self._assert_continuation_authority()
         handoff = self.handoffs.get(candidate_id)
         if handoff is None:
             raise ValueError("candidate has no owner-approved handoff")
@@ -303,6 +314,7 @@ class CodeBodyEvolutionService:
         return run
 
     def commit(self, candidate_id: str, *, message: str) -> CodeBodyRun:
+        self._assert_continuation_authority()
         run = self._required_run(candidate_id, {CodeBodyRunStatus.PREPARED})
         lease = self._required_lease(run)
         session = self._session(run)
@@ -333,6 +345,7 @@ class CodeBodyEvolutionService:
         return self._required_run(candidate_id, {CodeBodyRunStatus.COMMITTED})
 
     def verify(self, candidate_id: str) -> CodeBodyRun:
+        self._assert_continuation_authority()
         run = self._required_run(candidate_id, {CodeBodyRunStatus.COMMITTED})
         if self.verification_provider is None:
             raise RuntimeError("code verification provider is not configured")
@@ -438,6 +451,7 @@ class CodeBodyEvolutionService:
         return self._required_run(candidate_id, {CodeBodyRunStatus.VERIFIED})
 
     def attach_review(self, candidate_id: str, *, review_ref: str) -> CodeBodyRun:
+        self._assert_continuation_authority()
         run = self._required_run(candidate_id, {CodeBodyRunStatus.VERIFIED, CodeBodyRunStatus.REVIEW_READY})
         if run.status is CodeBodyRunStatus.REVIEW_READY:
             return run
