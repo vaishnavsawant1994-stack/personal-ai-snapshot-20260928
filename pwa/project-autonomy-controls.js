@@ -78,19 +78,26 @@
   }
 
   function renderCard(card,host,project,settings){
-    if(!card.isConnected)return;card.innerHTML=cardMarkup(project,settings);wire(card,host,project,settings);
+    if(!card.isConnected)return;
+    card.dataset.autonomyLoaded='true';card.dataset.autonomyProject=String(project.id);card.dataset.autonomyMode=String(settings?.mode||'assisted');
+    card.innerHTML=cardMarkup(project,settings);wire(card,host,project,settings);
   }
   function decorate(host,project){
     if(!host?.isConnected||!project?.id)return;
     const page=host.querySelector('.cw-page'),head=page?.querySelector('.cw-head');if(!page||!head)return;
     let card=page.querySelector('[data-project-autonomy-controls]');
     if(!card){card=document.createElement('section');card.className='pa-mode-card';card.dataset.projectAutonomyControls='true';card.innerHTML='<span class="pa-mode-loading">Loading Project autonomy policy…</span>';head.insertAdjacentElement('afterend',card)}
-    const cached=modes.get(project.id);if(cached){renderCard(card,host,project,cached);return}
-    loadMode(project.id).then(settings=>{if(window.projectCurrent?.id===project.id&&card.isConnected)renderCard(card,host,project,settings)}).catch(error=>{if(card.isConnected)card.innerHTML=`<div class="pa-mode-stop">Project autonomy policy could not be loaded. ${esc(error.message||'')}</div>`});
+    const cached=modes.get(project.id);
+    if(cached){
+      if(card.dataset.autonomyLoaded==='true'&&card.dataset.autonomyProject===String(project.id)&&card.dataset.autonomyMode===String(cached.mode||'assisted'))return;
+      renderCard(card,host,project,cached);return;
+    }
+    loadMode(project.id).then(settings=>{if(window.projectCurrent?.id===project.id&&card.isConnected)renderCard(card,host,project,settings)}).catch(error=>{if(card.isConnected){card.dataset.autonomyLoaded='error';card.innerHTML=`<div class="pa-mode-stop">Project autonomy policy could not be loaded. ${esc(error.message||'')}</div>`}});
   }
+  function withinCard(target){const node=target?.nodeType===1?target:target?.parentElement;return Boolean(node?.closest?.('[data-project-autonomy-controls]'))}
   function watch(host,project){
     let record=observers.get(host);if(record){record.project=project;decorate(host,project);return}
-    record={project,observer:null};const observer=new MutationObserver(()=>queueMicrotask(()=>{if(!host.isConnected){observer.disconnect();return}decorate(host,record.project)}));record.observer=observer;observers.set(host,record);observer.observe(host,{childList:true,subtree:true});queueMicrotask(()=>decorate(host,project));
+    record={project,observer:null};const observer=new MutationObserver(mutations=>{if(mutations.length&&mutations.every(item=>withinCard(item.target)))return;queueMicrotask(()=>{if(!host.isConnected){observer.disconnect();return}decorate(host,record.project)})});record.observer=observer;observers.set(host,record);observer.observe(host,{childList:true,subtree:true});queueMicrotask(()=>decorate(host,project));
   }
   function wrap(name){const base=window[name];if(typeof base!=='function')return;window[name]=function(host,project,...rest){const value=base.call(this,host,project,...rest);watch(host,project);return value}}
   function install(){injectStyles();wrap('renderProjectPlan');wrap('renderProjectLive');window.__vishnuProjectAutonomyUI={installed:true,authority:'presentation_control_only',modeCache:modes,lastAdvance}}
