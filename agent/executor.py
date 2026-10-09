@@ -411,6 +411,7 @@ class AgentExecutor:
         self.events.emit('state', state='acting', tool=tool.name, execution_id=execution_id)
         start = time.perf_counter()
         try:
+            self.tools.validate_input(tool, params)
             result = tool.handler(params)
             self._observe(f'tool.{tool.name}.ms', start)
             self._check_cancel(cancel_event)
