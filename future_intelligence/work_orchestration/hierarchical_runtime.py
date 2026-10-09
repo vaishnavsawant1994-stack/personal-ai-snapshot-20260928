@@ -6,6 +6,8 @@ from typing import Any
 
 from models.hybrid import HybridRequest, PrivacyMode, SafeContext
 from future_intelligence.workers import WorkerRegistry
+from playbooks import PlaybookRegistry
+from qualification.capability_manifest import CapabilityQualificationStore
 
 from .capabilities import CapabilityRegistry
 from .context_pack import ContextPackBuilder
@@ -28,8 +30,20 @@ def install(cls) -> None:
         executor = getattr(getattr(self, "operations", None), "executor", None)
         return getattr(executor, "tools", None)
 
+    def _qualification_manifest(self):
+        store = getattr(self, "_capability_qualification_store", None)
+        if store is None:
+            return {}
+        try:
+            return store.manifest_map()
+        except Exception:
+            return {}
+
     def _capabilities(self) -> CapabilityRegistry:
-        return CapabilityRegistry.from_tool_registry(_tool_registry(self))
+        return CapabilityRegistry.from_tool_registry(
+            _tool_registry(self),
+            qualification_manifest=_qualification_manifest(self),
+        )
 
     def _available_tools(self) -> tuple[str, ...] | None:
         capabilities = _capabilities(self)
@@ -113,9 +127,33 @@ def install(cls) -> None:
         _patch_bridge(self)
         self._hierarchical_last_review = None
         self._worker_registry = WorkerRegistry.default()
+        self._playbook_registry = PlaybookRegistry.default()
+        self._capability_qualification_store = None
+        if getattr(self, "_db", None) is not None:
+            try:
+                self._capability_qualification_store = CapabilityQualificationStore(
+                    connection=self._db,
+                    lock=getattr(self, "_lock", None),
+                )
+            except Exception:
+                self._capability_qualification_store = None
 
     def _project_store(self):
         return getattr(self, "project_store", None)
+
+    def _project_type(self, project_id):
+        if not project_id:
+            return None
+        store = _project_store(self)
+        if store is None or not hasattr(store, "get"):
+            return None
+        try:
+            project = store.get(str(project_id))
+        except Exception:
+            return None
+        if isinstance(project, dict):
+            return project.get("project_type")
+        return None
 
     def _generate_json(self, goal, context, prompt: str, system: str):
         if self.models is None:
@@ -184,6 +222,10 @@ def install(cls) -> None:
                 **dict(candidate.critic),
                 "worker_assessment": assessment.to_dict(),
                 "worker_authority": "proposal_only",
+                "capability_states": {
+                    record.tool_name: record.state.value
+                    for record in capabilities.all()
+                },
             },
         )
         return candidate, review, assessment
@@ -195,6 +237,7 @@ def install(cls) -> None:
         owner_id="owner",
         project_id=None,
         query=None,
+        playbook_id=None,
     ):
         bridge = getattr(self, "_work_bridge", None)
         if bridge is None:
@@ -207,6 +250,10 @@ def install(cls) -> None:
 
         capabilities = _capabilities(self)
         tools = capabilities.available_tool_names() if capabilities.source_available else None
+        playbook = self._playbook_registry.resolve(
+            playbook_id=str(playbook_id) if playbook_id is not None else None,
+            project_type=_project_type(self, goal_spec.project_id),
+        )
         recent = list(getattr(self, "_outcomes", [])[-10:])
         context = ContextPackBuilder(
             memory=getattr(self, "memory", None),
@@ -223,10 +270,25 @@ def install(cls) -> None:
         strategic = StrategicWorkPlanner(
             lambda prompt, system: _generate_json(self, p10_goal, context, prompt, system)
         )
-        candidate, review = strategic.propose(goal_spec, context, available_tools=tools)
+        candidate, review = strategic.propose(
+            goal_spec,
+            context,
+            available_tools=tools,
+            planning_guidance=playbook.prompt_text() if playbook is not None else None,
+        )
+        if playbook is not None:
+            candidate = replace(
+                candidate,
+                critic={
+                    **dict(candidate.critic),
+                    "playbook_id": playbook.id,
+                    "playbook_authority": "advisory_only",
+                },
+            )
         candidate, review, worker_assessment = _apply_worker_review(self, candidate, review, capabilities)
         self._hierarchical_last_review = review.to_dict()
 
+        playbook_payload = playbook.to_dict() if playbook is not None else None
         if review.status is ReadinessStatus.HOLD:
             self._event(
                 "hierarchical_plan_hold",
@@ -235,6 +297,7 @@ def install(cls) -> None:
                 warnings=list(review.warnings),
                 context_fingerprint=context.fingerprint,
                 worker_assessment=worker_assessment.to_dict(),
+                playbook_id=playbook.id if playbook is not None else None,
                 model_output_authority=False,
             )
             return {
@@ -249,6 +312,7 @@ def install(cls) -> None:
                 },
                 "workers": worker_assessment.to_dict(),
                 "capabilities": capabilities.status(),
+                "playbook": playbook_payload,
                 "authority": "planning_only",
             }
 
@@ -273,6 +337,7 @@ def install(cls) -> None:
             warnings=list(review.warnings),
             context_fingerprint=context.fingerprint,
             worker_count=len(worker_assessment.assignments),
+            playbook_id=playbook.id if playbook is not None else None,
             model_output_authority=False,
             execution_authority="existing_p10_p6_runtime",
         )
@@ -289,6 +354,7 @@ def install(cls) -> None:
             },
             "workers": worker_assessment.to_dict(),
             "capabilities": capabilities.status(),
+            "playbook": playbook_payload,
             "authority": "existing_p10_p6_runtime",
         }
 
@@ -304,9 +370,19 @@ def install(cls) -> None:
             result["latest_review"] = review.to_dict()
         return result
 
+    def orchestration_playbooks(self):
+        return [item.to_dict() for item in self._playbook_registry.all()]
+
+    def capability_manifest(self):
+        store = getattr(self, "_capability_qualification_store", None)
+        if store is None:
+            return []
+        return [item.to_dict() for item in store.all()]
+
     def status(self):
         result = original_status(self)
         capabilities = _capabilities(self)
+        qualification_store = getattr(self, "_capability_qualification_store", None)
         result["hierarchical_planning"] = {
             "installed": True,
             "authority": "planning_only",
@@ -314,11 +390,19 @@ def install(cls) -> None:
             "last_review": self._hierarchical_last_review,
             "workers": self._worker_registry.status(),
             "capabilities": capabilities.status(),
+            "qualification": qualification_store.status() if qualification_store is not None else {
+                "entries": 0,
+                "states": {},
+                "authority": "qualification_metadata_only",
+            },
+            "playbooks": self._playbook_registry.status(),
         }
         return result
 
     cls.__init__ = __init__
     cls.propose_hierarchical_plan = propose_hierarchical_plan
     cls.work_plan = work_plan
+    cls.orchestration_playbooks = orchestration_playbooks
+    cls.capability_manifest = capability_manifest
     cls.status = status
     cls._hierarchical_work_planning_installed = True

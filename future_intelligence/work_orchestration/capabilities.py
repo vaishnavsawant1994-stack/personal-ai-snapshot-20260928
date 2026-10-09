@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 import re
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 
 
 class CapabilityState(StrEnum):
@@ -50,6 +50,9 @@ class CapabilityRecord:
     requires_reauth: bool = False
     allowed_destinations: tuple[str, ...] = ()
     tags: tuple[str, ...] = ()
+    exact_head_sha: str | None = None
+    qualification_suite: str | None = None
+    qualification_evidence: tuple[str, ...] = ()
 
     @property
     def available(self) -> bool:
@@ -75,6 +78,9 @@ class CapabilityRecord:
             "requires_reauth": self.requires_reauth,
             "allowed_destinations": list(self.allowed_destinations),
             "tags": list(self.tags),
+            "exact_head_sha": self.exact_head_sha,
+            "qualification_suite": self.qualification_suite,
+            "qualification_evidence": list(self.qualification_evidence),
         }
 
 
@@ -82,7 +88,8 @@ class CapabilityRegistry:
     """Read-only capability projection over the existing ToolRegistry.
 
     It never authorizes or executes. ToolRegistry/PermissionEngine remain the final
-    policy, risk, approval, destination and verification authorities.
+    policy, risk, approval, destination and verification authorities. Qualification
+    metadata may strengthen or disable the planning view but never grants authority.
     """
 
     def __init__(self, records: Iterable[CapabilityRecord] = (), *, source_available: bool = True) -> None:
@@ -95,7 +102,12 @@ class CapabilityRegistry:
         return cls((), source_available=False)
 
     @classmethod
-    def from_tool_registry(cls, registry) -> "CapabilityRegistry":
+    def from_tool_registry(
+        cls,
+        registry,
+        *,
+        qualification_manifest: Mapping[str, Any] | None = None,
+    ) -> "CapabilityRegistry":
         if registry is None or not hasattr(registry, "all"):
             return cls.unavailable()
         try:
@@ -104,6 +116,7 @@ class CapabilityRegistry:
             return cls.unavailable()
         records: list[CapabilityRecord] = []
         valid_states = {state.value: state for state in CapabilityState}
+        manifest = dict(qualification_manifest or {})
         for tool in tools:
             name = str(getattr(tool, "name", "") or "").strip()
             if not name:
@@ -114,7 +127,27 @@ class CapabilityRegistry:
                 or getattr(tool, "availability_state", None)
                 or "available"
             ).strip().lower()
-            state = CapabilityState.DISABLED if prohibited else valid_states.get(raw_state, CapabilityState.AVAILABLE)
+            state = valid_states.get(raw_state, CapabilityState.AVAILABLE)
+            exact_head_sha = None
+            qualification_suite = None
+            qualification_evidence: tuple[str, ...] = ()
+            overlay = manifest.get(name)
+            if isinstance(overlay, Mapping):
+                manifest_state = str(overlay.get("state") or "").strip().lower()
+                if manifest_state in valid_states:
+                    state = valid_states[manifest_state]
+                exact_head_sha = str(overlay.get("exact_head_sha") or "").strip() or None
+                qualification_suite = str(overlay.get("qualification_suite") or "").strip() or None
+                qualification_evidence = tuple(
+                    str(item)[:500]
+                    for item in overlay.get("evidence_refs", [])
+                    if str(item).strip()
+                )[:100]
+            if prohibited:
+                state = CapabilityState.DISABLED
+                exact_head_sha = None
+                qualification_suite = None
+                qualification_evidence = ()
             capability = str(getattr(tool, "capability", None) or name).strip()[:200]
             connector_id = getattr(tool, "connector_id", None)
             records.append(
@@ -130,6 +163,9 @@ class CapabilityRegistry:
                     requires_reauth=bool(getattr(tool, "requires_reauth", False)),
                     allowed_destinations=tuple(str(item)[:500] for item in (getattr(tool, "allowed_destinations", None) or ())),
                     tags=capability_tokens(name, capability, connector_id),
+                    exact_head_sha=exact_head_sha,
+                    qualification_suite=qualification_suite,
+                    qualification_evidence=qualification_evidence,
                 )
             )
         return cls(records, source_available=True)
@@ -142,6 +178,9 @@ class CapabilityRegistry:
 
     def available_tool_names(self) -> tuple[str, ...]:
         return tuple(record.tool_name for record in self.available())
+
+    def qualified(self) -> tuple[CapabilityRecord, ...]:
+        return tuple(record for record in self._records if record.state is CapabilityState.QUALIFIED)
 
     def get_tool(self, tool_name: str) -> CapabilityRecord | None:
         return self._by_tool.get(str(tool_name))
@@ -158,6 +197,7 @@ class CapabilityRegistry:
             "source_available": self.source_available,
             "total": len(self._records),
             "available": len(self.available()),
+            "qualified": len(self.qualified()),
             "states": counts,
             "authority": "metadata_only",
             "execution_authority": "existing_tool_registry",
