@@ -7,6 +7,8 @@ from typing import Any, Mapping
 
 class WorkAttemptStatus(StrEnum):
     RUNNING = "running"
+    WAITING_APPROVAL = "waiting_approval"
+    WAITING_RESOURCE = "waiting_resource"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
     RECOVERY_REQUIRED = "recovery_required"
