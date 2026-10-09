@@ -1,13 +1,25 @@
 /* Sequential loader for Home/Chat plus canonical Projects Work surfaces. */
 (()=>{
   const loadGlobalAwareness=()=>{
-    if(document.querySelector('script[data-global-work-awareness]'))return;
-    const global=document.createElement('script');
-    global.src='/iphone/global-work-awareness.js';
-    global.async=false;
-    global.dataset.globalWorkAwareness='true';
-    global.onerror=()=>console.warn('Global canonical Work awareness could not be loaded.');
-    document.body.append(global);
+    const loadGlobal=()=>{
+      if(document.querySelector('script[data-global-work-awareness]'))return;
+      const global=document.createElement('script');
+      global.src='/iphone/global-work-awareness.js';
+      global.async=false;
+      global.dataset.globalWorkAwareness='true';
+      global.onerror=()=>console.warn('Global canonical Work awareness could not be loaded.');
+      document.body.append(global);
+    };
+    let detail=document.querySelector('script[data-workorder-detail]');
+    if(window.__vishnuWorkOrderDetail){loadGlobal();return}
+    if(detail){detail.addEventListener('load',loadGlobal,{once:true});return}
+    detail=document.createElement('script');
+    detail.src='/iphone/workorder-detail.js';
+    detail.async=false;
+    detail.dataset.workorderDetail='true';
+    detail.onload=loadGlobal;
+    detail.onerror=()=>console.warn('WorkOrder detail surface could not be loaded.');
+    document.body.append(detail);
   };
   const loadVisualizations=()=>{
     let visual=document.querySelector('script[data-canonical-project-visualizations]');
