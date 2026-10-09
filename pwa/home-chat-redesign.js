@@ -21,7 +21,7 @@
     const chat=mobile&&document.body.classList.contains('chat-experience')&&!document.body.classList.contains('home-landing');
     const composerProps=['position','z-index','left','right','bottom','width','max-width','margin'];
     const dockProps=['position','z-index','left','right','transform','bottom','width','margin'];
-    const detailProps=['display','visibility','opacity','pointer-events','width','height'];
+    const detailProps=['display','visibility','opacity','pointer-events','width','height','position','right','top','z-index'];
     if(!chat){
       composerProps.forEach(name=>composer.style.removeProperty(name));
       if(dock)dockProps.forEach(name=>dock.style.removeProperty(name));
@@ -60,6 +60,10 @@
       details.style.setProperty('pointer-events','auto','important');
       details.style.setProperty('width','44px','important');
       details.style.setProperty('height','44px','important');
+      details.style.setProperty('position','absolute','important');
+      details.style.setProperty('right','max(58px,calc(env(safe-area-inset-right) + 58px))','important');
+      details.style.setProperty('top','5px','important');
+      details.style.setProperty('z-index','60','important');
     }
   };
   const scheduleSharedMobileComposerChrome=()=>requestAnimationFrame(enforceSharedMobileComposerChrome);
