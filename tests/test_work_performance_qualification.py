@@ -39,14 +39,14 @@ def _seed_work(path):
             project_id=project_id,
         )
         store.upsert_goal(goal, source_p10_goal_id=f"p10-goal-{project_index:03d}")
-        previous_order = None
         for version in range(1, PLANS_PER_PROJECT + 1):
             plan_id = f"work-plan-{project_index:03d}-{version}"
             source = f"p10-plan-{project_index:03d}"
             orders = []
+            previous_order = None
             for order_index in range(ORDERS_PER_PLAN):
                 order_id = f"order-{project_index:03d}-{version}-{order_index}"
-                dependencies = (previous_order,) if previous_order and order_index == 0 else ()
+                dependencies = (previous_order,) if previous_order else ()
                 order = WorkOrder(
                     id=order_id,
                     plan_id=plan_id,
@@ -56,7 +56,9 @@ def _seed_work(path):
                     worker_type="project",
                     status=WorkOrderStatus.RUNNING if order_index == 0 else WorkOrderStatus.QUEUED,
                     dependencies=dependencies,
-                    resource_scope=ResourceScope(metadata={"p10_task_id": f"task-{project_index}-{version}-{order_index}"}),
+                    resource_scope=ResourceScope(
+                        metadata={"p10_task_id": f"task-{project_index}-{version}-{order_index}"}
+                    ),
                 )
                 orders.append(order)
                 order_ids.append(order_id)
@@ -88,7 +90,10 @@ def _seed_evidence(path, order_ids):
                 source_type="tool_result",
                 source="qualified-scale-tool",
                 subject="scale proof",
-                observation=f"Project API uses stable route /api/v2/{index}/{item_index} for this bounded qualification fact.",
+                observation=(
+                    f"Project API uses stable route /api/v2/{index}/{item_index} "
+                    "for this bounded qualification fact."
+                ),
                 provenance=EvidenceProvenance.TOOL_VERIFIED,
                 verification_state=VerificationState.VERIFIED,
                 confidence=1.0,
@@ -110,24 +115,37 @@ def test_v2_migrations_install_hot_read_indexes(tmp_path):
     work, _, order_ids = _seed_work(tmp_path / "work.sqlite3")
     evidence = _seed_evidence(tmp_path / "evidence.sqlite3", order_ids)
 
-    work_versions = [row[0] for row in work.connection.execute("SELECT version FROM work_schema_migrations ORDER BY version")]
-    evidence_versions = [row[0] for row in evidence.connection.execute("SELECT version FROM evidence_schema_migrations ORDER BY version")]
+    work_versions = [
+        row[0]
+        for row in work.connection.execute(
+            "SELECT version FROM work_schema_migrations ORDER BY version"
+        )
+    ]
+    evidence_versions = [
+        row[0]
+        for row in evidence.connection.execute(
+            "SELECT version FROM evidence_schema_migrations ORDER BY version"
+        )
+    ]
     assert work_versions == [1, 2]
     assert evidence_versions == [1, 2]
 
     assert query_plan_uses_index(
         work.connection,
-        "SELECT payload_json FROM work_plans WHERE source_p10_plan_id=? ORDER BY version DESC,created_at DESC LIMIT 1",
+        "SELECT payload_json FROM work_plans "
+        "WHERE source_p10_plan_id=? ORDER BY version DESC,created_at DESC LIMIT 1",
         ("p10-plan-000",),
     )
     assert query_plan_uses_index(
         evidence.connection,
-        "SELECT payload_json FROM claims WHERE work_order_id=? AND state=? ORDER BY updated_at DESC,id",
+        "SELECT payload_json FROM claims "
+        "WHERE work_order_id=? AND state=? ORDER BY updated_at DESC,id",
         (order_ids[0], "verified"),
     )
     assert query_plan_uses_index(
         evidence.connection,
-        "SELECT payload_json FROM evidence WHERE work_order_id=? AND verification_state=? ORDER BY created_at,id",
+        "SELECT payload_json FROM evidence "
+        "WHERE work_order_id=? AND verification_state=? ORDER BY created_at,id",
         (order_ids[0], "verified"),
     )
 
@@ -139,31 +157,49 @@ def test_scale_read_paths_remain_bounded_at_50_projects_and_200_workorders(tmp_p
     measurements = [
         measure(
             "work.project_history_50",
-            lambda: [work.project_plan_records(f"project-{index:03d}") for index in range(PROJECTS)],
+            lambda: [
+                work.project_plan_records(f"project-{index:03d}")
+                for index in range(PROJECTS)
+            ],
             iterations=3,
             max_allowed_ms=1500,
         ),
         measure(
             "work.latest_plan_100",
-            lambda: [work.latest_plan_for_source(source_ids[index % len(source_ids)]) for index in range(100)],
+            lambda: [
+                work.latest_plan_for_source(source_ids[index % len(source_ids)])
+                for index in range(100)
+            ],
             iterations=3,
             max_allowed_ms=1200,
         ),
         measure(
             "evidence.work_order_100",
-            lambda: [evidence.list_evidence(work_order_id=order_ids[index]) for index in range(100)],
+            lambda: [
+                evidence.list_evidence(work_order_id=order_ids[index])
+                for index in range(100)
+            ],
             iterations=3,
             max_allowed_ms=1200,
         ),
         measure(
             "claims.work_order_100",
-            lambda: [evidence.list_claims(work_order_id=order_ids[index]) for index in range(100)],
+            lambda: [
+                evidence.list_claims(work_order_id=order_ids[index])
+                for index in range(100)
+            ],
             iterations=3,
             max_allowed_ms=1200,
         ),
         measure(
             "memory.usefulness_1000",
-            lambda: [assess_usefulness(f"Project API uses /api/v2/{index} and requires verified approval policy before publishing.") for index in range(1000)],
+            lambda: [
+                assess_usefulness(
+                    f"Project API uses /api/v2/{index} and requires verified "
+                    "approval policy before publishing."
+                )
+                for index in range(1000)
+            ],
             iterations=3,
             max_allowed_ms=750,
         ),
@@ -209,7 +245,13 @@ def test_living_projection_and_notification_persistence_are_bounded(tmp_path):
         base = sequence["value"]
         for offset in range(100):
             key = f"scale-{base + offset}"
-            notifications._insert("device-1", key, "work_completed", "Work completed", "Bounded scale qualification")
+            notifications._insert(
+                "device-1",
+                key,
+                "work_completed",
+                "Work completed",
+                "Bounded scale qualification",
+            )
         sequence["value"] += 100
 
     inserted = measure(
