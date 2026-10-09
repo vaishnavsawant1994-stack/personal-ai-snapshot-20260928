@@ -19,6 +19,7 @@ from .service import EvolutionCycle, EvolutionService
 from .store import EvolutionStore
 from .synthesizer import CandidateSynthesizer
 from .verification import (
+    GuardedVerificationProvider,
     LocalSubprocessVerificationProvider,
     VerificationCheck,
     VerificationProvider,
@@ -47,6 +48,7 @@ __all__ = [
     "EvolutionService",
     "EvolutionStore",
     "GitHubPublicReviewVerifier",
+    "GuardedVerificationProvider",
     "LocalSubprocessVerificationProvider",
     "OwnerBodyAdoptionService",
     "PROTECTED_PATTERNS",
