@@ -111,10 +111,12 @@ def test_active_advance_now_without_plan_is_safe_noop(tmp_path):
 
 
 def test_router_exposes_read_mode_trusted_mode_mutation_and_active_advance_only(tmp_path):
-    service, store, autonomy = _service(tmp_path)
+    _service_obj, store, autonomy = _service(tmp_path)
     runtime = {"advanced_autonomy": autonomy, "device_registry": _Registry()}
     router = project_autonomy_router(runtime, store)
-    methods_by_path = {route.path: set(route.methods or ()) for route in router.routes}
+    methods_by_path: dict[str, set[str]] = {}
+    for route in router.routes:
+        methods_by_path.setdefault(route.path, set()).update(route.methods or ())
 
     assert methods_by_path["/iphone/api/projects/{project_id}/work/autonomy"] == {"GET", "PUT"}
     assert methods_by_path["/iphone/api/projects/{project_id}/work/{plan_id}/advance"] == {"POST"}
