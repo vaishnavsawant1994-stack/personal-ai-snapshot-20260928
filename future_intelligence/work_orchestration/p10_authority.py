@@ -10,6 +10,7 @@ from evidence import Evidence, EvidenceProvenance, VerificationState
 from .attempt_parking import cancel_parked_attempt, park_attempt, resume_parked_attempt
 from .attempts import WorkAttemptStatus
 from .failure_policy import FailureClass, WorkFailure
+from .models import WorkOrderStatus
 
 
 @dataclass(frozen=True)
@@ -52,6 +53,16 @@ class P10CanonicalWorkAuthority:
             raise KeyError(f"canonical WorkOrder not found for P10 task {task_id}")
         return order_id
 
+    @staticmethod
+    def _claim_value(plan_id: str, task_id: str, claim) -> CanonicalTaskClaim:
+        return CanonicalTaskClaim(
+            plan_id=plan_id,
+            task_id=task_id,
+            work_order_id=claim.attempt.work_order_id,
+            attempt_id=claim.attempt.id,
+            lease_token=claim.lease.lease_token,
+        )
+
     def claim(self, plan_id: str, task_id: str, *, retry_limit: int = 0) -> CanonicalTaskClaim:
         order_id = self._order_id(plan_id, task_id)
         claim = self.work.claim_work_order(
@@ -71,19 +82,75 @@ class P10CanonicalWorkAuthority:
             attempt_id=claim.attempt.id,
             retry_limit=int(retry_limit),
         )
-        return CanonicalTaskClaim(
+        return self._claim_value(plan_id, task_id, claim)
+
+    def _adopt_legacy_waiting_claim(self, plan_id: str, task_id: str) -> CanonicalTaskClaim:
+        """Bind canonical Work to a pre-E9 durable approval without redispatch.
+
+        Older P10 state can survive a restart with an operation/approval identity
+        but no canonical WorkAttempt. We momentarily make only the local WorkOrder
+        claimable, create its first attempt/lease, and preserve the existing P10
+        operation id for the original approval continuation. No external effect is
+        dispatched by this migration step.
+        """
+        order_id = self._order_id(plan_id, task_id)
+        if self.work.list_attempts(order_id):
+            raise RuntimeError("legacy approval adoption requires no existing Work attempts")
+        order = self.work.get_order(order_id)
+        if order is None:
+            raise KeyError(order_id)
+        if order.status is not WorkOrderStatus.WAITING_APPROVAL:
+            raise RuntimeError("legacy approval adoption requires WAITING_APPROVAL WorkOrder")
+        now = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
+        self.work.connection.execute("BEGIN IMMEDIATE")
+        try:
+            self.work._set_order_status_locked(order_id, WorkOrderStatus.QUEUED, now=now)
+            self.work._append_work_event_locked(
+                order_id,
+                "work.legacy_waiting_approval_adoption_prepared",
+                {"p10_plan_id": plan_id, "p10_task_id": task_id, "external_dispatch": False},
+                created_at=now,
+            )
+            self.work.connection.commit()
+        except Exception:
+            self.work.connection.rollback()
+            raise
+        try:
+            claim = self.work.claim_work_order(
+                order_id,
+                worker_id="p10-canonical-worker",
+                runtime_epoch=self.runtime_epoch,
+                lease_seconds=300,
+                execution_id=f"p10:{plan_id}:{task_id}:legacy-approval-resume",
+            )
+            if claim is None:
+                raise RuntimeError("legacy pending approval could not be adopted into canonical Work")
+        except Exception:
+            # Fail closed and restore the compatibility projection if claiming
+            # failed before any external approval continuation ran.
+            stamp = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
+            self.work.connection.execute("BEGIN IMMEDIATE")
+            try:
+                self.work._set_order_status_locked(order_id, WorkOrderStatus.WAITING_APPROVAL, now=stamp)
+                self.work.connection.commit()
+            except Exception:
+                self.work.connection.rollback()
+            raise
+        self._emit(
+            "work.legacy_waiting_approval_adopted",
             plan_id=plan_id,
             task_id=task_id,
             work_order_id=order_id,
             attempt_id=claim.attempt.id,
-            lease_token=claim.lease.lease_token,
+            external_dispatch=False,
         )
+        return self._claim_value(plan_id, task_id, claim)
 
     def latest_waiting_claim(self, plan_id: str, task_id: str) -> CanonicalTaskClaim:
         order_id = self._order_id(plan_id, task_id)
         attempts = self.work.list_attempts(order_id)
         if not attempts:
-            raise RuntimeError("canonical Work attempt is missing")
+            return self._adopt_legacy_waiting_claim(plan_id, task_id)
         attempt = attempts[-1]
         if attempt.status not in {WorkAttemptStatus.WAITING_APPROVAL, WorkAttemptStatus.WAITING_RESOURCE}:
             raise RuntimeError("canonical Work attempt is not waiting")
@@ -94,19 +161,24 @@ class P10CanonicalWorkAuthority:
             runtime_epoch=self.runtime_epoch,
             lease_seconds=300,
         )
-        return CanonicalTaskClaim(
-            plan_id=plan_id,
-            task_id=task_id,
-            work_order_id=order_id,
-            attempt_id=resumed.attempt.id,
-            lease_token=resumed.lease.lease_token,
-        )
+        return self._claim_value(plan_id, task_id, resumed)
 
     def _completion_evidence(self, p10_plan: dict[str, Any], p10_goal: dict[str, Any], task: dict[str, Any], claim: CanonicalTaskClaim) -> Evidence:
         external = bool(task.get("operation_plan_id") and task.get("result_ref"))
         source = str(task.get("result_ref") or f"p10:{p10_plan['id']}:{task['id']}:read-only")
-        digest = hashlib.sha256(f"{claim.work_order_id}|{claim.attempt_id}|{source}|completed".encode("utf-8")).hexdigest()[:32]
-        evidence_id = f"ev-canonical-{digest}"
+        if external:
+            # Deliberately share the qualified bridge's evidence identity. The
+            # subsequent ClaimGate observation links this exact record instead of
+            # creating a second proof for the same verified external outcome.
+            digest = hashlib.sha256(
+                f"{p10_plan['id']}|{task['id']}|{source}|verified".encode("utf-8")
+            ).hexdigest()[:32]
+            evidence_id = f"ev-{digest}"
+        else:
+            digest = hashlib.sha256(
+                f"{claim.work_order_id}|{claim.attempt_id}|{source}|completed".encode("utf-8")
+            ).hexdigest()[:32]
+            evidence_id = f"ev-canonical-{digest}"
         existing = self.evidence.get_evidence(evidence_id)
         if existing is not None:
             return existing
@@ -209,7 +281,6 @@ class P10CanonicalWorkAuthority:
                 max_attempts=max(1, retry_limit + 1),
             )
             return
-        # Any unknown post-dispatch state is uncertain by construction.
         self.work.finish_attempt(
             claim.attempt_id,
             lease_token=claim.lease_token,
