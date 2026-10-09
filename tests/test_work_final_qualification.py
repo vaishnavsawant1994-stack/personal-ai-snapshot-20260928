@@ -9,6 +9,8 @@ from qualification.work_final import (
     WORK_FINAL_QUALIFICATION_VERSION,
     final_qualification_manifest,
 )
+from qualification.work_orchestration_final import REQUIRED_RELEASE_GATES, build_report
+from qualification.work_scenarios import FINAL_WORK_SCENARIOS, required_test_files
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -41,6 +43,42 @@ def test_final_gate_patterns_cover_required_tranches():
     assert "tests/test_authoritative_completion_judge.py" in patterns
     assert "tests/test_completion_runtime_integration.py" in patterns
     assert "tests/test_project_autonomy_*.py" in patterns
+
+
+def test_final_scenario_catalog_covers_all_required_operating_failures():
+    ids = {scenario.id for scenario in FINAL_WORK_SCENARIOS}
+    assert ids == {
+        "software_project",
+        "research_project",
+        "approval",
+        "approval_rejected",
+        "recovery",
+        "review_failure",
+        "restart",
+        "multi_project",
+        "capability_outage",
+        "emergency_stop",
+    }
+    for test_path in required_test_files():
+        assert (ROOT / test_path).is_file(), test_path
+
+
+def test_final_exact_head_report_is_fail_closed():
+    scenarios = {scenario.id: True for scenario in FINAL_WORK_SCENARIOS}
+    gates = {gate: True for gate in REQUIRED_RELEASE_GATES}
+    qualified = build_report("a" * 40, scenarios=scenarios, gates=gates)
+    assert qualified.qualified is True
+    assert qualified.to_dict()["authority"] == "qualification_only"
+    assert qualified.to_dict()["execution_authority"] == "existing_p10_p6_runtime"
+
+    missing_gate = dict(gates)
+    missing_gate.pop(REQUIRED_RELEASE_GATES[0])
+    assert build_report("a" * 40, scenarios=scenarios, gates=missing_gate).qualified is False
+
+    failed_scenario = dict(scenarios)
+    failed_scenario[FINAL_WORK_SCENARIOS[0].id] = False
+    assert build_report("a" * 40, scenarios=failed_scenario, gates=gates).qualified is False
+    assert build_report("", scenarios=scenarios, gates=gates).qualified is False
 
 
 def test_final_contract_tracks_current_additive_store_versions():
