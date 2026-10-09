@@ -10,9 +10,11 @@
   // Chat Details remains reachable through the canonical three-dot conversation menu.
   // The responsive Chat stylesheet introduced a second top-details button and hid the
   // canonical menu; override that presentation-only rule after all Chat CSS is loaded.
+  // Empty Chat is its own state, not Home landing, so restore its intro container without
+  // reviving Home quick actions.
   const menuStyle=document.createElement('style');
   menuStyle.dataset.chatCanonicalMenu='true';
-  menuStyle.textContent='body.chat-experience .topbar-actions .chat-menu-button:not(.hidden){display:grid!important}body.chat-experience .chat-top-details{display:none!important}';
+  menuStyle.textContent='body.chat-experience .topbar-actions .chat-menu-button:not(.hidden){display:grid!important}body.chat-experience .chat-top-details{display:none!important}body.chat-experience.chat-new-empty .home-intro{display:flex!important}body.chat-experience.chat-new-empty .v-shortcuts{display:none!important}';
   document.head.append(menuStyle);
 
   function setLabel(name=''){
