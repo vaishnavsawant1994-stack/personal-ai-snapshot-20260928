@@ -1,5 +1,6 @@
 from .config import EvolutionConfig
 from .curator import EvolutionCurator
+from .handoff import EvolutionHandoff, EvolutionHandoffService
 from .migrations import EVOLUTION_SCHEMA_VERSION, migrate_evolution_schema
 from .models import (
     CandidateStatus,
@@ -26,6 +27,8 @@ __all__ = [
     "EvolutionCurator",
     "EvolutionCycle",
     "EvolutionDecision",
+    "EvolutionHandoff",
+    "EvolutionHandoffService",
     "EvolutionMode",
     "EvolutionScanner",
     "EvolutionService",

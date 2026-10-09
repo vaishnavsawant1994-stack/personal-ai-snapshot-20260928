@@ -31,6 +31,8 @@ jobs:
           tests/test_project_autonomy_*.py
       - name: E5 governed evolution qualification gate
         run: pytest -q tests/test_evolution_e5.py
+      - name: E6 owner-approved handoff qualification gate
+        run: pytest -q tests/test_evolution_e6_handoff.py
       - name: Canonical Work release qualification gate
         run: pytest -q tests/test_work_release_qualification.py tests/test_work_final_qualification.py
       - run: pytest -q
