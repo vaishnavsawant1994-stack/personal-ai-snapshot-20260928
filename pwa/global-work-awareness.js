@@ -11,7 +11,7 @@
   const BLOCKED=new Set(['BLOCKED','UNCERTAIN','RECOVERY_REQUIRED','FAILED']);
   const DONE=new Set(['COMPLETED','CANCELLED']);
   let current={authority:'read_only_projection',projects:[],work_orders:[],counts:{},living:{state:'idle',detail:''}};
-  let refreshTimer=0;
+  let refreshTimer=0,overlayApplied=false;
 
   const esc=value=>{const node=document.createElement('span');node.textContent=String(value??'');return node.innerHTML};
   const label=value=>String(value||'').replaceAll('_',' ').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
@@ -85,11 +85,18 @@
   }
 
   function renderLivingState(){
-    if(typeof stateName==='undefined'||!['idle','active','background'].includes(stateName))return;
-    const copy=stateCopy();if(!copy)return;
+    if(typeof stateName==='undefined'||!['idle','active','background'].includes(stateName)){overlayApplied=false;return}
+    const copy=stateCopy();
+    if(!copy){
+      if(overlayApplied&&typeof setState==='function')setState(stateName);
+      overlayApplied=false;
+      delete document.body.dataset.globalWorkState;
+      return;
+    }
     const heading=document.getElementById('stateLabel'),detail=document.getElementById('status');
     if(heading)heading.textContent=copy[0];if(detail)detail.textContent=copy[1];
     document.body.dataset.globalWorkState=String(current.living?.state||'idle');
+    overlayApplied=true;
   }
 
   function renderHome(){
