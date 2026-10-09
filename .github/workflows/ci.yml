@@ -15,7 +15,7 @@ jobs:
           python-version: "3.12"
       - run: pip install -r requirements.txt
       - run: pip check
-      - run: python -m compileall -q app agent automation browser capabilities core dashboard desktop devices future_intelligence identity integrations knowledge memory models proactive qualification security server tools ui updates vision voice
+      - run: python -m compileall -q app agent automation browser capabilities core dashboard desktop devices evidence evolution future_intelligence identity integrations knowledge memory models proactive qualification security server tools ui updates vision voice
       - name: Canonical Work consistency gate
         run: pytest -q tests/test_work_consistency_gate.py
       - name: Canonical Work scale and performance gate
@@ -29,6 +29,8 @@ jobs:
           tests/test_authoritative_completion_judge.py
           tests/test_completion_runtime_integration.py
           tests/test_project_autonomy_*.py
+      - name: E5 governed evolution qualification gate
+        run: pytest -q tests/test_evolution_e5.py
       - name: Canonical Work release qualification gate
         run: pytest -q tests/test_work_release_qualification.py tests/test_work_final_qualification.py
       - run: pytest -q
