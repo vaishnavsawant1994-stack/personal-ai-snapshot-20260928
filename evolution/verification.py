@@ -8,7 +8,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol, Sequence
 
-from future_intelligence.work_orchestration.repository import RepositoryWorkspaceSession
+from future_intelligence.work_orchestration.repository import (
+    RepositoryWorkspaceProvider,
+    RepositoryWorkspaceSession,
+)
+from identity import BodyManifest
+
+from .code_policy import evaluate_code_change
 
 
 @dataclass(frozen=True)
@@ -53,6 +59,70 @@ class VerificationReport:
 
 class VerificationProvider(Protocol):
     def verify(self, session: RepositoryWorkspaceSession, *, revision: str) -> VerificationReport: ...
+
+
+class GuardedVerificationProvider:
+    """Fail closed on protected diffs before candidate code is executed."""
+
+    def __init__(
+        self,
+        *,
+        repository_provider: RepositoryWorkspaceProvider,
+        inner: VerificationProvider,
+        body_manifest_path: str = "config/vishnu-body.yaml",
+    ) -> None:
+        self.repository_provider = repository_provider
+        self.inner = inner
+        self.body_manifest_path = str(body_manifest_path)
+
+    @staticmethod
+    def _check(name: str, passed: bool, details: str) -> VerificationCheck:
+        digest = hashlib.sha256(details.encode("utf-8", errors="replace")).hexdigest()
+        return VerificationCheck(
+            name=name,
+            command=("internal-policy-check",),
+            passed=bool(passed),
+            returncode=0 if passed else 1,
+            duration_ms=0,
+            output_hash=digest,
+            output_excerpt=details[:4000],
+        )
+
+    def verify(self, session: RepositoryWorkspaceSession, *, revision: str) -> VerificationReport:
+        changed = self.repository_provider.changed_paths(
+            base_revision=session.base_revision,
+            working_revision=revision,
+        )
+        policy = evaluate_code_change(changed)
+        policy_check = self._check(
+            "protected-code-scope",
+            policy.allowed,
+            policy.reason + (f"; protected={','.join(policy.protected_paths)}" if policy.protected_paths else ""),
+        )
+        if not policy.allowed:
+            return VerificationReport(revision=str(revision), checks=(policy_check,))
+
+        base_raw = self.repository_provider.read_text_at(session.base_revision, self.body_manifest_path)
+        try:
+            base_manifest = BodyManifest.from_dict(json.loads(base_raw))
+            working_manifest = BodyManifest.load(Path(session.local_path) / self.body_manifest_path)
+            manifest_same = base_manifest.manifest_hash == working_manifest.manifest_hash
+            manifest_details = "Body manifest unchanged" if manifest_same else "Body manifest changed in ordinary evolution work"
+        except Exception as exc:
+            manifest_same = False
+            manifest_details = f"Body manifest validation failed: {type(exc).__name__}"
+        manifest_check = self._check("body-manifest-integrity", manifest_same, manifest_details)
+        if not manifest_same:
+            return VerificationReport(revision=str(revision), checks=(policy_check, manifest_check))
+
+        inner = self.inner.verify(session, revision=revision)
+        if inner.revision != str(revision):
+            mismatch = self._check("verification-revision-binding", False, "inner verifier returned a different revision")
+            return VerificationReport(revision=str(revision), checks=(policy_check, manifest_check, mismatch))
+        return VerificationReport(
+            revision=str(revision),
+            checks=(policy_check, manifest_check, *inner.checks),
+        )
 
 
 class LocalSubprocessVerificationProvider:
