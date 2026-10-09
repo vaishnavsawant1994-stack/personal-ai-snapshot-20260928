@@ -130,6 +130,7 @@ class WorkMemoryPromotionBridge:
         subject: str,
         source_id: str,
         source_type: str,
+        source_created_at: str | None,
         project_id: str | None,
         goal_id: str | None,
         plan_id: str,
@@ -155,6 +156,7 @@ class WorkMemoryPromotionBridge:
             tags=list(dict.fromkeys(["work", "verified", "project", str(worker_type or "worker")]))[:12],
             importance=0.72,
             sensitivity="normal",
+            occurred_at=source_created_at,
             evidence=list(evidence_ids)[:20],
             metadata={
                 "scope": "project" if project_id else "work",
@@ -169,17 +171,13 @@ class WorkMemoryPromotionBridge:
                 "review_state": str(review_state or "passed"),
                 "source_type": source_type,
                 "source_id": source_id,
+                "created_at": source_created_at,
                 "usefulness_reason": assessment.reason,
                 "promotion_mode": "governed_candidate_only",
             },
         )
         request_id = f"work-memory:{plan_id}:{plan_version}:{work_order_id}:{source_type}:{source_id}"
-        return self.memory.remember(
-            candidate,
-            owner_id="owner",
-            request_id=request_id,
-            force_review=True,
-        )
+        return self.memory.remember(candidate, owner_id="owner", request_id=request_id, force_review=True)
 
     def consider(self, event: Mapping[str, Any]) -> list[str]:
         plan_id = str(event.get("plan_id") or "")
@@ -238,6 +236,7 @@ class WorkMemoryPromotionBridge:
                 subject=str(order.get("title") or "Verified Project knowledge"),
                 source_id=str(claim.id),
                 source_type="verified_claim",
+                source_created_at=str(getattr(claim, "created_at", "") or "") or None,
                 project_id=str(project_id) if project_id else None,
                 goal_id=str(goal_id) if goal_id else None,
                 plan_id=plan_id,
@@ -264,6 +263,7 @@ class WorkMemoryPromotionBridge:
                 subject=str(item.subject or order.get("title") or "Verified Project knowledge"),
                 source_id=str(item.id),
                 source_type="verified_evidence",
+                source_created_at=str(getattr(item, "created_at", "") or "") or None,
                 project_id=str(project_id) if project_id else None,
                 goal_id=str(goal_id) if goal_id else None,
                 plan_id=plan_id,
