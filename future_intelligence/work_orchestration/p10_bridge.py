@@ -16,6 +16,7 @@ from evidence import (
     EvidenceStore,
     VerificationState,
 )
+from .durable_store import DurableWorkStore
 from .models import (
     EvidenceContract,
     EvidenceRequirement,
@@ -28,7 +29,6 @@ from .models import (
     WorkPlan,
     WorkPlanStatus,
 )
-from .store import WorkStore
 
 
 def _iso(value: Any) -> str:
@@ -82,7 +82,7 @@ class P10WorkBridge:
     def __init__(self, connection: sqlite3.Connection, *, lock: RLock | None = None) -> None:
         self.connection = connection
         self.lock = lock or RLock()
-        self.work = WorkStore(connection=connection)
+        self.work = DurableWorkStore(connection=connection)
         self.evidence = EvidenceStore(connection=connection)
 
     def project_goal(self, p10_goal: dict[str, Any]) -> GoalSpec:
@@ -372,6 +372,7 @@ class P10WorkBridge:
                         self.connection.execute("SELECT COUNT(*) FROM claims").fetchone()[0]
                     ),
                     "mode": self.mode,
+                    "durability_schema": 3,
                 }
             )
             return base
