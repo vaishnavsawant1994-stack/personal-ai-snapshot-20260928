@@ -1,11 +1,23 @@
 /* Sequential loader for Home/Chat plus canonical Projects Work surfaces. */
 (()=>{
+  const loadGlobalAwareness=()=>{
+    if(document.querySelector('script[data-global-work-awareness]'))return;
+    const global=document.createElement('script');
+    global.src='/iphone/global-work-awareness.js';
+    global.async=false;
+    global.dataset.globalWorkAwareness='true';
+    global.onerror=()=>console.warn('Global canonical Work awareness could not be loaded.');
+    document.body.append(global);
+  };
   const loadVisualizations=()=>{
-    if(document.querySelector('script[data-canonical-project-visualizations]'))return;
-    const visual=document.createElement('script');
+    let visual=document.querySelector('script[data-canonical-project-visualizations]');
+    if(window.__vishnuCanonicalProjectVisualizations){loadGlobalAwareness();return}
+    if(visual){visual.addEventListener('load',loadGlobalAwareness,{once:true});return}
+    visual=document.createElement('script');
     visual.src='/iphone/projects-work-visualization-runtime.js';
     visual.async=false;
     visual.dataset.canonicalProjectVisualizations='true';
+    visual.onload=loadGlobalAwareness;
     visual.onerror=()=>console.warn('Canonical Projects visualizations could not be loaded.');
     document.body.append(visual);
   };
