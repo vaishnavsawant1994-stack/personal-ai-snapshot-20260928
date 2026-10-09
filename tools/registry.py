@@ -20,6 +20,7 @@ class Tool:
     allowed_destinations:tuple[str,...]|None=None; verification_required:bool=False; requires_reauth:bool=False
     connector_id:str|None=None; capability:str|None=None; minimum_risk:Risk|None=None; prohibited_data_classifications:tuple[str,...]=(); prohibited:bool=False
     prepare:Callable[[dict[str,Any]],dict[str,Any]]|None=None; on_reject:Callable[[dict[str,Any]],Any]|None=None; requires_trusted_context:bool=False
+    input_validator:Callable[[dict[str,Any]],Any]|None=None; output_validator:Callable[[Any],Any]|None=None
 class ToolRegistry:
     def __init__(self,settings):
         self.settings=settings; self.permissions=PermissionEngine(settings.autonomy_mode); self._tools={}; self.emergency_stop=False; self._control_path=None; self._approval_path=None; self.policy_gateway=None; self.recovery_authority=None; self._data_root=None
@@ -69,6 +70,22 @@ class ToolRegistry:
         if self.policy_gateway is None:return {'policies':[],'recent_use':[],'safe_default':'deny','schema_version':None}
         return self.policy_gateway.owner_snapshot(owner_id)
     def recovery_snapshot(self,transaction_id):return self.ensure_recovery_authority().owner_view(transaction_id)
+    @staticmethod
+    def validate_input(tool, parameters):
+        if not isinstance(parameters, dict):
+            raise ValueError('tool parameters must be an object')
+        if tool.input_validator is not None:
+            verdict = tool.input_validator(parameters)
+            if verdict is False:
+                raise ValueError('tool input contract rejected parameters')
+        return parameters
+    @staticmethod
+    def validate_output(tool, result):
+        if tool.output_validator is not None:
+            verdict = tool.output_validator(result)
+            if verdict is False:
+                raise ValueError('tool output contract rejected result')
+        return result
     def register(self,tool:Tool):
         if tool.name in self._tools:raise ValueError(f'Duplicate tool {tool.name}')
         if tool.minimum_risk is not None and int(tool.risk)<int(tool.minimum_risk):tool.risk=Risk(int(tool.minimum_risk))
@@ -186,10 +203,11 @@ class ToolRegistry:
     def authorize(self,tool,confirmed=False,*,parameters=None,data_classification='internal'):
         if self.emergency_stop:return PermissionDecision(False,False,'owner emergency stop is active')
         if tool.prohibited:return PermissionDecision(False,False,'this connector operation is prohibited by policy')
-        parameters=self._prepare_trusted(tool,parameters);classification=str(data_classification or 'internal').strip().lower()
+        parameters=self._prepare_trusted(tool,parameters);self.validate_input(tool,parameters or {});classification=str(data_classification or 'internal').strip().lower()
         if classification in set(tool.prohibited_data_classifications):return PermissionDecision(False,False,'this data classification is prohibited for the connector operation')
         self.validate_destination(tool,parameters);risk=self.effective_risk(tool,parameters=parameters,data_classification=classification);operation=self.permission_operation(tool,parameters);return self.permissions.decide(int(risk),confirmed=confirmed,operation=operation)
     def verify_result(self,tool,parameters,result):
+        self.validate_output(tool,result)
         if tool.verifier is not None:
             verdict=tool.verifier(parameters,result)
             if isinstance(verdict,VerificationResult):verification=verdict
