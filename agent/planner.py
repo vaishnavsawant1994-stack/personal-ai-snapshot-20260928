@@ -154,6 +154,8 @@ If no tool is required, return an empty steps list.
         budget = self._validate_budget(plan.get("execution_budget"))
         if budget and "max_steps" in budget and len(steps) > budget["max_steps"]:
             raise InvalidPlan("plan exceeds its declared execution budget")
+        if budget and "max_tool_calls" in budget and len(steps) > budget["max_tool_calls"]:
+            raise InvalidPlan("plan exceeds its declared tool-call budget")
 
         version = plan.get("version")
         if version is not None:
@@ -197,7 +199,7 @@ If no tool is required, return an empty steps list.
             if dependencies is not None:
                 if not isinstance(dependencies, list) or len(dependencies) > self.MAX_DEPENDENCIES:
                     raise InvalidPlan(f"plan step {position} depends_on must be a short list")
-                if len(set(dependencies)) != len(dependencies) or any(not isinstance(dep, str) for dep in dependencies):
+                if any(not isinstance(dep, str) for dep in dependencies) or len(set(dependencies)) != len(dependencies):
                     raise InvalidPlan(f"plan step {position} has invalid dependencies")
                 # Sequential execution is currently authoritative. Requiring earlier
                 # ids guarantees an acyclic dependency graph without pretending the
