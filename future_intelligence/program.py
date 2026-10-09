@@ -16,6 +16,7 @@ from future_intelligence.work_orchestration.hierarchical_runtime import install 
 from future_intelligence.work_orchestration.versioned_replanning import install as install_versioned_replanning
 from future_intelligence.work_orchestration.completion_runtime import install as install_completion_judge
 from future_intelligence.work_orchestration.project_mode_runtime import install as install_project_autonomy_modes
+from future_intelligence.work_orchestration.completion_propagation import install as install_completion_propagation, bind_notifications as bind_canonical_completion_notifications
 from future_intelligence.work_orchestration.notification_bridge import WorkNotificationBridge
 from core.p10_approval_continuation import install as install_p10_turn_continuation
 
@@ -60,9 +61,10 @@ class FutureIntelligenceProgram:
         self.autonomy=AdvancedAutonomy(gate=self.gate,operations=self.operations,events=runtime.get('events'),path=root/'autonomy.sqlite3',executor=governed_executor,automations=runtime.get('automations'),models=runtime.get('models'),memory=runtime.get('second_brain') or runtime.get('memory'),knowledge=runtime.get('knowledge'),world=self.world,continuity=self.continuity_sync,emergency_stop_provider=canonical_stop)
         self.autonomy.project_store=runtime.get('project_store') or runtime.get('projects')
         runtime['advanced_autonomy']=self.autonomy
+        install_completion_propagation(self.autonomy)
         self.work_notifications=None
         if runtime.get('events') is not None and runtime.get('notifications') is not None:
-            self.work_notifications=WorkNotificationBridge(runtime['events'],runtime['notifications']); runtime['work_notifications']=self.work_notifications
+            self.work_notifications=WorkNotificationBridge(runtime['events'],runtime['notifications']); bind_canonical_completion_notifications(self.work_notifications,self.autonomy); runtime['work_notifications']=self.work_notifications
         if turn_executor is not None: install_p10_turn_continuation(type(turn_executor))
 
     def status(self):
