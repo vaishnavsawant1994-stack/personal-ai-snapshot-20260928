@@ -201,6 +201,18 @@ def install(cls) -> None:
                     "replacement tasks cannot reuse immutable execution task ids: " + ", ".join(reused)
                 )
 
+            # A start signal is emitted only after policy/shape validation succeeds
+            # and immediately before the durable graph mutation. It grants no authority.
+            self._event(
+                "replan_started_versioned",
+                goal_id=plan["goal_id"],
+                plan_id=plan_id,
+                replan_count=int(plan.get("replan_count", 0)) + 1,
+                reason=reason[:300],
+                trigger=trigger,
+                authority="planning_only",
+            )
+
             completed_by_id = {str(task["id"]): task for task in completed}
             new_tasks = [completed_by_id.get(str(task["id"]), task) for task in clean]
             new_by_id = {str(task["id"]): task for task in new_tasks}

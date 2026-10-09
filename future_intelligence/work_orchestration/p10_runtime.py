@@ -83,6 +83,8 @@ def install(cls) -> None:
                     plan_id=plan.get("id"),
                     task_id=task_id,
                     work_order_id=assessment["work_order_id"],
+                    evidence_id=assessment.get("evidence_id"),
+                    claim_id=assessment.get("claim_id"),
                     claim_state=assessment["claim_state"],
                     evidence_gate_passed=assessment["passed"],
                     projection_mode=assessment["mode"],
