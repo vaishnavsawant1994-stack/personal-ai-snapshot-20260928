@@ -132,7 +132,7 @@ def test_authority_and_grant_credentials_are_never_persisted_raw(tmp_path):
     assert b"K" * 32 not in persisted
 
 
-def test_same_host_can_renew_expired_lease_but_different_host_cannot_seize_it(tmp_path):
+def test_same_host_lazily_renews_expired_lease_but_transfer_still_fences_it(tmp_path):
     store = ContinuityStore(tmp_path / "agent-continuity.sqlite3")
     source = HostContinuationAuthority(
         store,
@@ -140,16 +140,25 @@ def test_same_host_can_renew_expired_lease_but_different_host_cannot_seize_it(tm
         root_key_store=FixedKeyStore(b"S" * 32),
         ttl_seconds=30,
     )
-    source.bootstrap_or_resume()
+    lease = source.bootstrap_or_resume()
     with store._con() as connection:
         connection.execute(
             "UPDATE continuation_authority SET expires_at=? WHERE slot=1",
             ((datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat(),),
         )
 
-    renewed = source.bootstrap_or_resume()
+    renewed = source.assert_active()
     assert renewed.host_id == "source-host"
+    assert renewed.epoch == lease.epoch
     assert datetime.fromisoformat(renewed.expires_at) > datetime.now(timezone.utc)
+
+    checkpoint = _checkpoint("source-host", renewed.epoch)
+    store.record_checkpoint(checkpoint)
+    grant = _grant(checkpoint)
+    store.prepare_transfer_grant(grant)
+    source.fence_for_transfer(grant.id)
+    with pytest.raises(ContinuityAuthorityError, match="fenced"):
+        source.assert_active()
 
     other = HostContinuationAuthority(
         store,
