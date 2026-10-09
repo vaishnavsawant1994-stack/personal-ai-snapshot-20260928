@@ -16,4 +16,19 @@ jobs:
       - run: pip install -r requirements.txt
       - run: pip check
       - run: python -m compileall -q app agent automation browser capabilities core dashboard desktop devices future_intelligence integrations knowledge memory models proactive qualification security server tools ui updates vision voice
+      - name: Canonical Work consistency gate
+        run: pytest -q tests/test_work_consistency_gate.py
+      - name: Canonical Work scale and performance gate
+        run: pytest -q tests/test_work_performance_qualification.py
+      - name: Canonical Work final qualification gate
+        run: >-
+          pytest -q
+          tests/test_work_*.py
+          tests/test_domain_claim_gate.py
+          tests/test_evidence_*.py
+          tests/test_authoritative_completion_judge.py
+          tests/test_completion_runtime_integration.py
+          tests/test_project_autonomy_*.py
+      - name: Canonical Work release qualification gate
+        run: pytest -q tests/test_work_release_qualification.py tests/test_work_final_qualification.py
       - run: pytest -q

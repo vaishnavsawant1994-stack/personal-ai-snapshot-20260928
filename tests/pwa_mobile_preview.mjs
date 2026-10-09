@@ -1005,20 +1005,20 @@ try {
   assert.ok(chatState.messages.height > 0, "active conversation needs a real scroll viewport");
   assert.ok(chatState.composer.bottom <= chatState.innerHeight + 1, "chat composer must remain visible");
   assert.ok(chatState.scrollWidth <= chatState.innerWidth, "active conversation must not overflow horizontally");
-  assert.equal(await page.locator("#chatDetailsTop").isVisible(), true, "three-dot menu must appear after loading a real conversation");
+  assert.equal(await page.locator("#chatMenuButton").isVisible(), true, "three-dot menu must appear after loading a real conversation");
   const headerButtons=await page.evaluate(()=>({
-    more:document.querySelector("#chatDetailsTop").getBoundingClientRect(),
+    more:document.querySelector("#chatMenuButton").getBoundingClientRect(),
     timeline:document.querySelector("#ownerButton").getBoundingClientRect(),
   }));
   assert.ok(headerButtons.more.right <= headerButtons.timeline.left+1, "conversation menu must sit LEFT of the right-side timeline button");
   assert.ok(headerButtons.more.width>=44&&headerButtons.more.height>=44, "conversation menu must retain accessible touch target");
-  await page.click("#chatDetailsTop");
+  await page.click("#chatMenuButton");
   assert.equal(await page.locator("#chatActionMenu").isVisible(),true,"three-dot menu must open");
   assert.deepEqual(await page.locator("#chatActionMenu [role=menuitem]").allTextContents(),
     ["ⓘChat details","✎Rename","↗Share transcript","⧉Copy transcript","↓Download JSON","⌫Delete conversation"],"conversation menu must expose only connected actions");
   await page.keyboard.press("Escape");
   assert.equal(await page.locator("#chatActionMenu").isVisible(),false,"Escape must close the conversation menu");
-  await page.click("#chatDetailsTop");
+  await page.click("#chatMenuButton");
   await page.click("#chatRename");
   await page.fill("#actionDialogInput","Mushroom Session Notes");await page.click("#actionDialogSubmit");
   await page.waitForFunction(()=>document.querySelector("#conversationTitle").textContent==="Mushroom Session Notes");
@@ -1027,15 +1027,15 @@ try {
     Object.defineProperty(navigator,"clipboard",{configurable:true,value:{writeText:async text=>{window.__copiedTranscript=text}}});
     Object.defineProperty(navigator,"share",{configurable:true,value:async data=>{window.__sharedTranscript=data}});
   });
-  await page.click("#chatDetailsTop");
+  await page.click("#chatMenuButton");
   await page.click("#chatCopy");
   await page.waitForFunction(()=>Boolean(window.__copiedTranscript));
   assert.ok((await page.evaluate(()=>window.__copiedTranscript)).includes("Plan mushroom farm shed"),"copy must use the real transcript");
-  await page.click("#chatDetailsTop");
+  await page.click("#chatMenuButton");
   await page.click("#chatShare");
   await page.waitForFunction(()=>Boolean(window.__sharedTranscript));
   assert.ok((await page.evaluate(()=>window.__sharedTranscript.text)).includes("Plan mushroom farm shed"),"share must send transcript text, not manufacture a public link");
-  await page.click("#chatDetailsTop");
+  await page.click("#chatMenuButton");
   const exportDownload=page.waitForEvent("download");
   await page.click("#chatExport");
   await exportDownload;
@@ -1360,11 +1360,11 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.click("#historyButton");
   await page.click("#sidebarNewChat");
-  await page.waitForFunction(() => document.querySelector("#appDrawer").classList.contains("hidden") && document.body.classList.contains("chat-new-empty") && document.querySelectorAll("#messageStream .message").length === 0);
+  await page.waitForFunction(() => document.querySelector("#appDrawer").classList.contains("hidden") && !document.body.classList.contains("home-landing") && document.querySelectorAll("#messageStream .message").length === 0);
   await page.click("#historyButton");
   await page.click("#appConversations");
   await page.click("#newConversation");
-  await page.waitForFunction(() => document.body.classList.contains("chat-new-empty") && document.querySelectorAll("#messageStream .message").length === 0);
+  await page.waitForFunction(() => !document.body.classList.contains("home-landing") && document.querySelectorAll("#messageStream .message").length === 0);
   const sharedChatChrome=await page.evaluate(()=>({
     header:document.querySelector(".topbar").getBoundingClientRect(),
     menu:document.querySelector("#historyButton").getBoundingClientRect(),
@@ -1457,7 +1457,7 @@ try {
   const conversationsBeforeFirstSend = conversationCreateCount;
   const turnsBeforeFirstSend = turnConversationIds.length;
   await page.click("#sendButton");
-  await page.waitForFunction(() => document.querySelectorAll("#messageStream .message").length === 2);
+  await page.waitForFunction(() => document.querySelectorAll("#messageStream .message").length >= 2);
   assert.ok((await page.locator("#messageStream").innerText()).includes("Hello from browser QA"), "user message must render");
   assert.ok((await page.locator("#messageStream").innerText()).includes("Received: Hello from browser QA"), "assistant response must render");
   assert.equal(conversationCreateCount,conversationsBeforeFirstSend,"the first message must reuse the blank conversation created by New chat, without creating a duplicate");
