@@ -3,7 +3,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import datetime, timezone
 
-WORK_SCHEMA_VERSION = 1
+WORK_SCHEMA_VERSION = 2
 
 
 def _now() -> str:
@@ -118,5 +118,30 @@ def migrate_work_schema(connection: sqlite3.Connection) -> int:
             connection.execute(
                 "INSERT INTO work_schema_migrations(version, name, applied_at) VALUES (?, ?, ?)",
                 (1, "initial_work_orchestration_foundation", _now()),
+            )
+            applied.add(1)
+
+        if 2 not in applied:
+            # These indexes cover the dominant read-only product paths: latest
+            # projection by source plan, Project history, active Project order
+            # summaries, reviewer lookup and versioned replan history. They are
+            # additive and leave every existing P10/Work authority unchanged.
+            connection.executescript(
+                """
+                CREATE INDEX IF NOT EXISTS idx_work_plans_source_version
+                    ON work_plans(source_p10_plan_id, version DESC, created_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_work_plans_project_created
+                    ON work_plans(project_id, created_at, version, id);
+                CREATE INDEX IF NOT EXISTS idx_work_orders_project_status_updated
+                    ON work_orders(project_id, status, updated_at, id);
+                CREATE INDEX IF NOT EXISTS idx_plan_reviews_plan_created
+                    ON plan_reviews(plan_id, created_at DESC, id);
+                CREATE INDEX IF NOT EXISTS idx_plan_deltas_goal_created
+                    ON plan_deltas(goal_id, created_at, id);
+                """
+            )
+            connection.execute(
+                "INSERT INTO work_schema_migrations(version, name, applied_at) VALUES (?, ?, ?)",
+                (2, "indexed_work_projection_read_paths", _now()),
             )
     return WORK_SCHEMA_VERSION
