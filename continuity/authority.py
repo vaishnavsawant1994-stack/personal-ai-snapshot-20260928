@@ -7,6 +7,7 @@ import os
 import platform
 import uuid
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from security.keychain import RootKeyStore
 
@@ -93,11 +94,30 @@ class HostContinuationAuthority:
         current = self.store.current_authority()
         if current is None:
             raise ContinuityAuthorityError("continuation authority is not initialized")
-        epoch = int(current["epoch"])
         if str(current["host_id"]) != self.host_id:
             raise ContinuityAuthorityError("continuation authority belongs to another host")
+        if str(current["status"]) != "active":
+            raise ContinuityAuthorityError("this host is fenced from continuation authority")
+        epoch = int(current["epoch"])
         token = self.token_for_epoch(epoch)
-        lease = self.store.assert_active(host_id=self.host_id, epoch=epoch, token=token)
+
+        # Idle time must not permanently strand a healthy same-host runtime. If
+        # the lease elapsed without an explicit transfer/fence, re-prove the same
+        # host+epoch credential and renew lazily. A fenced source or a target-owned
+        # authority fails before this branch and can never self-resume.
+        expires_at = datetime.fromisoformat(str(current["expires_at"])).astimezone(timezone.utc)
+        if expires_at <= datetime.now(timezone.utc):
+            lease = self.store.bootstrap(
+                host_id=self.host_id,
+                token=token,
+                ttl_seconds=self.ttl_seconds,
+            )
+        else:
+            lease = self.store.assert_active(
+                host_id=self.host_id,
+                epoch=epoch,
+                token=token,
+            )
         self._epoch = lease.epoch
         return lease
 
