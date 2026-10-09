@@ -128,7 +128,11 @@ def test_v2_migrations_install_hot_read_indexes(tmp_path):
         )
     ]
     assert work_versions == [1, 2]
-    assert evidence_versions == [1, 2]
+    # This gate qualifies the v2 hot-read indexes. Later additive Evidence
+    # migrations must not invalidate that guarantee merely because the schema
+    # has advanced beyond version 2.
+    assert evidence_versions[:2] == [1, 2]
+    assert evidence_versions == sorted(evidence_versions)
 
     assert query_plan_uses_index(
         work.connection,
