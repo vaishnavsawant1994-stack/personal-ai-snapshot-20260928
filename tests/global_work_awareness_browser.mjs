@@ -9,21 +9,19 @@ const root=new URL('../',import.meta.url);
 const runtime=await readFile(new URL('pwa/global-work-awareness.js',root),'utf8');
 const requests=[];
 
-const projects={projects:[
-  {id:'p1',name:'Launch Project',status:'active',updated_at:'2026-10-09T09:00:00Z'},
-  {id:'p2',name:'Research Project',status:'active',updated_at:'2026-10-09T08:00:00Z'},
-]};
-const snapshots={
-  p1:{state:'planned',p10_plan:{id:'plan-1',state:'RUNNING',tasks:[
-    {id:'research',title:'Research launch evidence',status:'RUNNING',worker_type:'research',dependencies:[]},
-    {id:'verify',title:'Verify launch claims',status:'VERIFYING',worker_type:'reviewer',dependencies:['research']},
-    {id:'publish',title:'Publish approved launch',status:'WAITING_APPROVAL',worker_type:'communications',dependencies:['verify']},
-  ]},live_work:{state:'RUNNING',updated_at:'2026-10-09T09:10:00Z'}},
-  p2:{state:'planned',p10_plan:{id:'plan-2',state:'READY',tasks:[
-    {id:'collect',title:'Collect sources',status:'COMPLETED',worker_type:'research',dependencies:[]},
-    {id:'synthesize',title:'Synthesize findings',status:'WAITING',worker_type:'data',dependencies:['collect']},
-    {id:'recover',title:'Recover failed browser step',status:'RECOVERY_REQUIRED',worker_type:'browser',dependencies:[]},
-  ]},live_work:{state:'READY',updated_at:'2026-10-09T09:11:00Z'}},
+const summary={
+  authority:'read_only_projection',execution_authority:'existing_p10_p6_runtime',updated_at:'2026-10-09T09:12:00Z',projects_total:2,projects_with_work:2,active_projects:2,
+  counts:{active:2,verifying:1,recovering:1,waiting_approval:1,blocked:1,ready:1,completed:1,work_orders:6},
+  living:{state:'approval',detail:'1 WorkOrder waiting for your approval.'},
+  projects:[{project_id:'p1',project_name:'Launch Project',state:'RUNNING'},{project_id:'p2',project_name:'Research Project',state:'READY'}],
+  work_orders:[
+    {project_id:'p1',project_name:'Launch Project',plan_id:'plan-1',task_id:'publish',title:'Publish approved launch',worker_type:'communications',status:'WAITING_APPROVAL',ready:false},
+    {project_id:'p2',project_name:'Research Project',plan_id:'plan-2',task_id:'recover',title:'Recover failed browser step',worker_type:'browser',status:'RECOVERY_REQUIRED',ready:false},
+    {project_id:'p1',project_name:'Launch Project',plan_id:'plan-1',task_id:'verify',title:'Verify launch claims',worker_type:'reviewer',status:'VERIFYING',ready:false},
+    {project_id:'p1',project_name:'Launch Project',plan_id:'plan-1',task_id:'research',title:'Research launch evidence',worker_type:'research',status:'RUNNING',ready:false},
+    {project_id:'p2',project_name:'Research Project',plan_id:'plan-2',task_id:'synthesize',title:'Synthesize findings',worker_type:'data',status:'WAITING',ready:true},
+    {project_id:'p2',project_name:'Research Project',plan_id:'plan-2',task_id:'collect',title:'Collect sources',worker_type:'research',status:'COMPLETED',ready:false},
+  ],
 };
 
 const html=`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#03060b;color:#eef5ff;font:14px system-ui}.home-wrap,.today-wrap{max-width:1000px;margin:auto;padding:16px}.today-section{margin:12px 0}.hidden{display:none!important}#homeProjectsSection{min-height:20px}.today-section-head{display:flex;justify-content:space-between}</style></head><body>
@@ -35,9 +33,7 @@ const html=`<!doctype html><html><head><meta charset="utf-8"><meta name="viewpor
 const server=createServer((req,res)=>{
   requests.push({url:req.url,method:req.method});
   if(req.url==='/global-work-awareness.js'){res.writeHead(200,{'content-type':'application/javascript','cache-control':'no-store'});return res.end(runtime)}
-  if(req.url==='/iphone/api/projects?status=all'){res.writeHead(200,{'content-type':'application/json'});return res.end(JSON.stringify(projects))}
-  const match=req.url?.match(/^\/iphone\/api\/projects\/(p[12])\/work$/);
-  if(match){res.writeHead(200,{'content-type':'application/json'});return res.end(JSON.stringify(snapshots[match[1]]))}
+  if(req.url==='/iphone/api/work/summary'){res.writeHead(200,{'content-type':'application/json'});return res.end(JSON.stringify(summary))}
   res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'});res.end(html);
 });
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
@@ -48,11 +44,11 @@ try{
     const page=await browser.newPage({viewport,deviceScaleFactor:viewport.isMobile?2:1,isMobile:viewport.isMobile,hasTouch:viewport.isMobile});
     const errors=[];page.on('pageerror',error=>errors.push(error.message));
     await page.goto(`http://127.0.0.1:${address.port}/`,{waitUntil:'networkidle'});
-    await page.waitForFunction(()=>window.__vishnuGlobalWorkAwareness?.snapshot?.workOrders?.length===6);
+    await page.waitForFunction(()=>window.__vishnuGlobalWorkAwareness?.snapshot?.work_orders?.length===6);
 
     assert.equal(await page.locator('#globalWorkPulse').count(),1);
     const homeText=await page.locator('#globalWorkPulse').innerText();
-    assert.match(homeText,/Needs Attention/i);
+    assert.match(homeText,/Needs Approval/i);
     assert.match(homeText,/2 active/i);
     assert.match(homeText,/1 approval/i);
     assert.match(homeText,/1 blocked/i);
@@ -62,12 +58,12 @@ try{
     assert.equal(await page.locator('#globalWorkTodaySection').count(),1);
     const todayText=await page.locator('#globalWorkTodaySection').innerText();
     assert.match(todayText,/Vishnu work/i);
-    assert.match(todayText,/Research launch evidence/i);
+    assert.match(todayText,/Publish approved launch/i);
     assert.match(todayText,/Recover failed browser step/i);
     assert.match(todayText,/Synthesize findings/i);
 
-    assert.equal(await page.locator('#stateLabel').innerText(),'Needs Attention');
-    assert.match(await page.locator('#status').innerText(),/blocked or require recovery/i);
+    assert.equal(await page.locator('#stateLabel').innerText(),'Needs Approval');
+    assert.match(await page.locator('#status').innerText(),/waiting for your approval/i);
 
     await page.locator('[data-gwa-order]').first().click();
     assert.deepEqual(await page.evaluate(()=>window.__opened.at(-1)),{id:'p1',tab:'live'});
@@ -94,4 +90,5 @@ try{
   await new Promise(resolve=>server.close(resolve));
 }
 assert.equal(requests.some(request=>request.method!=='GET'),false,`global Work awareness made a mutation request: ${JSON.stringify(requests)}`);
+assert.ok(requests.filter(request=>request.url==='/iphone/api/work/summary').length>=2,'each viewport should read the owner-scoped global Work summary');
 console.log('Global canonical Work awareness browser qualification passed.');
