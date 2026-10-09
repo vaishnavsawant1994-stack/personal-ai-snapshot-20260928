@@ -1,12 +1,24 @@
 /* Sequential loader for Home/Chat plus canonical Projects Work surfaces. */
 (()=>{
+  const loadAttentionCenter=()=>{
+    if(window.__vishnuWorkAttentionCenter||document.querySelector('script[data-work-attention-center]'))return;
+    const attention=document.createElement('script');
+    attention.src='/iphone/work-attention-center.js';
+    attention.async=false;
+    attention.dataset.workAttentionCenter='true';
+    attention.onerror=()=>console.warn('Work Attention Center could not be loaded.');
+    document.body.append(attention);
+  };
   const loadGlobalAwareness=()=>{
     const loadGlobal=()=>{
-      if(document.querySelector('script[data-global-work-awareness]'))return;
-      const global=document.createElement('script');
+      let global=document.querySelector('script[data-global-work-awareness]');
+      if(window.__vishnuGlobalWorkAwareness){loadAttentionCenter();return}
+      if(global){global.addEventListener('load',loadAttentionCenter,{once:true});return}
+      global=document.createElement('script');
       global.src='/iphone/global-work-awareness.js';
       global.async=false;
       global.dataset.globalWorkAwareness='true';
+      global.onload=loadAttentionCenter;
       global.onerror=()=>console.warn('Global canonical Work awareness could not be loaded.');
       document.body.append(global);
     };
