@@ -73,7 +73,9 @@ def test_body_manifest_change_is_rejected_before_inner_verifier_runs(tmp_path):
     (tmp_path / "config" / "vishnu-body.yaml").write_text(json.dumps(changed), encoding="utf-8")
     inner = _Inner()
     guarded = GuardedVerificationProvider(
-        repository_provider=_Repository(("agent/executor.py",)),
+        # Use an ordinary, non-protected implementation path so this test
+        # specifically reaches the independent Body-manifest integrity gate.
+        repository_provider=_Repository(("agent/planner.py",)),
         inner=inner,
     )
     report = guarded.verify(session, revision="working")
