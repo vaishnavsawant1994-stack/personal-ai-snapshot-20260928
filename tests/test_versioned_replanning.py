@@ -4,8 +4,10 @@ import pytest
 
 from future_intelligence.autonomy import AdvancedAutonomy
 from future_intelligence.autonomy_runtime import install as install_p10_runtime
+from future_intelligence.work_orchestration.models import ResourceScope, WorkOrder, WorkPlan
 from future_intelligence.work_orchestration.p10_runtime import install as install_work_runtime
 from future_intelligence.work_orchestration.hierarchical_runtime import install as install_hierarchical_runtime
+from future_intelligence.work_orchestration.replanning import diff_work_plans
 from future_intelligence.work_orchestration.versioned_replanning import install as install_versioned_replanning
 
 
@@ -152,6 +154,42 @@ def test_completed_plan_is_not_reopened_by_replan(tmp_path):
 
     with pytest.raises(RuntimeError, match="terminal plan cannot be replanned"):
         autonomy.replan(plan["id"], [])
+
+
+def test_plan_delta_redacts_secret_like_structured_metadata():
+    plan = WorkPlan(
+        id="plan-v1",
+        goal_id="goal-1",
+        version=1,
+        summary="safe delta",
+        work_orders=(
+            WorkOrder(
+                id="plan-v1:task-1",
+                plan_id="plan-v1",
+                title="Task",
+                objective="Do safe work",
+                worker_type="tool",
+                resource_scope=ResourceScope(
+                    metadata={
+                        "p10_task_id": "task-1",
+                        "api_key": "must-not-be-copied",
+                        "parameters": {"token": "must-not-be-copied", "query": "safe"},
+                    }
+                ),
+            ),
+        ),
+    )
+    delta = diff_work_plans(
+        None,
+        plan,
+        source_p10_plan_id="source-plan",
+        reason="test",
+        trigger="test",
+    ).to_dict()
+    metadata = delta["items"][0]["after"]["resource_scope"]["metadata"]
+    assert "api_key" not in metadata
+    assert "token" not in metadata["parameters"]
+    assert metadata["parameters"]["query"] == "safe"
 
 
 def test_status_exposes_versioned_replanning_as_planning_only(tmp_path):
