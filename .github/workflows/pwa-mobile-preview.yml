@@ -15,6 +15,7 @@ on:
       - 'tests/global_work_awareness_browser.mjs'
       - 'tests/project_autonomy_ui_browser.mjs'
       - 'tests/workorder_detail_browser.mjs'
+      - 'tests/work_attention_center_browser.mjs'
       - 'personal-ai/pwa/**'
       - '.github/workflows/pwa-mobile-preview.yml'
   pull_request:
@@ -28,6 +29,7 @@ on:
       - 'tests/global_work_awareness_browser.mjs'
       - 'tests/project_autonomy_ui_browser.mjs'
       - 'tests/workorder_detail_browser.mjs'
+      - 'tests/work_attention_center_browser.mjs'
       - 'personal-ai/pwa/**'
       - '.github/workflows/pwa-mobile-preview.yml'
 
@@ -67,6 +69,7 @@ jobs:
           node tests/global_work_awareness_browser.mjs
           node tests/project_autonomy_ui_browser.mjs
           node tests/workorder_detail_browser.mjs
+          node tests/work_attention_center_browser.mjs
           node tests/pwa_mobile_preview.mjs
           node tests/standalone_pwa_responsive.mjs
       - uses: actions/upload-artifact@v4
