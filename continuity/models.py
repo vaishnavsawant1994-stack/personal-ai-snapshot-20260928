@@ -83,6 +83,7 @@ class ContinuityCheckpoint:
     backup_filename: str
     backup_sha256: str
     backup_size: int
+    payload_sha256: str
     data_manifest_hash: str
     active_body_revision_id: str | None
     active_body_git_revision: str | None
@@ -99,6 +100,7 @@ class ContinuityCheckpoint:
             "backup_filename": self.backup_filename,
             "backup_sha256": self.backup_sha256,
             "backup_size": self.backup_size,
+            "payload_sha256": self.payload_sha256,
             "data_manifest_hash": self.data_manifest_hash,
             "active_body_revision_id": self.active_body_revision_id,
             "active_body_git_revision": self.active_body_git_revision,
@@ -116,6 +118,7 @@ class ContinuityCheckpoint:
             "backup_filename": self.backup_filename,
             "backup_sha256": self.backup_sha256,
             "backup_size": self.backup_size,
+            "payload_sha256": self.payload_sha256,
             "data_manifest_hash": self.data_manifest_hash,
             "active_body_revision_id": self.active_body_revision_id,
             "active_body_git_revision": self.active_body_git_revision,
@@ -134,6 +137,7 @@ class ContinuityCheckpoint:
             backup_filename=str(data["backup_filename"]),
             backup_sha256=str(data["backup_sha256"]),
             backup_size=int(data["backup_size"]),
+            payload_sha256=str(data["payload_sha256"]),
             data_manifest_hash=str(data["data_manifest_hash"]),
             active_body_revision_id=data.get("active_body_revision_id"),
             active_body_git_revision=data.get("active_body_git_revision"),
