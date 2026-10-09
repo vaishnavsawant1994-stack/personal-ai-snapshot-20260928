@@ -82,7 +82,7 @@ def test_global_awareness_loads_after_canonical_project_surfaces_and_is_precache
     assert "loadGlobalAwareness" in loader
     assert "visual.onload=loadGlobalAwareness" in loader
 
-    assert "personal-ai-iphone-v34" in sw
+    assert "personal-ai-iphone-v35" in sw
     assert "'/iphone/global-work-awareness.js'" in sw
     assert "url.pathname.startsWith('/iphone/api/')" in sw
 
