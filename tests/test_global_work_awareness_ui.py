@@ -11,6 +11,8 @@ ROOT = Path(__file__).resolve().parents[1]
 RUNTIME = ROOT / "pwa" / "global-work-awareness.js"
 LOADER = ROOT / "pwa" / "home-chat-redesign.js"
 SERVICE_WORKER = ROOT / "pwa" / "sw.js"
+GLOBAL_API = ROOT / "server" / "global_work_api.py"
+CLOUD_APP = ROOT / "server" / "cloud_app.py"
 
 
 def _read(path: Path) -> str:
@@ -23,8 +25,8 @@ def test_global_work_awareness_is_read_only_and_canonical():
     for marker in (
         "authority:'presentation_only'",
         "source:'canonical_project_work'",
-        "/projects?status=all",
-        "/work')",
+        "/work/summary",
+        "read_only_projection",
         "WAITING_APPROVAL",
         "RECOVERY_REQUIRED",
         "UNCERTAIN",
@@ -51,10 +53,22 @@ def test_global_awareness_updates_home_today_and_idle_living_state_only():
     assert "stateLabel" in source
     assert "status" in source
     assert "['idle','active','background'].includes(stateName)" in source
-    assert "foreground" not in source.lower() or "foreground" in source.lower()
     assert "@media(max-width:760px)" in source
-    assert "MAX_PROJECTS=24" in source
     assert "REFRESH_MS=30000" in source
+
+
+def test_global_summary_api_is_owner_scoped_read_only_projection():
+    source = _read(GLOBAL_API)
+    cloud = _read(CLOUD_APP)
+
+    assert 'APIRouter(prefix="/iphone/api/work"' in source
+    assert '@router.get("/summary")' in source
+    assert '"authority": "read_only_projection"' in source
+    assert '"execution_authority": "existing_p10_p6_runtime"' in source
+    assert "registry.authenticate(device_id, token)" in source
+    assert "execute_task" not in source
+    assert "@router.post" not in source
+    assert "global_work_router(runtime,project_store)" in cloud
 
 
 def test_global_awareness_loads_after_canonical_project_surfaces_and_is_precached():
