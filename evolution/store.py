@@ -146,6 +146,7 @@ class EvolutionStore:
         actor_id: str,
         reason: str,
         payload: dict[str, Any] | None = None,
+        decision_id: str | None = None,
     ) -> str:
         if self.get_candidate(candidate_id) is None:
             raise KeyError(candidate_id)
@@ -153,7 +154,21 @@ class EvolutionStore:
         explanation = str(reason or "").strip()
         if not actor or not explanation:
             raise ValueError("actor_id and reason are required")
-        decision_id = f"evd-{uuid4().hex}"
+        resolved_id = str(decision_id or f"evd-{uuid4().hex}").strip()
+        if not resolved_id:
+            raise ValueError("decision_id is required")
+        existing = self.connection.execute(
+            "SELECT candidate_id, decision, actor_id FROM evolution_decisions WHERE id = ?",
+            (resolved_id,),
+        ).fetchone()
+        if existing is not None:
+            if (
+                str(existing["candidate_id"]) != str(candidate_id)
+                or str(existing["decision"]) != decision.value
+                or str(existing["actor_id"]) != actor
+            ):
+                raise ValueError("decision_id is already bound to different authority or content")
+            return resolved_id
         with self.connection:
             self.connection.execute(
                 """
@@ -161,9 +176,9 @@ class EvolutionStore:
                     id, candidate_id, decision, actor_id, reason, payload_json, created_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (decision_id, candidate_id, decision.value, actor, explanation, _json(dict(payload or {})), _now()),
+                (resolved_id, candidate_id, decision.value, actor, explanation, _json(dict(payload or {})), _now()),
             )
-        return decision_id
+        return resolved_id
 
     def decisions_for(self, candidate_id: str) -> list[dict[str, Any]]:
         rows = self.connection.execute(
