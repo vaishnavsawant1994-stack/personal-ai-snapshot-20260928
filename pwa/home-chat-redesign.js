@@ -339,3 +339,15 @@
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
 })();
+
+// Projects Work adapter is intentionally loaded after projects-workspace-views.js so
+// it overrides only Work Plan and Live Work while preserving every other Project view.
+(()=>{
+  if(document.querySelector('script[data-canonical-project-work]'))return;
+  const script=document.createElement('script');
+  script.src='/iphone/projects-work-runtime.js';
+  script.async=false;
+  script.dataset.canonicalProjectWork='true';
+  script.onerror=()=>console.warn('Canonical Projects Work UI could not be loaded.');
+  document.body.append(script);
+})();
