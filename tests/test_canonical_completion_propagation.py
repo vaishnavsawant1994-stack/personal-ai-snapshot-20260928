@@ -56,6 +56,21 @@ def test_raw_p10_completed_does_not_unlock_dependency_without_completion_judge()
     assert live["completion_authority"] == "deterministic_completion_judge"
 
 
+def test_completed_string_without_explicit_judge_pass_fails_closed():
+    work = _work(build_status="completed", passed=False, plan_status="completed")
+    work["work_orders"][0].pop("completion", None)
+    work["completion"] = {"state": "completed"}
+
+    rows = canonical_task_rows(_p10(), work)
+    by_task = {row["task_id"]: row for row in rows}
+    assert by_task["build"]["execution_status"] == "COMPLETED"
+    assert by_task["build"]["status"] == "VERIFYING"
+
+    live = canonical_live_projection(_p10(), work)
+    assert live["state"] == "VERIFYING"
+    assert live["ready_task_ids"] == []
+
+
 def test_dependency_becomes_ready_only_after_canonical_completion_passes():
     work = _work(build_status="completed", passed=True, plan_status="reviewing")
     live = canonical_live_projection(_p10(), work)
