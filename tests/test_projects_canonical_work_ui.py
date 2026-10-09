@@ -29,7 +29,7 @@ def test_canonical_projects_work_adapter_is_loaded_after_existing_views():
     assert "authority:'presentation_only'" in runtime
 
     assert "/iphone/projects-work-runtime.js" in home
-    assert "data-canonical-project-work" not in home  # dataset maps to data-canonical-project-work at runtime
+    assert "script[data-canonical-project-work]" in home
     assert "dataset.canonicalProjectWork" in home
     assert "script.async=false" in home
 
