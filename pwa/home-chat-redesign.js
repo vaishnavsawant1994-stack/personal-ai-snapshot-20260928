@@ -15,6 +15,13 @@
       }`;
       document.head.append(style);
     }
+    // Normal Home and the dedicated New Chat empty state are different screens.
+    // Once an existing conversation returns Home, release Chat Experience so
+    // the canonical four Home cards and Home composer rules are restored.
+    const normalHome=document.body.classList.contains('home-landing')&&!document.body.classList.contains('chat-new-empty');
+    if(normalHome&&document.body.classList.contains('chat-experience')){
+      document.body.classList.remove('chat-experience','chat-empty-state','chat-response-clean','chat-details-open','chat-shell-collapsed');
+    }
     const composer=document.getElementById('composer'),dock=document.getElementById('vChatDock'),details=document.getElementById('chatDetailsTop');
     if(!composer)return;
     const mobile=matchMedia('(max-width:760px)').matches;
