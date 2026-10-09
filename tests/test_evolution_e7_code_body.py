@@ -205,6 +205,18 @@ def test_e7_full_lifecycle_stops_at_separate_adoption_then_exact_activation(tmp_
     assert identity.active_body_revision()["revision_id"] == reviewed.body_revision_id
     assert evolution.get_candidate(candidate.id).status is CandidateStatus.ADOPTED
     assert code.latest(candidate.id).status is CodeBodyRunStatus.ADOPTED
+
+    replayed = code.handoffs.approve(
+        candidate.id,
+        owner_id="owner",
+        reason="replayed implementation approval",
+        base_body_revision="base-1",
+    )
+    assert replayed.id == handoff.id
+    assert evolution.get_candidate(candidate.id).status is CandidateStatus.ADOPTED
+    with pytest.raises(ValueError, match="retroactively rejected"):
+        code.handoffs.reject(candidate.id, owner_id="owner", reason="late rejection")
+    assert evolution.get_candidate(candidate.id).status is CandidateStatus.ADOPTED
     evidence.close(); work.close(); identity.close()
 
 
@@ -254,6 +266,7 @@ def test_local_git_provider_uses_isolated_worktree_and_no_remote_mutation_surfac
     committed = provider.commit_all(session, message="test isolated change")
     assert committed.revision != base
     assert committed.dirty is False
+    assert provider.changed_paths(base_revision=base, working_revision=committed.revision) == ("value.txt",)
     assert (repo / "value.txt").read_text(encoding="utf-8") == "base"
     resumed = provider.resume(
         repository=session.repository,
