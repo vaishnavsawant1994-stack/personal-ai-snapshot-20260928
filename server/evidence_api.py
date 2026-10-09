@@ -1,7 +1,15 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from pydantic import BaseModel, Field
+from evidence.sources.feedback import feedback_record
 from security.request_context import current_trusted_request
+
+
+class FeedbackBody(BaseModel):
+    text: str = Field(min_length=1, max_length=4000)
+    project_id: str | None = Field(default=None, max_length=200)
+    work_order_id: str | None = Field(default=None, max_length=200)
 
 
 def evidence_router(runtime):
@@ -55,6 +63,33 @@ def evidence_router(runtime):
             "count": min(len(result), limit),
             "evidence": result[-limit:],
         }
+
+    def _ingest_feedback(body: FeedbackBody, *, correction: bool):
+        item = ingestor.ingest(
+            feedback_record(
+                body.text,
+                correction=correction,
+                project_id=body.project_id,
+                work_order_id=body.work_order_id,
+            ),
+            actor="owner",
+        )
+        runtime["events"].emit(
+            "conversation.correction" if correction else "conversation.feedback",
+            evidence_id=item.id,
+            message=body.text,
+            project_id=body.project_id,
+            work_order_id=body.work_order_id,
+        )
+        return {"evidence": item.to_dict(), "lifecycle": ingestor.lifecycle(item.id)}
+
+    @router.post("/feedback")
+    def feedback(body: FeedbackBody):
+        return _ingest_feedback(body, correction=False)
+
+    @router.post("/correction")
+    def correction(body: FeedbackBody):
+        return _ingest_feedback(body, correction=True)
 
     @router.get("/{evidence_id}")
     def evidence_detail(evidence_id: str):
