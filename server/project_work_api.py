@@ -22,9 +22,8 @@ class ProjectWorkCancelBody(BaseModel):
 class ProjectWorkService:
     """Owner-scoped Projects projection over the qualified P10/Work runtime.
 
-    The service owns no execution, approval, permission, verification, recovery, or
-    scheduling authority. It only binds a Project to the existing autonomy runtime
-    and shapes canonical WorkPlan/Live Work data for the Projects product surface.
+    This service owns no execution, approval, permission, verification, recovery, or
+    scheduling authority. It binds Projects to the existing qualified runtime only.
     """
 
     def __init__(self, runtime: dict, store) -> None:
@@ -69,10 +68,13 @@ class ProjectWorkService:
     def _allowed_capabilities(autonomy) -> list[str]:
         registry = getattr(autonomy, "_worker_registry", None)
         if registry is None or not hasattr(registry, "all"):
-            return ["research", "coding", "browser", "files", "data", "communications", "knowledge", "project", "review"]
-        result = []
-        for profile in registry.all():
-            result.append(str(profile.id))
+            return ["research", "coding", "browser", "files", "data", "communications", "knowledge", "project", "reviewer", "review"]
+        profiles = tuple(registry.all())
+        # Preserve every trusted worker role before filling the remaining P10 parent
+        # capability slots with finer-grained profile capabilities. The generic
+        # `tool` wrapper is intentionally not a parent capability by itself.
+        result = [str(profile.id) for profile in profiles if str(profile.id) != "tool"]
+        for profile in profiles:
             result.extend(str(item) for item in getattr(profile, "supported_capabilities", ()) if str(item).strip())
         return list(dict.fromkeys(result))[:50]
 
@@ -91,7 +93,6 @@ class ProjectWorkService:
                         return existing
                 except KeyError:
                     pass
-
         goal = autonomy.create_goal(
             desired,
             owner_id="owner",
@@ -104,8 +105,8 @@ class ProjectWorkService:
             allowed_capabilities=self._allowed_capabilities(autonomy),
             success_criteria=self._success_criteria(project),
         )
-        # create_goal projects immediately; this second projection binds it to the
-        # owner Project without modifying the authoritative P10 goal document.
+        # Bind the observe-only Work projection to the Project. The authoritative
+        # P10 goal remains unchanged.
         bridge.project_goal({**goal, "project_id": project["id"]})
         return goal
 
@@ -122,21 +123,14 @@ class ProjectWorkService:
         )
         if result.get("created"):
             self.store.update(project["id"], {"status": "active"})
-        return {
-            "project_id": project["id"],
-            "goal_id": goal["id"],
-            **result,
-        }
+        return {"project_id": project["id"], "goal_id": goal["id"], **result}
 
     def _plan_record(self, project_id: str, p10_plan_id: str | None = None) -> dict | None:
         autonomy = self._autonomy()
         records = autonomy._work_bridge.work.project_plan_records(project_id)
         if p10_plan_id is None:
             return records[-1] if records else None
-        for record in records:
-            if str(record.get("source_p10_plan_id") or "") == str(p10_plan_id):
-                return record
-        return None
+        return next((record for record in records if str(record.get("source_p10_plan_id") or "") == str(p10_plan_id)), None)
 
     def assert_project_plan(self, project_id: str, p10_plan_id: str) -> dict:
         self._project(project_id)
@@ -192,7 +186,6 @@ class ProjectWorkService:
                 "live_work": {"state": "NOT_PLANNED", "task_counts": {}, "ready_task_ids": [], "active_task_ids": [], "waiting_approval_task_ids": [], "blocked_task_ids": [], "replan_count": 0, "updated_at": None},
                 "evidence": {"total": 0, "by_task": {}},
             }
-
         p10_plan_id = str(record["source_p10_plan_id"])
         try:
             p10_plan = autonomy.plan(p10_plan_id, owner_id="owner")
@@ -206,7 +199,6 @@ class ProjectWorkService:
                 "live_work": {"state": "UNKNOWN", "task_counts": {}, "ready_task_ids": [], "active_task_ids": [], "waiting_approval_task_ids": [], "blocked_task_ids": [], "replan_count": 0, "updated_at": None},
                 "evidence": {"total": 0, "by_task": {}},
             }
-
         by_task: dict[str, list[dict]] = {}
         total = 0
         for task in p10_plan.get("tasks", []):
@@ -217,10 +209,11 @@ class ProjectWorkService:
                 items = []
             by_task[task_id] = items
             total += len(items)
+        goal = bridge.work.get_goal(work_plan["goal_id"])
         return {
             **base,
             "state": "planned",
-            "goal": bridge.work.get_goal(work_plan["goal_id"]).to_dict() if bridge.work.get_goal(work_plan["goal_id"]) else None,
+            "goal": goal.to_dict() if goal else None,
             "p10_plan": p10_plan,
             "work_plan": work_plan,
             "live_work": self._live_projection(p10_plan),
@@ -246,18 +239,11 @@ class ProjectWorkService:
 
     def task_evidence(self, project_id: str, p10_plan_id: str, task_id: str) -> dict:
         self.assert_project_plan(project_id, p10_plan_id)
-        autonomy = self._autonomy()
-        return {
-            "project_id": project_id,
-            "plan_id": p10_plan_id,
-            "task_id": task_id,
-            "evidence": autonomy.work_evidence(p10_plan_id, task_id, owner_id="owner"),
-        }
+        return {"project_id": project_id, "plan_id": p10_plan_id, "task_id": task_id, "evidence": self._autonomy().work_evidence(p10_plan_id, task_id, owner_id="owner")}
 
     def execute_task(self, project_id: str, p10_plan_id: str, task_id: str, *, device_id: str, session_id: str, reauthenticated_at: float | None) -> dict:
         self.assert_project_plan(project_id, p10_plan_id)
-        autonomy = self._autonomy()
-        autonomy.execute_task(
+        self._autonomy().execute_task(
             p10_plan_id,
             task_id,
             owner_id="owner",
