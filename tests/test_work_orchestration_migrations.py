@@ -22,8 +22,8 @@ def test_work_migration_is_additive_idempotent_and_preserves_legacy_p10():
     legacy_goals = conn.execute("SELECT * FROM p10_goals").fetchall()
     legacy_plans = conn.execute("SELECT * FROM p10_plans").fetchall()
 
-    assert migrate_work_schema(conn) == 1
-    assert migrate_work_schema(conn) == 1
+    assert migrate_work_schema(conn) == 2
+    assert migrate_work_schema(conn) == 2
 
     tables = {
         row[0]
@@ -42,4 +42,12 @@ def test_work_migration_is_additive_idempotent_and_preserves_legacy_p10():
     assert _schema(conn, "p10_plans") == legacy_plan_schema
     assert conn.execute("SELECT * FROM p10_goals").fetchall() == legacy_goals
     assert conn.execute("SELECT * FROM p10_plans").fetchall() == legacy_plans
-    assert conn.execute("SELECT COUNT(*) FROM work_schema_migrations").fetchone()[0] == 1
+    assert conn.execute("SELECT COUNT(*) FROM work_schema_migrations").fetchone()[0] == 2
+
+    indexes = {
+        row[0]
+        for row in conn.execute("SELECT name FROM sqlite_master WHERE type='index'").fetchall()
+    }
+    assert "idx_work_plans_source_version" in indexes
+    assert "idx_work_plans_project_created" in indexes
+    assert "idx_work_orders_project_status_updated" in indexes
