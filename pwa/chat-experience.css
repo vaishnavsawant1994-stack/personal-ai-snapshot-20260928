@@ -124,7 +124,7 @@ body.chat-experience .chat-details-open .chat-detail-desktop{display:block}
  body.chat-experience.home-landing .chat-prompt-copy strong{font-size:16px;line-height:1.2}
  body.chat-experience.home-landing .chat-prompt-copy small{font-size:13px;margin-top:6px}
  body.chat-experience.home-landing #vChatDock{width:100%;margin-top:auto;margin-bottom:5px;flex:0 0 auto}
- body.chat-experience.home-landing #composer{position:fixed!important;z-index:30;left:max(14px,env(safe-area-inset-left));right:max(14px,env(safe-area-inset-right));bottom:calc(env(safe-area-inset-bottom) + 12px);width:auto!important;margin:0!important}
+ body.chat-experience.home-landing #composer{position:fixed!important;z-index:30;left:max(14px,env(safe-area-inset-left));right:max(14px,env(safe-area-inset-right));bottom:calc(env(safe-area-inset-bottom) + 24px);width:auto!important;margin:0!important}
  body.chat-experience.chat-empty-state #vChatDock{justify-content:center!important;bottom:calc(var(--shared-composer-bottom,24px) + var(--shared-composer-h,54px) + 10px)!important}
  body.chat-experience.chat-empty-state #vContextChip{display:inline-flex!important}
  body.chat-experience.chat-empty-state #vNewChat{display:none!important}
