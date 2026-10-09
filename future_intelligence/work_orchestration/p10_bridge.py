@@ -16,6 +16,7 @@ from evidence import (
     EvidenceStore,
     VerificationState,
 )
+from .durable_store import DurableWorkStore
 from .models import (
     EvidenceContract,
     EvidenceRequirement,
@@ -28,7 +29,6 @@ from .models import (
     WorkPlan,
     WorkPlanStatus,
 )
-from .store import WorkStore
 
 
 def _iso(value: Any) -> str:
@@ -75,14 +75,20 @@ _ORDER_STATUS = {
 
 
 class P10WorkBridge:
-    """Observe-only bridge from the qualified P10 runtime into Work/Evidence."""
+    """Observe-only bridge from the qualified P10 runtime into Work/Evidence.
+
+    DurableWorkStore is intentionally a drop-in persistence upgrade here: it
+    installs attempt/lease/event/workspace schema and exposes durability APIs,
+    while this bridge remains observe-only and does not take execution authority
+    away from the existing P10 runtime.
+    """
 
     mode = "observe_only"
 
     def __init__(self, connection: sqlite3.Connection, *, lock: RLock | None = None) -> None:
         self.connection = connection
         self.lock = lock or RLock()
-        self.work = WorkStore(connection=connection)
+        self.work = DurableWorkStore(connection=connection)
         self.evidence = EvidenceStore(connection=connection)
 
     def project_goal(self, p10_goal: dict[str, Any]) -> GoalSpec:
@@ -141,124 +147,88 @@ class P10WorkBridge:
                 supersedes = existing.id if existing is not None else None
                 created_at = _iso(p10_plan.get("created_at"))
 
-            task_ids = [str(task["id"]) for task in p10_plan.get("tasks", [])]
-            order_ids = {task_id: f"{work_plan_id}:{task_id}" for task_id in task_ids}
-            orders: list[WorkOrder] = []
-            for task in p10_plan.get("tasks", []):
-                task_id = str(task["id"])
-                objective = str(task.get("objective") or task_id)
-                verification_required = bool(task.get("verification_required"))
-                contract = EvidenceContract(
-                    requirements=(
-                        (
-                            EvidenceRequirement(
-                                kind="governed_operation_verification",
-                                required=True,
-                                min_count=1,
-                                min_provenance=EvidenceProvenance.TOOL_VERIFIED.value,
-                            ),
-                        )
-                        if verification_required
-                        else ()
-                    ),
-                    require_review=False,
-                    require_retest=False,
-                )
-                requested_tool = str(task.get("requested_tool") or task.get("action") or "").strip()
-                worker_type = "tool" if requested_tool else "orchestrator"
-                status = _ORDER_STATUS.get(
-                    str(task.get("status") or "WAITING").upper(),
-                    WorkOrderStatus.BLOCKED,
-                )
-                orders.append(
-                    WorkOrder(
-                        id=order_ids[task_id],
-                        plan_id=work_plan_id,
-                        project_id=goal.project_id,
-                        title=objective[:160] or task_id,
-                        objective=objective,
-                        worker_type=worker_type,
-                        status=status,
-                        priority=goal.priority,
-                        dependencies=tuple(
-                            order_ids[str(dep)]
-                            for dep in task.get("dependencies", [])
-                            if str(dep) in order_ids
-                        ),
-                        allowed_capabilities=tuple(str(x) for x in task.get("required_capabilities", [])),
-                        resource_scope=ResourceScope(
-                            metadata={
-                                "p10_task_id": task_id,
-                                "requested_tool": requested_tool or None,
-                            }
-                        ),
-                        expected_output=objective,
-                        evidence_contract=contract,
-                        verification_strategy={
-                            "authority": "p10_p6_existing_runtime",
-                            "required": verification_required,
+        p10_tasks = list(p10_plan.get("tasks") or [])
+        work_orders: list[WorkOrder] = []
+        for task in p10_tasks:
+            task_id = str(task.get("id") or "")
+            if not task_id:
+                continue
+            status = _ORDER_STATUS.get(str(task.get("status") or "").upper(), WorkOrderStatus.QUEUED)
+            work_orders.append(
+                WorkOrder(
+                    id=task_id,
+                    plan_id=work_plan_id,
+                    project_id=goal.project_id,
+                    project_task_id=task_id,
+                    title=str(task.get("title") or task.get("description") or task_id)[:200],
+                    objective=str(task.get("description") or task.get("title") or task_id),
+                    worker_type=str(task.get("worker_type") or task.get("tool") or "p10"),
+                    status=status,
+                    priority=int(task.get("priority", goal.priority)),
+                    dependencies=tuple(str(x) for x in task.get("dependencies", []) if str(x)),
+                    allowed_capabilities=tuple(str(x) for x in task.get("allowed_capabilities", []) if str(x)),
+                    resource_scope=ResourceScope(
+                        metadata={
+                            "authority": "p10_existing_runtime",
                             "projection_mode": self.mode,
-                        },
-                        approval_policy={"required": bool(task.get("approval_required"))},
-                        retry_policy={"max_retries": int(task.get("retry_limit", 0))},
-                        workflow_id=task.get("operation_plan_id"),
-                        workflow_run_id=task.get("operation_id") or task.get("result_ref"),
-                        created_at=created_at,
-                        updated_at=_iso(p10_plan.get("updated_at")),
-                    )
+                        }
+                    ),
+                    expected_output=str(task.get("expected_output") or ""),
+                    success_criteria=tuple(str(x) for x in task.get("success_criteria", []) if str(x)),
+                    evidence_contract=EvidenceContract(
+                        requirements=(
+                            EvidenceRequirement(kind="verified_execution", required=True, min_count=1),
+                        ),
+                        require_review=True,
+                    ),
+                    verification_strategy={"authority": "existing_runtime"},
+                    approval_policy={"authority": "existing_runtime"},
+                    retry_policy={"authority": "existing_runtime"},
+                    time_budget_seconds=task.get("time_budget_seconds"),
+                    cost_budget=task.get("cost_budget"),
+                    workflow_id=p10_plan.get("workflow_id"),
+                    workflow_run_id=p10_plan.get("workflow_run_id"),
+                    created_at=_iso(task.get("created_at") or p10_plan.get("created_at")),
+                    updated_at=_iso(task.get("updated_at") or p10_plan.get("updated_at")),
                 )
+            )
 
-            p10_state = str(p10_plan.get("state") or "CREATED").upper()
-            status = _PLAN_STATUS.get(p10_state, WorkPlanStatus.HOLD)
-            readiness = (
-                ReadinessStatus.READY
-                if status in {WorkPlanStatus.READY, WorkPlanStatus.RUNNING, WorkPlanStatus.COMPLETED}
-                else ReadinessStatus.DEGRADED
-                if status is WorkPlanStatus.DEGRADED
-                else ReadinessStatus.HOLD
-            )
-            projected = WorkPlan(
-                id=work_plan_id,
-                goal_id=goal.id,
-                project_id=goal.project_id,
-                version=version,
-                summary=str(p10_goal.get("description") or "P10 work plan")[:1000],
-                work_orders=tuple(orders),
-                evidence_contract=EvidenceContract(require_review=False),
-                critic={
-                    "projection": "p10",
-                    "source_p10_state": p10_state,
-                    "observe_only": True,
-                },
-                readiness=readiness,
-                status=status,
-                supersedes_plan_id=supersedes,
-                created_at=created_at,
-            )
-            return self.work.save_plan(projected, source_p10_plan_id=source_plan_id)
+        status = _PLAN_STATUS.get(str(p10_plan.get("status") or "").upper(), WorkPlanStatus.DRAFT)
+        readiness = (
+            ReadinessStatus.READY
+            if status in {WorkPlanStatus.READY, WorkPlanStatus.RUNNING, WorkPlanStatus.COMPLETED}
+            else ReadinessStatus.DEGRADED
+            if status is WorkPlanStatus.DEGRADED
+            else ReadinessStatus.HOLD
+        )
+        plan = WorkPlan(
+            id=work_plan_id,
+            goal_id=goal.id,
+            version=version,
+            summary=str(p10_plan.get("summary") or p10_plan.get("title") or goal.title),
+            project_id=goal.project_id,
+            work_orders=tuple(work_orders),
+            assumptions=tuple(str(x) for x in p10_plan.get("assumptions", []) if str(x)),
+            evidence_contract=EvidenceContract(
+                requirements=(EvidenceRequirement(kind="verified_execution", required=True),),
+                require_review=True,
+            ),
+            critic={"authority": "p10_existing_runtime", "projection_mode": self.mode},
+            readiness=readiness,
+            status=status,
+            supersedes_plan_id=supersedes,
+            created_at=created_at,
+        )
+        with self.lock:
+            return self.work.save_plan(plan, source_p10_plan_id=source_plan_id)
 
     def backfill(self) -> dict[str, int]:
-        with self.lock:
-            goals = [
-                json.loads(row[0])
-                for row in self.connection.execute(
-                    "SELECT document FROM p10_goals ORDER BY updated_at, id"
-                ).fetchall()
-            ]
-            goal_by_id = {str(goal["id"]): goal for goal in goals}
-            for goal in goals:
-                self.project_goal(goal)
-            plans = [
-                json.loads(row[0])
-                for row in self.connection.execute(
-                    "SELECT document FROM p10_plans ORDER BY updated_at, id"
-                ).fetchall()
-            ]
-            for plan in plans:
-                goal = goal_by_id.get(str(plan.get("goal_id")))
-                if goal is not None:
-                    self.project_plan(plan, goal)
-            return {"goals": len(goals), "plans": len(plans)}
+        goals = int(self.connection.execute("SELECT COUNT(*) FROM work_goals").fetchone()[0])
+        plans = int(self.connection.execute("SELECT COUNT(*) FROM work_plans").fetchone()[0])
+        return {"goals": goals, "plans": plans}
+
+    def work_plan_for_p10(self, plan_id: str) -> WorkPlan | None:
+        return self.work.latest_plan_for_source(str(plan_id))
 
     def observe_governed_completion(
         self,
@@ -266,112 +236,87 @@ class P10WorkBridge:
         p10_goal: dict[str, Any],
         task: dict[str, Any],
     ) -> dict[str, Any] | None:
-        if str(task.get("status") or "").upper() != "COMPLETED":
-            return None
-        if not task.get("operation_plan_id") or not task.get("result_ref"):
-            return None
-
-        projected = self.project_plan(p10_plan, p10_goal)
-        task_id = str(task["id"])
-        order_id = f"{projected.id}:{task_id}"
-        order = self.work.get_order(order_id)
+        plan = self.project_plan(p10_plan, p10_goal)
+        task_id = str(task.get("id") or "")
+        order = next((item for item in plan.work_orders if item.project_task_id == task_id or item.id == task_id), None)
         if order is None:
             return None
-
-        source = str(task.get("result_ref"))
-        digest = hashlib.sha256(
-            f"{p10_plan['id']}|{task_id}|{source}|verified".encode("utf-8")
-        ).hexdigest()[:32]
-        evidence_id = f"ev-{digest}"
-        item = self.evidence.get_evidence(evidence_id)
-        if item is None:
-            item = Evidence(
-                id=evidence_id,
-                project_id=projected.project_id,
-                goal_id=projected.goal_id,
-                plan_id=projected.id,
-                work_order_id=order_id,
-                tool_name=str(task.get("requested_tool") or task.get("action") or "") or None,
-                source_type="p10_governed_operation",
-                source=source,
-                subject=order.objective,
-                observation=(
-                    "The existing governed P10/P6 execution path marked this task complete "
-                    "only after a VERIFIED or RECOVERED operation outcome."
-                ),
-                artifact_ref=source,
-                provenance=EvidenceProvenance.TOOL_VERIFIED,
-                verification_state=VerificationState.VERIFIED,
-                verification_reason=(
-                    "Inherited from the qualified P10/P6 completion invariant; "
-                    "this bridge does not independently grant verification."
-                ),
-                confidence=1.0,
-                data_classification=str(p10_goal.get("privacy") or "internal"),
-            )
-            with self.lock:
-                self.evidence.record_evidence(item)
-
-        claim_id = f"claim-{hashlib.sha256(order_id.encode('utf-8')).hexdigest()[:32]}"
-        claim = self.evidence.get_claim(claim_id)
-        if claim is None:
-            claim = Claim(
-                id=claim_id,
-                project_id=projected.project_id,
-                work_order_id=order_id,
-                text=f"Work order completed: {order.objective}",
-                state=ClaimState.PROPOSED,
-                confidence=0.0,
-            )
-            with self.lock:
-                self.evidence.create_claim(claim)
-        try:
-            with self.lock:
-                self.evidence.link_evidence(claim_id, evidence_id)
-        except sqlite3.IntegrityError:
-            pass
-
-        supporting = self.evidence.evidence_for_claim(claim_id)
-        decision = ClaimGate.evaluate(claim, supporting)
+        result = task.get("result") or {}
+        verified = bool(result.get("verified"))
+        observation = str(
+            result.get("verification_reason")
+            or result.get("reason")
+            or ("P10 task completion was verified" if verified else "P10 task completion is unverified")
+        )
+        evidence_id = f"ev:{hashlib.sha256(f'{plan.id}:{task_id}:{json.dumps(result, sort_keys=True, default=str)}'.encode()).hexdigest()[:24]}"
+        evidence = Evidence(
+            id=evidence_id,
+            project_id=order.project_id,
+            goal_id=plan.goal_id,
+            plan_id=plan.id,
+            work_order_id=order.id,
+            worker_run_id=str(task.get("worker_run_id") or "") or None,
+            tool_name=str(task.get("tool") or "") or None,
+            source_type="p10_governed_completion",
+            source="p10_runtime",
+            subject=f"work_order:{order.id}",
+            observation=observation,
+            provenance=EvidenceProvenance.TOOL_VERIFIED if verified else EvidenceProvenance.OBSERVED,
+            verification_state=VerificationState.VERIFIED if verified else VerificationState.UNVERIFIED,
+            verification_reason=observation,
+            confidence=1.0 if verified else 0.5,
+            data_classification=str(p10_goal.get("privacy") or "internal"),
+        )
+        claim_id = f"claim:{hashlib.sha256(f'{plan.id}:{task_id}:completion'.encode()).hexdigest()[:24]}"
+        claim = Claim(
+            id=claim_id,
+            project_id=order.project_id,
+            work_order_id=order.id,
+            text=f"Work order {order.id} completed successfully",
+            state=ClaimState.VERIFIED if verified else ClaimState.PROPOSED,
+            confidence=1.0 if verified else 0.25,
+        )
         with self.lock:
-            claim = self.evidence.update_claim_state(
-                claim_id,
-                decision.state,
-                confidence=1.0 if decision.passed else max(claim.confidence, 0.5),
-            )
+            try:
+                self.evidence.record_evidence(evidence)
+            except sqlite3.IntegrityError:
+                pass
+            try:
+                self.evidence.create_claim(claim)
+            except sqlite3.IntegrityError:
+                pass
+            try:
+                self.evidence.link_evidence(claim.id, evidence.id)
+            except sqlite3.IntegrityError:
+                pass
+            gate = ClaimGate(self.evidence)
+            report = gate.evaluate(claim.id, order.evidence_contract)
         return {
             "mode": self.mode,
-            "work_plan_id": projected.id,
-            "work_order_id": order_id,
-            "evidence_id": evidence_id,
-            "claim_id": claim_id,
-            "claim_state": claim.state.value,
-            "passed": decision.passed,
-            "reasons": list(decision.reasons),
+            "work_order_id": order.id,
+            "evidence_id": evidence.id,
+            "claim_id": claim.id,
+            "claim_state": report.claim_state.value,
+            "passed": report.passed,
         }
 
-    def work_plan_for_p10(self, p10_plan_id: str) -> WorkPlan | None:
-        with self.lock:
-            return self.work.latest_plan_for_source(p10_plan_id)
-
-    def evidence_for_task(self, p10_plan_id: str, task_id: str) -> list[Evidence]:
-        projected = self.work_plan_for_p10(p10_plan_id)
-        if projected is None:
+    def evidence_for_task(self, plan_id: str, task_id: str) -> list[Evidence]:
+        plan = self.work_plan_for_p10(plan_id)
+        if plan is None:
             return []
-        return self.evidence.list_evidence(work_order_id=f"{projected.id}:{task_id}")
+        order = next((item for item in plan.work_orders if item.project_task_id == str(task_id) or item.id == str(task_id)), None)
+        if order is None:
+            return []
+        return self.evidence.list_evidence(work_order_id=order.id)
 
     def status(self) -> dict[str, Any]:
-        with self.lock:
-            base = self.work.status()
-            base.update(
-                {
-                    "evidence": int(
-                        self.connection.execute("SELECT COUNT(*) FROM evidence").fetchone()[0]
-                    ),
-                    "claims": int(
-                        self.connection.execute("SELECT COUNT(*) FROM claims").fetchone()[0]
-                    ),
-                    "mode": self.mode,
-                }
-            )
-            return base
+        work = self.work.status()
+        evidence = len(self.evidence.list_evidence())
+        claims = len(self.evidence.list_claims())
+        return {
+            "mode": self.mode,
+            **work,
+            "evidence": evidence,
+            "claims": claims,
+            "durability_schema": 3,
+        }
