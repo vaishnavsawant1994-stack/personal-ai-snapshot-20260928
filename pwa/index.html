@@ -3024,6 +3024,7 @@ body.v-ref .message-actions button svg{width:19px;height:19px}
 <link rel="stylesheet" href="/iphone/reference-pages.css">
 <link rel="stylesheet" href="/iphone/memory-experiences.css">
 <link rel="stylesheet" href="/iphone/owner-controls.css">
+<link rel="stylesheet" href="/iphone/chat-experience.css">
 </head>
 <body>
 <main class="app-shell">
@@ -3329,7 +3330,7 @@ body.v-ref .message-actions button svg{width:19px;height:19px}
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 <script>
 const $=id=>document.getElementById(id),synth=window.speechSynthesis;
-let appStatus=null,accessOptions={},recognition=null,recognitionStarting=false,ownerAuthenticated=false,sessionActive=false,handsFree=false,speaking=false,turnInFlight=false,voicePrimed=false,currentUtterance=null,restartTimer=null,stateName='idle',pendingApproval=null,currentConversationId=null,currentConversationTitle='Current conversation',conversationEvents=[],conversationFilter='all',conversationCache=[],searchTimer=null,toastTimer=null,conversationSyncTimer=null,activeModule='home',lastFocusedElement=null,uiPreferences={continuous_voice:true,voice_rate:1,quiet_hours:true,pinned_sidebar_items:[]};
+let appStatus=null,accessOptions={},recognition=null,recognitionStarting=false,ownerAuthenticated=false,sessionActive=false,handsFree=false,speaking=false,turnInFlight=false,voicePrimed=false,currentUtterance=null,restartTimer=null,stateName='idle',pendingApproval=null,currentConversationId=null,currentConversationTitle='Current conversation',conversationEvents=[],conversationFilter='all',conversationCache=[],searchTimer=null,toastTimer=null,conversationSyncTimer=null,activeModule='home',lastFocusedElement=null,turnInputModality='text',uiPreferences={continuous_voice:true,voice_rate:1,quiet_hours:true,pinned_sidebar_items:[]};
 const stateCopy={idle:['Active','Tap the microphone once and speak naturally.'],active:['Active','Vishnu is ready.'],listening:['Listening','Speak naturally.'],understanding:['Understanding','I heard you.'],thinking:['Thinking','Reasoning with your permitted context.'],'memory-retrieval':['Memory Retrieval','Finding relevant personal context.'],'knowledge-retrieval':['Knowledge Retrieval','Checking approved knowledge sources.'],responding:['Responding','Speaking now — tap the microphone to interrupt.'],approval:['Needs Approval','Your approval is required before continuing.'],error:['Needs Attention','Something interrupted this turn.'],background:['Background','Continuing permitted work quietly.']};
 function setState(name,detail){stateName=name;const copy=stateCopy[name]||[name,''];$('stateLabel').textContent=copy[0];$('status').textContent=detail||copy[1];document.body.dataset.state=name;$('micButton').classList.toggle('active',handsFree&&!speaking);$('micButton').classList.toggle('speaking',speaking);$('micButton').setAttribute('aria-label',speaking?'Interrupt and listen':(handsFree?'Stop hands-free conversation':'Start hands-free conversation'))}
 function apiErrorMessage(detail,status){const raw=typeof detail==='string'?detail:(Array.isArray(detail)?detail.map(item=>typeof item==='string'?item:(item&&typeof item==='object'?[Array.isArray(item.loc)?item.loc.join('.'): '',item.msg||item.message||''].filter(Boolean).join(': '):'')).join('; '):'');if(status===422&&/valid dictionary or object to extract fields from/i.test(raw))return 'Vishnu couldn’t process this request. Please try again.';if(typeof detail==='string'&&detail.trim())return detail.trim();if(Array.isArray(detail)){const messages=detail.map(item=>{if(typeof item==='string')return item;if(!item||typeof item!=='object')return '';const location=Array.isArray(item.loc)?item.loc.filter(part=>typeof part==='string'||typeof part==='number').join('.'):'';const message=typeof item.msg==='string'?item.msg:typeof item.message==='string'?item.message:'';return [location,message].filter(Boolean).join(': ')}).filter(Boolean);if(messages.length)return messages.join('; ')}if(detail&&typeof detail==='object'){for(const key of ['message','error','detail','reason']){const value=detail[key];if(typeof value==='string'&&value.trim())return value.trim()}if(typeof detail.code==='string'&&detail.code.trim())return detail.code.trim()}return 'Request failed ('+status+')'}
@@ -4466,7 +4467,7 @@ $('conversationManagerSearch').addEventListener('focus',syncConversationViewport
 $('conversationManagerSearch').addEventListener('blur',()=>requestAnimationFrame(syncConversationViewport));
 function trapOverlayFocus(event){if(event.key!=='Tab')return;const panel=!$('conversationDrawer').classList.contains('hidden')?$('conversationDrawer'):(!$('appDrawer').classList.contains('hidden')?$('appDrawer'):null);if(!panel)return;const focusable=[...panel.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])')].filter(node=>node.offsetParent!==null);if(!focusable.length)return;const first=focusable[0],last=focusable[focusable.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}}
 async function openConversation(id){const bundle=await api('/conversations/'+encodeURIComponent(id)+'/activate',{method:'POST',body:'{}'});applyConversation(bundle);closeAllDrawers();enterConversationView();setState('idle','Conversation continued from where you stopped.')}
-async function createConversation(){if(turnInFlight)throw new Error('Wait for the current response to finish before starting a new chat.');const draft=$('message').value;if(draft.trim())throw new Error('Send or save your draft before starting a new chat.');const bundle=await api('/conversations',{method:'POST',body:JSON.stringify({title:'New conversation'})});if(!bundle||!bundle.conversation)throw new Error('Vishnu could not create a new conversation. Your previous conversations are unchanged.');applyConversation(bundle);renderConversationList([bundle.conversation,...conversationCache.filter(item=>item.id!==bundle.conversation.id)]);closeAllDrawers();enterConversationView();setState('idle','New conversation ready.');$('message').focus()}
+async function createConversation(){if(turnInFlight)throw new Error('Wait for the current response to finish before starting a new chat.');const draft=$('message').value;if(draft.trim())throw new Error('Send or save your draft before starting a new chat.');const bundle=await api('/conversations',{method:'POST',body:JSON.stringify({title:'New conversation'})});if(!bundle||!bundle.conversation)throw new Error('Vishnu could not create a new conversation. Your previous conversations are unchanged.');applyConversation(bundle);renderConversationList([bundle.conversation,...conversationCache.filter(item=>item.id!==bundle.conversation.id)]);closeAllDrawers();enterConversationView();setState('idle','New conversation ready.');window.dispatchEvent(new Event('vishnu:new-chat'));if(matchMedia('(min-width:761px)').matches)$('message').focus()}
 async function syncConversation(force=false){if(!currentConversationId||(!force&&(turnInFlight||speaking)))return false;try{const bundle=await api('/conversations/'+encodeURIComponent(currentConversationId));if(force||(bundle.events||[]).length!==conversationEvents.length||conversationEvents.some(event=>event.pending))applyConversation(bundle);return true}catch{return false}}
 function renderGoogleLogin(){const host=$('googleLogin');if(!accessOptions.google_available||!accessOptions.google_client_id){host.classList.add('hidden');return}host.classList.remove('hidden');if(!(window.google&&google.accounts&&google.accounts.id)){setTimeout(renderGoogleLogin,250);return}google.accounts.id.initialize({client_id:accessOptions.google_client_id,callback:handleGoogleCredential,auto_select:false,cancel_on_tap_outside:true});host.textContent='';google.accounts.id.renderButton(host,{type:'standard',theme:'filled_black',size:'large',shape:'pill',text:'continue_with',width:Math.min(360,Math.max(240,host.clientWidth||360))})}
 async function handleGoogleCredential(result){try{if(!result||!result.credential)throw new Error('Google did not return a sign-in credential.');await api('/access/google/login',{method:'POST',body:JSON.stringify({credential:result.credential,name:'Google owner browser'})});$('enrollStatus').textContent='';await check()}catch(error){accessError(error)}}
@@ -4487,7 +4488,7 @@ async function ensureSession(){if(sessionActive)return true;try{const result=awa
 function availableVoice(){if(!synth)return null;const voices=synth.getVoices(),language=(navigator.language||'en-US').toLowerCase();return voices.find(v=>v.lang.toLowerCase()===language&&v.localService)||voices.find(v=>v.lang.toLowerCase().startsWith(language.split('-')[0])&&v.localService)||voices.find(v=>v.lang.toLowerCase().startsWith(language.split('-')[0]))||voices[0]||null}
 function primeVoice(){if(!synth||voicePrimed)return Promise.resolve();voicePrimed=true;synth.cancel();synth.resume();return new Promise(resolve=>{let settled=false;const done=()=>{if(settled)return;settled=true;resolve()},primer=new SpeechSynthesisUtterance('Voice ready');primer.volume=.7;primer.rate=1.08;const voice=availableVoice();if(voice)primer.voice=voice;primer.lang=(voice&&voice.lang)||navigator.language||'en-US';primer.onend=done;primer.onerror=done;synth.speak(primer);synth.resume();setTimeout(done,1600)})}
 function stopRecognition(){recognitionStarting=false;if(restartTimer)clearTimeout(restartTimer);if(recognition)try{recognition.stop()}catch{}}
-function createRecognition(){const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;if(!Recognition)return null;const instance=new Recognition();instance.lang=navigator.language||'en-US';instance.interimResults=true;instance.continuous=false;instance.maxAlternatives=1;instance.onstart=()=>{recognitionStarting=false;setState('listening')};instance.onresult=event=>{let finalText='',interimText='';for(let i=event.resultIndex;i<event.results.length;i++){const text=event.results[i][0].transcript;if(event.results[i].isFinal)finalText+=text;else interimText+=text}$('transcript').textContent=finalText||interimText;if(finalText&&!turnInFlight)sendTurn(finalText)};instance.onerror=event=>{recognitionStarting=false;if(event.error==='aborted'||event.error==='no-speech')return;handsFree=false;const message=event.error==='not-allowed'?'Microphone permission is blocked. Allow microphone access in iPhone browser settings.':'Microphone error: '+event.error;$('voiceAlert').textContent=message;setState('error',message)};instance.onend=()=>{recognitionStarting=false;if(handsFree&&!speaking&&!turnInFlight)scheduleListening(350)};return instance}
+function createRecognition(){const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;if(!Recognition)return null;const instance=new Recognition();instance.lang=navigator.language||'en-US';instance.interimResults=true;instance.continuous=false;instance.maxAlternatives=1;instance.onstart=()=>{recognitionStarting=false;setState('listening')};instance.onresult=event=>{let finalText='',interimText='';for(let i=event.resultIndex;i<event.results.length;i++){const text=event.results[i][0].transcript;if(event.results[i].isFinal)finalText+=text;else interimText+=text}$('transcript').textContent=finalText||interimText;if(finalText&&!turnInFlight){turnInputModality='voice';sendTurn(finalText)}};instance.onerror=event=>{recognitionStarting=false;if(event.error==='aborted'||event.error==='no-speech')return;handsFree=false;const message=event.error==='not-allowed'?'Microphone permission is blocked. Allow microphone access in iPhone browser settings.':'Microphone error: '+event.error;$('voiceAlert').textContent=message;setState('error',message)};instance.onend=()=>{recognitionStarting=false;if(handsFree&&!speaking&&!turnInFlight)scheduleListening(350)};return instance}
 function scheduleListening(delay=250){if(!handsFree||speaking||turnInFlight)return;if(restartTimer)clearTimeout(restartTimer);restartTimer=setTimeout(startListening,delay)}
 function startListening(){if(!handsFree||speaking||turnInFlight||recognitionStarting)return;recognition=recognition||createRecognition();if(!recognition){handsFree=false;const message='Speech recognition is unavailable in this browser. Open this page in Safari or type your message.';$('voiceAlert').textContent=message;setState('error',message);return}try{recognitionStarting=true;recognition.start()}catch{recognitionStarting=false;scheduleListening(500)}}
 function makeUtterance(text,handlers){const utterance=new SpeechSynthesisUtterance(text),voice=availableVoice();if(voice)utterance.voice=voice;utterance.lang=(voice&&voice.lang)||navigator.language||'en-US';utterance.rate=Number(preference('voice_rate',1));utterance.pitch=1;utterance.volume=1;utterance.onstart=handlers.start;utterance.onend=handlers.end;utterance.onerror=handlers.error;return utterance}
@@ -4497,6 +4498,7 @@ function showApproval(approval){pendingApproval=approval;handsFree=false;$('appr
 function clearApproval(){$('approvalPanel').classList.add('hidden');pendingApproval=null}
 async function sendTurn(text){
  const clean=String(text||'').trim();if(!clean||turnInFlight)return;
+ const inputModality=turnInputModality;turnInputModality='text';
  enterConversationView();stopRecognition();turnInFlight=true;$('composer').classList.add('sending');$('sendButton').disabled=true;$('voiceAlert').replaceChildren();$('transcript').textContent=clean;$('reply').textContent='';setState('understanding');
  try{
   if(!currentConversationId){
@@ -4505,20 +4507,20 @@ async function sendTurn(text){
   }
   appendMessage('user_message',clean,{pending:true});setState('thinking');
   const requestId=globalThis.crypto.randomUUID();
-  const result=await api('/voice/turn',{method:'POST',body:JSON.stringify({request_id:requestId,transcript:clean,conversation_id:currentConversationId})});
+  const result=await api('/voice/turn',{method:'POST',headers:{'X-Personal-AI-Input-Modality':inputModality},body:JSON.stringify({request_id:requestId,transcript:clean,conversation_id:currentConversationId})});
   currentConversationId=result.conversation_id||currentConversationId;syncChatMenuAvailability();
   if(result.conversation_title){currentConversationTitle=result.conversation_title;$('conversationTitle').textContent=currentConversationTitle}
   $('reply').textContent=result.reply;turnInFlight=false;$('composer').classList.remove('sending');$('sendButton').disabled=false;
   const canonicalSynced=await syncConversation(true);
   if(result.status==='approval_required')showApproval(result.approval);
   else if(!canonicalSynced)appendMessage('assistant_message',result.reply,{pending:true});
-  speakReply(result.reply);refreshConversationList($('conversationSearch').value).catch(()=>{})
+  if(inputModality==='voice')speakReply(result.reply);refreshConversationList($('conversationSearch').value).catch(()=>{})
  }catch(error){
   turnInFlight=false;$('composer').classList.remove('sending');$('sendButton').disabled=false;
   if(currentConversationId)await syncConversation(true);
   if(error.message!=='turn_cancelled'){
    $('voiceAlert').replaceChildren(document.createTextNode(error.message+' '));
-   const retry=document.createElement('button');retry.type='button';retry.className='v-retry-turn';retry.textContent='Retry';retry.onclick=()=>{ $('voiceAlert').replaceChildren();sendTurn(clean) };
+   const retry=document.createElement('button');retry.type='button';retry.className='v-retry-turn';retry.textContent='Retry';retry.onclick=()=>{ $('voiceAlert').replaceChildren();turnInputModality=inputModality;sendTurn(clean) };
    $('voiceAlert').append(retry);if(!$('message').value.trim())$('message').value=clean;resizeComposerEditor();
    appendMessage('approval_rejected',error.message,{pending:true});setState('error',error.message)
   }
@@ -4550,6 +4552,7 @@ function resizeComposerEditor(){
 $('composer').onsubmit=event=>{
   event.preventDefault();primeVoice();
   const text=$('message').value.trim();if(!text||turnInFlight)return;
+  turnInputModality='text';
   $('message').value='';resizeComposerEditor();sendTurn(text);
 };
 $('message').addEventListener('focus',()=>{resizeComposerEditor();requestAnimationFrame(syncComposerViewport)});
@@ -4640,7 +4643,7 @@ $('chatMenuButton').onclick=()=>{
  if(opening){
    $('chatActionMenu').classList.remove('hidden');
    $('chatMenuButton').setAttribute('aria-expanded','true');
-   $('chatRename').focus();
+   $('chatDetailsMenuItem')?.focus()||$('chatRename').focus();
  }
 };
 $('chatRename').onclick=async()=>{
@@ -5010,6 +5013,14 @@ coreMotionPreference.addEventListener?.('change',event=>{if(!event.matches&&pref
 function drawCore(){if(!width||!height)return;tick++;ctx.clearRect(0,0,width,height);const palette=stateName==='listening'?[96,232,255]:stateName==='thinking'?[158,126,255]:stateName==='responding'?[105,184,255]:stateName==='error'?[255,113,141]:colorShiftPalette(tick),rgb=palette.join(','),points=particles.map(particlePosition),radius=Math.min(width,height)*.43,cx=width*.5,cy=height*.47,halo=ctx.createRadialGradient(cx-radius*.28,cy-radius*.35,radius*.06,cx,cy,radius*1.22);halo.addColorStop(0,'rgba('+rgb+',.16)');halo.addColorStop(.55,'rgba('+rgb+',.065)');halo.addColorStop(1,'rgba('+rgb+',0)');ctx.fillStyle=halo;ctx.beginPath();ctx.arc(cx,cy,radius*1.22,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.ellipse(cx,cy,radius*.99,radius*.99,0,0,Math.PI*2);ctx.strokeStyle='rgba('+rgb+',.18)';ctx.lineWidth=.65;ctx.stroke();edges.forEach(([i,j,distance])=>{const a=points[i],b=points[j],depth=(a.z+b.z)*.5,alpha=(.1+Math.max(0,depth)*.2)*(1-distance/.37);ctx.strokeStyle='rgba('+rgb+','+Math.max(.025,alpha)+')';ctx.lineWidth=.42+Math.max(0,depth)*.34;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke()});points.forEach((point,i)=>{const particle=particles[i],front=Math.max(0,point.z),back=Math.max(0,-point.z),size=particle.size*(.78+point.perspective*.3),alpha=.38+front*.52-back*.22;ctx.fillStyle='rgba('+rgb+','+Math.max(.16,alpha)+')';ctx.shadowBlur=particle.size>1.5?12+front*9:4+front*5;ctx.shadowColor='rgb('+rgb+')';ctx.beginPath();ctx.arc(point.x,point.y,size,0,Math.PI*2);ctx.fill()});ctx.shadowBlur=0;const core=ctx.createRadialGradient(cx,cy,0,cx,cy,radius*.26);core.addColorStop(0,'rgba(202,247,255,.52)');core.addColorStop(.14,'rgba('+rgb+',.23)');core.addColorStop(1,'rgba('+rgb+',0)');ctx.fillStyle=core;ctx.beginPath();ctx.arc(cx,cy,radius*.26,0,Math.PI*2);ctx.fill();if(!shouldReduceCoreMotion())requestAnimationFrame(drawCore)}
 function updateConversationSync(){if(conversationSyncTimer){clearInterval(conversationSyncTimer);conversationSyncTimer=null}if(document.visibilityState==='visible')conversationSyncTimer=setInterval(syncConversation,5000)}
 $('messageStream').addEventListener('scroll',()=>{const stream=$('messageStream');conversationPinnedToBottom=stream.scrollHeight-stream.clientHeight-stream.scrollTop<32},{passive:true});window.addEventListener('resize',resizeCanvas);if('ResizeObserver'in window)new ResizeObserver(resizeCanvas).observe(canvas.parentElement);document.addEventListener('visibilitychange',updateConversationSync);window.addEventListener('pagehide',()=>{if(conversationSyncTimer){clearInterval(conversationSyncTimer);conversationSyncTimer=null}});resizeCanvas();if(synth){synth.getVoices();synth.onvoiceschanged=()=>synth.getVoices()}if('serviceWorker'in navigator)navigator.serviceWorker.register('/iphone/sw.js').catch(()=>{});check().finally(()=>requestAnimationFrame(resizeCanvas));updateConversationSync();
+window.vishnuChatBridge={
+ get current(){return{id:currentConversationId,title:currentConversationTitle,events:conversationEvents.slice(),thread:(appStatus&&appStatus.conversation&&(appStatus.conversation.thread||appStatus.conversation.conversation))||conversationCache.find(row=>row.id===currentConversationId)||null}},
+ api,createConversation,openConversation,openTodayScreen,openTodayExistingCreate,openModule,showToast,requestConfirmation,
+ get currentConversationId(){return currentConversationId},get turnInFlight(){return turnInFlight},
+ refreshConversations:()=>refreshConversationList(''),refresh:()=>syncConversation(true),
+ setDraft(value){$('message').value=String(value||'');resizeComposerEditor();$('message').focus()},
+ getDraft(){return $('message').value}
+};
 </script>
 <script src="/iphone/projects-workspace.js"></script>
 <script src="/iphone/projects-workspace-views.js"></script>
@@ -5017,5 +5028,6 @@ $('messageStream').addEventListener('scroll',()=>{const stream=$('messageStream'
 <script src="/iphone/reference-pages.js"></script>
 <script src="/iphone/memory-experiences.js"></script>
 <script src="/iphone/owner-controls.js"></script>
+<script src="/iphone/chat-experience.js"></script>
 </body>
 </html>
