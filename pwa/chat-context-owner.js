@@ -11,10 +11,10 @@
   // The responsive Chat stylesheet introduced a second top-details button and hid the
   // canonical menu; override that presentation-only rule after all Chat CSS is loaded.
   // Empty Chat is its own state, not Home landing, so restore its intro container without
-  // reviving Home quick actions.
+  // reviving Home quick actions. Mobile/tablet Chat keeps the shared fixed bottom composer.
   const menuStyle=document.createElement('style');
   menuStyle.dataset.chatCanonicalMenu='true';
-  menuStyle.textContent='body.chat-experience .topbar-actions .chat-menu-button:not(.hidden){display:grid!important}body.chat-experience .chat-top-details{display:none!important}body.chat-experience.chat-new-empty .home-intro{display:flex!important}body.chat-experience.chat-new-empty .v-shortcuts{display:none!important}';
+  menuStyle.textContent='body.chat-experience .topbar-actions .chat-menu-button:not(.hidden){display:grid!important}body.chat-experience .chat-top-details{display:none!important}body.chat-experience.chat-new-empty .home-intro{display:flex!important}body.chat-experience.chat-new-empty .v-shortcuts{display:none!important}@media(max-width:1279px){body.chat-experience #composer{position:fixed!important;z-index:30;left:max(14px,env(safe-area-inset-left))!important;right:max(14px,env(safe-area-inset-right))!important;bottom:calc(env(safe-area-inset-bottom) + 12px)!important;width:auto!important;margin:0!important}body.chat-experience:not(.home-landing) .message-stream{padding-bottom:calc(var(--shared-composer-h,60px) + 42px)!important;scroll-padding-bottom:calc(var(--shared-composer-h,60px) + 42px)!important}}';
   document.head.append(menuStyle);
 
   function setLabel(name=''){
