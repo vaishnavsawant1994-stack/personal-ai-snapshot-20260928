@@ -31,7 +31,7 @@ def test_visualization_adapter_is_presentation_only_and_canonical():
         "authority:'presentation_only'",
         "snapshot.work_plan",
         "snapshot.p10_plan",
-        "snapshot.evidence",
+        "snapshot?.evidence",
         "plan_deltas",
         "work_plan_history",
         "No synthetic execution events",
