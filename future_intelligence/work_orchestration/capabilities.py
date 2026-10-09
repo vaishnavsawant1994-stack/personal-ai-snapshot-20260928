@@ -121,6 +121,8 @@ class CapabilityRegistry:
             name = str(getattr(tool, "name", "") or "").strip()
             if not name:
                 continue
+            capability = str(getattr(tool, "capability", None) or name).strip()[:200]
+            connector_id = getattr(tool, "connector_id", None)
             prohibited = bool(getattr(tool, "prohibited", False))
             raw_state = str(
                 getattr(tool, "qualification_state", None)
@@ -133,23 +135,24 @@ class CapabilityRegistry:
             qualification_evidence: tuple[str, ...] = ()
             overlay = manifest.get(name)
             if isinstance(overlay, Mapping):
-                manifest_state = str(overlay.get("state") or "").strip().lower()
-                if manifest_state in valid_states:
-                    state = valid_states[manifest_state]
-                exact_head_sha = str(overlay.get("exact_head_sha") or "").strip() or None
-                qualification_suite = str(overlay.get("qualification_suite") or "").strip() or None
-                qualification_evidence = tuple(
-                    str(item)[:500]
-                    for item in overlay.get("evidence_refs", [])
-                    if str(item).strip()
-                )[:100]
+                manifest_capability = normalize_capability(overlay.get("capability"))
+                current_capability = normalize_capability(capability)
+                if not manifest_capability or manifest_capability == current_capability:
+                    manifest_state = str(overlay.get("state") or "").strip().lower()
+                    if manifest_state in valid_states:
+                        state = valid_states[manifest_state]
+                    exact_head_sha = str(overlay.get("exact_head_sha") or "").strip() or None
+                    qualification_suite = str(overlay.get("qualification_suite") or "").strip() or None
+                    qualification_evidence = tuple(
+                        str(item)[:500]
+                        for item in overlay.get("evidence_refs", [])
+                        if str(item).strip()
+                    )[:100]
             if prohibited:
                 state = CapabilityState.DISABLED
                 exact_head_sha = None
                 qualification_suite = None
                 qualification_evidence = ()
-            capability = str(getattr(tool, "capability", None) or name).strip()[:200]
-            connector_id = getattr(tool, "connector_id", None)
             records.append(
                 CapabilityRecord(
                     id=f"tool:{name}",
