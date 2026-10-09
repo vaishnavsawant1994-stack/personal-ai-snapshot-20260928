@@ -16,6 +16,9 @@ from core.telemetry import Telemetry
 from devices.continuity import ContinuityService
 from devices.gateway import DeviceGateway
 from devices.registry import DeviceRegistry
+from evidence import EvidenceStore
+from evidence.ingestion import EvidenceIngestor
+from evolution import EvolutionMode, EvolutionService, EvolutionStore
 from future_intelligence.program import FutureIntelligenceProgram
 from integrations.plugins import PluginManifestRegistry
 from integrations.runtime import build_integrations
@@ -52,12 +55,16 @@ def build_runtime():
     proactive=AttentionRelevanceEngine(settings.data_dir/'proactive.sqlite3',events=events,second_brain=second_brain,enabled=settings.proactive_enabled,interruptions_per_hour=settings.proactive_interruptions_per_hour,default_cooldown_seconds=settings.proactive_default_cooldown_seconds)
     integrations,adapters,oauth,oauth_providers=build_integrations(settings,vault); plugins=PluginManifestRegistry(settings.data_dir/'plugins'); plugins.load(); apns=APNsProvider(settings,device_registry,events); notifications=NotificationService(settings.data_dir/'notifications.sqlite3',device_registry,apns,events,owner_preferences=preferences); tools=ToolRegistry(settings); tools.set_autonomy_mode(str(preferences.get('autonomy_mode',settings.autonomy_mode)))
     agent_executor=EffectAwareDurableAgentExecutor(models=models,tools=tools,memory=memory,events=events,second_brain=second_brain,knowledge=knowledge,telemetry=telemetry); executor=DurableApprovalTurnRuntime(agent_executor,continuity,settings.data_dir/'turn-runtime.sqlite3',events=events)
+    evidence_store=EvidenceStore(settings.data_dir/'evidence.sqlite3'); evidence_ingestor=EvidenceIngestor(evidence_store); evolution_store=EvolutionStore(connection=evidence_store.connection)
+    try:evolution_mode=EvolutionMode(str(preferences.get('evolution_mode',EvolutionMode.CO_EVOLVE.value)))
+    except ValueError:evolution_mode=EvolutionMode.CO_EVOLVE
+    evolution=EvolutionService(store=evolution_store,ingestor=evidence_ingestor,mode=evolution_mode)
     def context_provider():
         latest=continuity.latest_thread(); return {'devices':device_registry.list(),'integrations':integrations.list(),'memory_count':len(second_brain.graph().get('nodes',[])),'continuity':latest or {},'focus_mode':bool(preferences.get('focus_mode',False))}
     automations=AutomationEngine(settings.data_dir/'automations.sqlite3',executor=executor,events=events,context_provider=context_provider,default_timeout_seconds=settings.workflow_default_timeout_seconds,default_retries=settings.workflow_default_retries)
     capability_objects=register_builtin_tools(tools,memory,settings,models=models,automation_engine=automations,apns=apns,second_brain=second_brain,events=events,proactive_engine=proactive,continuity_service=continuity,integration_adapters=adapters,memory_enabled=lambda: bool(preferences.get('memory_enabled',True)))
     voice=RealtimeVoiceSession(models,executor,events); voice_qualification=VoiceQualificationRecorder(settings.data_dir/'voice-qualification.sqlite3',events=events); p3_qualification=P3QualificationProgram(settings.data_dir/'p3-qualification.sqlite3'); wake_phrase=WakePhraseGate(events,phrases=(str(preferences.get('wake_phrase','Hey Personal')),)); events.subscribe('voice.transcript',lambda event:wake_phrase.accept(event.get('text',''))); events.subscribe('state',lambda event:telemetry.increment(f"state.{event.get('state','unknown')}")); events.subscribe('voice.reply',lambda event:telemetry.increment('voice.replies'))
-    runtime={'settings':settings,'events':events,'runtime_state':events.runtime_state,'memory':memory,'models':models,'second_brain':second_brain,'knowledge':knowledge,'knowledge_store':knowledge_store,'vector_store':vector,'device_registry':device_registry,'owner_access':owner_access,'device_gateway':device_gateway,'continuity':continuity,'proactive':proactive,'tools':tools,'executor':executor,'turn_runtime':executor,'agent_executor':agent_executor,'effect_ledger':agent_executor.effect_ledger,'automations':automations,'integrations':integrations,'integration_adapters':adapters,'oauth':oauth,'oauth_providers':oauth_providers,'plugins':plugins,'vault':vault,'voice':voice,'voice_qualification':voice_qualification,'p3_qualification':p3_qualification,'wake_phrase':wake_phrase,'apns':apns,'notifications':notifications,'telemetry':telemetry,'preferences':preferences,'backups':backups,'computer':capability_objects.get('computer'),'primary_continuity_thread_id':primary_thread_id}; p3_qualification.runtime=runtime
+    runtime={'settings':settings,'events':events,'runtime_state':events.runtime_state,'memory':memory,'models':models,'second_brain':second_brain,'knowledge':knowledge,'knowledge_store':knowledge_store,'vector_store':vector,'device_registry':device_registry,'owner_access':owner_access,'device_gateway':device_gateway,'continuity':continuity,'proactive':proactive,'tools':tools,'executor':executor,'turn_runtime':executor,'agent_executor':agent_executor,'effect_ledger':agent_executor.effect_ledger,'evidence_store':evidence_store,'evidence_ingestor':evidence_ingestor,'evolution_store':evolution_store,'evolution':evolution,'automations':automations,'integrations':integrations,'integration_adapters':adapters,'oauth':oauth,'oauth_providers':oauth_providers,'plugins':plugins,'vault':vault,'voice':voice,'voice_qualification':voice_qualification,'p3_qualification':p3_qualification,'wake_phrase':wake_phrase,'apns':apns,'notifications':notifications,'telemetry':telemetry,'preferences':preferences,'backups':backups,'computer':capability_objects.get('computer'),'primary_continuity_thread_id':primary_thread_id}; p3_qualification.runtime=runtime
     future=FutureIntelligenceProgram(settings.data_dir/'future-intelligence',runtime=runtime); runtime.update({'future_intelligence':future,'everyday_intelligence':future.everyday,'life_graph':future.life_graph,'personal_operations':future.operations,'world_understanding':future.world,'personal_ai_everywhere':future.everywhere,'hybrid_intelligence':future.hybrid,'advanced_autonomy':future.autonomy})
     if hasattr(executor,'attach_autonomy'): executor.attach_autonomy(future.autonomy)
     work_bridge=getattr(future.autonomy,'_work_bridge',None)
@@ -94,7 +101,7 @@ def main():
     if settings.control_server_enabled:threading.Thread(target=start_server,args=(runtime,),daemon=True).start()
     window=CanonicalMainWindow(events=runtime['events'],executor=runtime['executor'],memory=runtime['memory'],runtime=runtime); window.show(); floating_presence=FloatingPresence(runtime=runtime); runtime['floating_presence']=floating_presence; floating_presence.show()
     if runtime['preferences'].get('launch_voice_on_start'):window.toggle_voice()
-    code=app.exec(); floating_presence.close(); runtime['voice'].stop(); runtime['automations'].stop(); runtime['notifications'].close(); runtime['telemetry'].persist(); runtime['apns'].close(); return code
+    code=app.exec(); floating_presence.close(); runtime['voice'].stop(); runtime['automations'].stop(); runtime['notifications'].close(); runtime['telemetry'].persist(); runtime['apns'].close(); runtime['evidence_store'].close(); return code
 
 
 if __name__=='__main__':raise SystemExit(main())
