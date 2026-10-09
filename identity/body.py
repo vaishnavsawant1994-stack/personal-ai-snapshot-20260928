@@ -108,5 +108,12 @@ class BodyManifest:
         return hashlib.sha256(_stable_json(self.to_dict()).encode("utf-8")).hexdigest()
 
     @property
-    def revision_id(self) -> str:
+    def manifest_id(self) -> str:
         return f"body-v{self.body_version}-{self.manifest_hash[:16]}"
+
+    def revision_id_for(self, git_revision: str) -> str:
+        revision = str(git_revision or "").strip()
+        if not revision:
+            raise ValueError("git_revision is required")
+        digest = hashlib.sha256(revision.encode("utf-8")).hexdigest()[:16]
+        return f"{self.manifest_id}-{digest}"
