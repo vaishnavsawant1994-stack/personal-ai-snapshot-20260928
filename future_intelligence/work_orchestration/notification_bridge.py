@@ -58,8 +58,6 @@ class WorkNotificationBridge:
     approval, completion, or delivery authority.
     """
 
-    # Kept as a compatibility description for completion_propagation and older
-    # callers, but no raw P10 subscription uses it after canonical normalization.
     _P10_STATE_EVENTS = {
         "WAITING_APPROVAL": "work.order.waiting_approval",
         "BLOCKED": "work.order.blocked",
@@ -75,9 +73,6 @@ class WorkNotificationBridge:
         self.notifications = notifications
         self._unsubscribers = []
         EVENTS.update(WORK_NOTIFICATION_EVENTS)
-        # NotificationService subscribed before FutureIntelligenceProgram exists,
-        # so subscribe canonical Work events explicitly while reusing its existing
-        # delivery policy, quiet-hours rules, database, push and dedupe behavior.
         for event_name in WORK_NOTIFICATION_EVENTS:
             self._unsubscribers.append(
                 events.subscribe(
@@ -95,6 +90,7 @@ class WorkNotificationBridge:
                 event.get("goal_id"),
                 event.get("plan_id"),
                 event.get("task_id"),
+                event.get("work_order_id"),
                 event.get("operation_id"),
                 event.get("state"),
                 event.get("state_version"),
@@ -104,7 +100,10 @@ class WorkNotificationBridge:
 
     def _emit(self, event_name: str, source: dict[str, Any]) -> None:
         payload = {
-            "event_id": source.get("event_id") or self._event_id(event_name, source),
+            # Intentionally derive a canonical notification identity rather than
+            # reusing the triggering evidence/claim event_id. Multiple proof events
+            # may re-evaluate the same completion decision and must dedupe to one.
+            "event_id": self._event_id(event_name, source),
             "goal_id": source.get("goal_id"),
             "plan_id": source.get("plan_id"),
             "task_id": source.get("task_id"),
@@ -115,8 +114,6 @@ class WorkNotificationBridge:
         }
         self.events.emit(event_name, **payload)
 
-    # Compatibility helpers remain callable for tests/adapters, but are no longer
-    # subscribed to raw P10 events by this bridge.
     def _on_task_dispatched(self, event: dict[str, Any]) -> None:
         state = str(event.get("state") or "").upper()
         event_name = self._P10_STATE_EVENTS.get(state)
