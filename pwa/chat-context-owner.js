@@ -87,7 +87,12 @@
   }
 
   document.addEventListener('click',intercept,true);
-  window.addEventListener('vishnu:new-chat',()=>{selectedProjectId='';setLabel('')});
+  window.addEventListener('vishnu:new-chat',()=>{
+    selectedProjectId='';
+    document.body.classList.remove('home-landing');
+    document.body.classList.add('chat-new-empty');
+    setLabel('');
+  });
   // Synchronize an already-active project conversation without blocking first paint.
   queueMicrotask(async()=>{
     try{
