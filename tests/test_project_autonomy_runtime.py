@@ -5,6 +5,7 @@ import pytest
 from future_intelligence.autonomy import AdvancedAutonomy
 from future_intelligence.autonomy_runtime import install as install_p10_runtime
 from future_intelligence.work_orchestration.p10_runtime import install as install_work_runtime
+from future_intelligence.work_orchestration.completion_runtime import install as install_completion_runtime
 from future_intelligence.work_orchestration.project_mode_runtime import install as install_project_mode_runtime
 from projects.store import ProjectStore
 
@@ -21,8 +22,28 @@ class _ApprovalOperations:
         return {"approval_required": True}
 
 
+class _VerifiedOperations:
+    def __init__(self):
+        self.count = 0
+
+    def create_plan(self, *_args, **_kwargs):
+        self.count += 1
+        return {"id": f"operation-plan-{self.count}"}
+
+    def execute(self, plan_id, *_args, **_kwargs):
+        suffix = str(plan_id).rsplit("-", 1)[-1]
+        return {
+            "operation": {
+                "operation_id": f"operation-{suffix}",
+                "outcome_state": "VERIFIED",
+                "status": "verified",
+            }
+        }
+
+
 install_p10_runtime(AdvancedAutonomy)
 install_work_runtime(AdvancedAutonomy)
+install_completion_runtime(AdvancedAutonomy)
 install_project_mode_runtime(AdvancedAutonomy)
 
 
@@ -79,8 +100,12 @@ def test_assisted_allows_manual_but_rejects_automatic_dispatch(tmp_path):
     assert result["tasks"][0]["status"] == "COMPLETED"
 
 
-def test_active_mode_bounded_advance_uses_existing_p10_path(tmp_path):
-    autonomy, _store, project, plan = _project_bound_autonomy(tmp_path, task_count=2)
+def test_active_mode_bounded_advance_uses_existing_p10_path_and_completion_gate(tmp_path):
+    autonomy, _store, project, plan = _project_bound_autonomy(
+        tmp_path,
+        operations=_VerifiedOperations(),
+        task_count=2,
+    )
     autonomy.set_project_autonomy_mode(project["id"], "active")
 
     result = autonomy.advance_project_plan(plan["id"], max_steps=10)
@@ -88,8 +113,22 @@ def test_active_mode_bounded_advance_uses_existing_p10_path(tmp_path):
     assert result["mode"] == "active"
     assert result["executed_task_ids"] == ["task-1", "task-2"]
     assert result["stop_reason"] == "plan_state:completed"
+    assert result["completion_authority"] == "deterministic_completion_judge"
     persisted = autonomy.plan(plan["id"])
     assert [item["status"] for item in persisted["tasks"]] == ["COMPLETED", "COMPLETED"]
+
+
+def test_active_mode_stops_before_dependency_when_completion_proof_is_missing(tmp_path):
+    autonomy, _store, project, plan = _project_bound_autonomy(tmp_path, task_count=2)
+    autonomy.set_project_autonomy_mode(project["id"], "active")
+
+    result = autonomy.advance_project_plan(plan["id"], max_steps=10)
+
+    assert result["executed_task_ids"] == ["task-1"]
+    assert result["stop_reason"] == "completion_state:verifying"
+    persisted = autonomy.plan(plan["id"])
+    assert persisted["tasks"][0]["status"] == "COMPLETED"
+    assert persisted["tasks"][1]["status"] == "WAITING"
 
 
 def test_active_mode_stops_immediately_on_existing_approval_gate(tmp_path):
