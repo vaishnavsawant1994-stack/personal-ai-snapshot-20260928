@@ -64,7 +64,8 @@ try{
   await desktop.locator('#vContextChip').click();
   await desktop.locator('.project-dialog select[name="project_id"]').selectOption('p1');
   await desktop.locator('.project-dialog .project-btn.primary').click();
-  await desktop.waitForFunction(()=>document.body.innerText.includes('Project · Test Project'));
+  await desktop.waitForFunction(()=>document.querySelector('#vContextChip')?.getAttribute('aria-label')?.includes('Test Project'));
+  assert.match(await desktop.locator('#vContextChip').innerText(),/Project\s*·\s*Test Project/,'desktop chip visibly names the selected project');
   assert.match(await desktop.locator('#message').inputValue(),/plan a project/i,'switching context preserves an unsent draft');
   await desktop.locator('#sendButton').click();
   await desktop.waitForFunction(()=>document.body.classList.contains('has-conversation'));
@@ -125,7 +126,8 @@ try{
   await mobile.locator('#vContextChip').click();
   await mobile.locator('.project-dialog select[name="project_id"]').selectOption('p1');
   await mobile.locator('.project-dialog .project-btn.primary').click();
-  await mobile.waitForFunction(()=>document.body.innerText.includes('Project · Test Project'));
+  await mobile.waitForFunction(()=>document.querySelector('#vContextChip')?.getAttribute('aria-label')?.includes('Test Project'));
+  assert.match(await mobile.locator('#vContextChip').innerText(),/Project\s*·\s*Test Project/,'mobile chip visibly names the selected project');
   await mobile.locator('#vContextChip').click();
   await mobile.locator('.project-dialog select[name="project_id"]').selectOption('');
   await mobile.locator('.project-dialog .project-btn.primary').click();
