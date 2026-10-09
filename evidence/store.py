@@ -127,6 +127,33 @@ class EvidenceStore:
         ).fetchone()
         return Receipt.from_dict(json.loads(row[0])) if row else None
 
+    def list_receipts(
+        self,
+        *,
+        execution_id: str | None = None,
+        tool: str | None = None,
+        verified: bool | None = None,
+    ) -> list[Receipt]:
+        clauses: list[str] = []
+        params: list[object] = []
+        if execution_id is not None:
+            clauses.append("execution_id = ?")
+            params.append(execution_id)
+        if tool is not None:
+            clauses.append("tool = ?")
+            params.append(tool)
+        if verified is not None:
+            clauses.append("verified = ?")
+            params.append(int(verified))
+        sql = "SELECT payload_json FROM receipts"
+        if clauses:
+            sql += " WHERE " + " AND ".join(clauses)
+        sql += " ORDER BY created_at, id"
+        return [
+            Receipt.from_dict(json.loads(row[0]))
+            for row in self.connection.execute(sql, tuple(params)).fetchall()
+        ]
+
     def create_claim(self, claim: Claim) -> Claim:
         with self.connection:
             self.connection.execute(
