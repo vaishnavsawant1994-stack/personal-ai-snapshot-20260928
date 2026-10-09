@@ -26,10 +26,17 @@ const summary={
 const attention={
   authority:'read_only_projection',updated_at:'2026-10-09T09:12:00Z',
   counts:{total:4,approval:1,recovery:1,review:1,blocked:1,urgent:2},
+  living:{
+    authority:'presentation_only',source:'canonical_work_attention',state:'waiting_approval',
+    activity:'1 WorkOrder(s) are waiting for owner approval.',intensity:0.95,
+    workers_active:3,active_worker_types:['browser','communications','research'],projects_active:2,
+    needs_attention:true,attention_count:4,approval_count:1,blocked_count:1,recovery_count:1,review_count:1,verifying_count:1,
+    current_project_name:'Launch Project',current_work_order_title:'Publish approved launch'
+  },
   items:[
     {id:'attn-approval',kind:'approval_required',severity:'urgent',project_id:'p1',work_order_id:'wo-publish',approval_id:'ap1',deep_link:'/iphone/?project=p1&section=approvals&work_order=wo-publish'},
     {id:'attn-recovery',kind:'recovery_required',severity:'urgent',project_id:'p2',work_order_id:'wo-recover',deep_link:'/iphone/?project=p2&section=live&work_order=wo-recover'},
-    {id:'attn-review',kind:'review_failed',severity:'review',project_id:'p1',work_order_id:'wo-verify',deep_link:'/iphone/?project=p1&section=plan&work_order=wo-verify'},
+    {id:'attn-review',kind:'review_failed',severity:'review',project_id:'p1',work_order_id:'wo-verify',deep_link:'/iphone/?project=p1&section=work-plan&work_order=wo-verify'},
     {id:'attn-blocked',kind:'blocked',severity:'attention',project_id:'p2',work_order_id:'wo-synthesize',deep_link:'/iphone/?project=p2&section=live&work_order=wo-synthesize'},
   ],
 };
@@ -41,7 +48,7 @@ const html=`<!doctype html><html><head><meta charset="utf-8"><meta name="viewpor
 <script>
 var stateName='active';var todayScreenFilter='all';window.__opened=[];window.__modules=[];window.__approvalReviews=0;window.__approvalClicked=0;
 window.openModule=id=>window.__modules.push(id);
-window.openProject=async(id,tab)=>{window.__opened.push({id,tab});const marker=document.createElement('div');marker.dataset.workOrderId=id==='p2'?'wo-recover':'wo-publish';marker.textContent='canonical WorkOrder';document.body.append(marker)};
+window.openProject=async(id,tab)=>{window.__opened.push({id,tab});const marker=document.createElement('div');marker.dataset.workOrderId=tab==='plan'?'wo-verify':(id==='p2'?'wo-recover':'wo-publish');marker.textContent='canonical WorkOrder';document.body.append(marker)};
 window.openProjectApprovalReview=async()=>{window.__approvalReviews+=1;const button=document.createElement('button');button.dataset.approvalOpen='ap1';button.onclick=()=>window.__approvalClicked+=1;document.body.append(button)};
 </script>
 <script src="/global-work-awareness.js"></script></body></html>`;
@@ -63,9 +70,14 @@ try{
     await page.goto(`http://127.0.0.1:${address.port}/`,{waitUntil:'networkidle'});
     await page.waitForFunction(()=>window.__vishnuGlobalWorkAwareness?.snapshot?.work_orders?.length===6&&window.__vishnuGlobalWorkAwareness?.attention?.counts?.total===4);
 
+    assert.equal(await page.evaluate(()=>window.__vishnuGlobalWorkAwareness.living?.authority),'presentation_only');
+    assert.equal(await page.evaluate(()=>window.__vishnuGlobalWorkAwareness.living?.state),'waiting_approval');
+    assert.equal(await page.evaluate(()=>window.__vishnuGlobalWorkAwareness.living?.current_work_order_title),'Publish approved launch');
+
     assert.equal(await page.locator('#globalWorkPulse').count(),1);
     const homeText=await page.locator('#globalWorkPulse').innerText();
-    assert.match(homeText,/Needs Attention/i);
+    assert.match(homeText,/Needs Approval/i);
+    assert.match(homeText,/waiting for owner approval/i);
     assert.match(homeText,/4 need attention/i);
     assert.match(homeText,/2 active/i);
     assert.match(homeText,/1 approval/i);
@@ -87,20 +99,30 @@ try{
     assert.match(todayText,/Recover failed browser step/i);
     assert.match(todayText,/Synthesize findings/i);
 
-    assert.equal(await page.locator('#stateLabel').innerText(),'Needs Attention');
-    assert.match(await page.locator('#status').innerText(),/4 owner attention items require review/i);
-    assert.equal(await page.evaluate(()=>document.body.dataset.globalWorkState),'needs_attention');
+    assert.equal(await page.locator('#stateLabel').innerText(),'Needs Approval');
+    assert.match(await page.locator('#status').innerText(),/waiting for owner approval/i);
+    assert.equal(await page.evaluate(()=>document.body.dataset.globalWorkState),'waiting_approval');
+    assert.equal(await page.evaluate(()=>document.body.dataset.globalWorkIntensity),'0.95');
+    assert.equal(await page.evaluate(()=>document.body.dataset.globalWorkWorkers),'3');
+    assert.equal(await page.evaluate(()=>document.body.dataset.globalWorkProjects),'2');
 
     await page.locator('[data-gwa-order]').first().click();
     assert.deepEqual(await page.evaluate(()=>window.__opened.at(-1)),{id:'p1',tab:'live'});
 
-    const deepResult=await page.evaluate(async item=>window.__vishnuGlobalWorkAwareness.openAttention(item),attention.items[1]);
-    assert.equal(deepResult,true);
+    const recoveryDeepResult=await page.evaluate(async item=>window.__vishnuGlobalWorkAwareness.openAttention(item),attention.items[1]);
+    assert.equal(recoveryDeepResult,true);
     await page.waitForTimeout(180);
     assert.deepEqual(await page.evaluate(()=>window.__opened.at(-1)),{id:'p2',tab:'live'});
     assert.equal(await page.evaluate(()=>window.__modules.at(-1)),'projects');
     assert.match(await page.evaluate(()=>location.search),/project=p2/);
     assert.match(await page.evaluate(()=>location.search),/work_order=wo-recover/);
+
+    const reviewDeepResult=await page.evaluate(async item=>window.__vishnuGlobalWorkAwareness.openAttention(item),attention.items[2]);
+    assert.equal(reviewDeepResult,true);
+    await page.waitForTimeout(180);
+    assert.deepEqual(await page.evaluate(()=>window.__opened.at(-1)),{id:'p1',tab:'plan'});
+    assert.match(await page.evaluate(()=>location.search),/section=work-plan/);
+    assert.match(await page.evaluate(()=>location.search),/work_order=wo-verify/);
 
     const unsafeResult=await page.evaluate(async()=>window.__vishnuGlobalWorkAwareness.openAttention({deep_link:'https://evil.example/'}));
     assert.equal(unsafeResult,false);
@@ -134,4 +156,4 @@ try{
 assert.equal(requests.some(request=>request.method!=='GET'),false,`global Work awareness made a mutation request: ${JSON.stringify(requests)}`);
 assert.ok(requests.filter(request=>request.url==='/iphone/api/work/summary').length>=2,'each viewport should read the owner-scoped global Work summary');
 assert.ok(requests.filter(request=>request.url==='/iphone/api/work/attention').length>=2,'each viewport should read the canonical owner attention projection');
-console.log('Global canonical Work awareness + attention badge/deep-link browser qualification passed.');
+console.log('Global canonical Work awareness + living-agent attention/deep-link browser qualification passed.');
