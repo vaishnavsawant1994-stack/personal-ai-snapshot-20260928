@@ -88,8 +88,11 @@ def build_runtime():
 def start_server(runtime):
     if not settings.control_server_enabled:return
     from server.api import create_app
+    from server.evolution_api import evolution_router
     import uvicorn
-    app=create_app(runtime['executor'],settings,device_registry=runtime['device_registry'],device_gateway=runtime['device_gateway'],second_brain=runtime['second_brain'],automations=runtime['automations'],runtime=runtime); uvicorn.run(app,host=settings.control_server_host,port=settings.control_server_port,log_level='warning')
+    app=create_app(runtime['executor'],settings,device_registry=runtime['device_registry'],device_gateway=runtime['device_gateway'],second_brain=runtime['second_brain'],automations=runtime['automations'],runtime=runtime)
+    app.include_router(evolution_router(runtime))
+    uvicorn.run(app,host=settings.control_server_host,port=settings.control_server_port,log_level='warning')
 
 
 def main():
