@@ -18,8 +18,11 @@ def test_project_autonomy_ui_uses_only_existing_authoritative_endpoints():
 
 def test_project_autonomy_ui_is_loaded_after_canonical_work_and_precached():
     loader = Path("pwa/home-chat-redesign.js").read_text()
-    assert loader.index("projects-work-runtime.js") < loader.index("project-autonomy-controls.js")
-    assert loader.index("project-autonomy-controls.js") < loader.index("projects-work-visualization-runtime.js")
+    assert "script.onload=loadProjectAutonomy" in loader
+    assert "controls.onload=loadVisualizations" in loader
+    assert "project-autonomy-controls.js" in loader
+    assert "projects-work-runtime.js" in loader
+    assert "projects-work-visualization-runtime.js" in loader
     sw = Path("pwa/sw.js").read_text()
     assert "project-autonomy-controls.js" in sw
     assert "personal-ai-iphone-v35" in sw
