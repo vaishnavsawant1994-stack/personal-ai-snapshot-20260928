@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "vishnu-self-v1",
+  "title": "Vishnu Private Self v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": 1},
+    "owner_relationship": {"type": "object"},
+    "communication_style": {"type": "object"},
+    "personality": {"type": "object"},
+    "preferences": {"type": "object"},
+    "private_context": {"type": "object"},
+    "metadata": {"type": "object"}
+  },
+  "required": ["schema_version"]
+}
