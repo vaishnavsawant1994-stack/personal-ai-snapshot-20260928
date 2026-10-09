@@ -3,7 +3,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import datetime, timezone
 
-EVOLUTION_SCHEMA_VERSION = 2
+EVOLUTION_SCHEMA_VERSION = 3
 
 
 def _now() -> str:
@@ -121,5 +121,42 @@ def migrate_evolution_schema(connection: sqlite3.Connection) -> int:
             connection.execute(
                 "INSERT INTO evolution_schema_migrations(version, name, applied_at) VALUES (?, ?, ?)",
                 (2, "owner_approved_immutable_work_handoffs", _now()),
+            )
+            applied.add(2)
+
+        if 3 not in applied:
+            connection.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS evolution_body_revision_links (
+                    candidate_id TEXT NOT NULL UNIQUE,
+                    work_order_id TEXT NOT NULL UNIQUE,
+                    body_revision_id TEXT NOT NULL UNIQUE,
+                    git_revision TEXT NOT NULL,
+                    verification_evidence_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    created_by TEXT NOT NULL,
+                    PRIMARY KEY(candidate_id, body_revision_id),
+                    FOREIGN KEY(candidate_id) REFERENCES evolution_candidates(id) ON DELETE RESTRICT
+                );
+
+                CREATE TRIGGER IF NOT EXISTS evolution_body_revision_links_immutable_update
+                BEFORE UPDATE ON evolution_body_revision_links
+                BEGIN
+                    SELECT RAISE(ABORT, 'evolution body revision links are immutable');
+                END;
+
+                CREATE TRIGGER IF NOT EXISTS evolution_body_revision_links_immutable_delete
+                BEFORE DELETE ON evolution_body_revision_links
+                BEGIN
+                    SELECT RAISE(ABORT, 'evolution body revision links are immutable');
+                END;
+
+                CREATE INDEX IF NOT EXISTS idx_evolution_body_revision_created
+                    ON evolution_body_revision_links(created_at, candidate_id);
+                """
+            )
+            connection.execute(
+                "INSERT INTO evolution_schema_migrations(version, name, applied_at) VALUES (?, ?, ?)",
+                (3, "verified_candidate_body_revision_registration", _now()),
             )
     return EVOLUTION_SCHEMA_VERSION
