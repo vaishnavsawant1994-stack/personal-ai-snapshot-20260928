@@ -10,6 +10,7 @@ class CapabilityState(StrEnum):
     AVAILABLE = "available"
     QUALIFIED = "qualified"
     EXPERIMENTAL = "experimental"
+    DEGRADED = "degraded"
     UNAVAILABLE = "unavailable"
     DISABLED = "disabled"
 
@@ -18,7 +19,9 @@ _ACTIVE_STATES = {
     CapabilityState.AVAILABLE,
     CapabilityState.QUALIFIED,
     CapabilityState.EXPERIMENTAL,
+    CapabilityState.DEGRADED,
 }
+_PLANNING_MODES = {"strict", "assisted", "experimental"}
 
 
 def normalize_capability(value: Any) -> str:
@@ -53,9 +56,14 @@ class CapabilityRecord:
     exact_head_sha: str | None = None
     qualification_suite: str | None = None
     qualification_evidence: tuple[str, ...] = ()
+    qualified_at: str | None = None
+    requirements: tuple[str, ...] = ()
+    fallbacks: tuple[str, ...] = ()
+    failure_reason: str = ""
 
     @property
     def available(self) -> bool:
+        """Compatibility visibility, not planner/execution authority."""
         return self.state in _ACTIVE_STATES
 
     def matches(self, requirement: str) -> bool:
@@ -79,8 +87,33 @@ class CapabilityRecord:
             "allowed_destinations": list(self.allowed_destinations),
             "tags": list(self.tags),
             "exact_head_sha": self.exact_head_sha,
+            "qualified_commit": self.exact_head_sha,
+            "qualified_at": self.qualified_at,
             "qualification_suite": self.qualification_suite,
             "qualification_evidence": list(self.qualification_evidence),
+            "requirements": list(self.requirements),
+            "provider": self.connector_id,
+            "fallbacks": list(self.fallbacks),
+            "failure_reason": self.failure_reason,
+        }
+
+
+@dataclass(frozen=True)
+class CapabilityPlannerSelection:
+    mode: str
+    selected_tools: tuple[str, ...]
+    degraded_tools: tuple[str, ...]
+    excluded_tools: tuple[str, ...]
+    warnings: tuple[str, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "mode": self.mode,
+            "selected_tools": list(self.selected_tools),
+            "degraded_tools": list(self.degraded_tools),
+            "excluded_tools": list(self.excluded_tools),
+            "warnings": list(self.warnings),
+            "authority": "planning_filter_only",
         }
 
 
@@ -131,8 +164,12 @@ class CapabilityRegistry:
             ).strip().lower()
             state = valid_states.get(raw_state, CapabilityState.AVAILABLE)
             exact_head_sha = None
+            qualified_at = None
             qualification_suite = None
             qualification_evidence: tuple[str, ...] = ()
+            requirements: tuple[str, ...] = ()
+            fallbacks: tuple[str, ...] = ()
+            failure_reason = ""
             overlay = manifest.get(name)
             if isinstance(overlay, Mapping):
                 manifest_capability = normalize_capability(overlay.get("capability"))
@@ -141,18 +178,26 @@ class CapabilityRegistry:
                     manifest_state = str(overlay.get("state") or "").strip().lower()
                     if manifest_state in valid_states:
                         state = valid_states[manifest_state]
-                    exact_head_sha = str(overlay.get("exact_head_sha") or "").strip() or None
+                    exact_head_sha = str(overlay.get("qualified_commit") or overlay.get("exact_head_sha") or "").strip() or None
+                    qualified_at = str(overlay.get("qualified_at") or "").strip() or None
                     qualification_suite = str(overlay.get("qualification_suite") or "").strip() or None
                     qualification_evidence = tuple(
                         str(item)[:500]
-                        for item in overlay.get("evidence_refs", [])
+                        for item in overlay.get("evidence_refs", overlay.get("qualification_evidence", []))
                         if str(item).strip()
                     )[:100]
+                    requirements = tuple(str(item)[:500] for item in overlay.get("requirements", []) if str(item).strip())[:100]
+                    fallbacks = tuple(str(item)[:200] for item in overlay.get("fallbacks", []) if str(item).strip())[:50]
+                    failure_reason = str(overlay.get("failure_reason") or overlay.get("reason") or "")[:1000]
             if prohibited:
                 state = CapabilityState.DISABLED
                 exact_head_sha = None
+                qualified_at = None
                 qualification_suite = None
                 qualification_evidence = ()
+                requirements = ()
+                fallbacks = ()
+                failure_reason = "tool is prohibited by the canonical ToolRegistry"
             records.append(
                 CapabilityRecord(
                     id=f"tool:{name}",
@@ -169,6 +214,10 @@ class CapabilityRegistry:
                     exact_head_sha=exact_head_sha,
                     qualification_suite=qualification_suite,
                     qualification_evidence=qualification_evidence,
+                    qualified_at=qualified_at,
+                    requirements=requirements,
+                    fallbacks=fallbacks,
+                    failure_reason=failure_reason,
                 )
             )
         return cls(records, source_available=True)
@@ -180,7 +229,51 @@ class CapabilityRegistry:
         return tuple(record for record in self._records if record.available)
 
     def available_tool_names(self) -> tuple[str, ...]:
+        """Legacy visibility helper; callers needing planner policy use planner_selection."""
         return tuple(record.tool_name for record in self.available())
+
+    def planner_selection(self, *, mode: str = "assisted") -> CapabilityPlannerSelection:
+        normalized = str(mode or "assisted").strip().lower()
+        if normalized not in _PLANNING_MODES:
+            raise ValueError("capability planning mode must be strict, assisted, or experimental")
+        selected: list[str] = []
+        degraded: list[str] = []
+        excluded: list[str] = []
+        warnings: list[str] = []
+        for record in self._records:
+            if record.state is CapabilityState.QUALIFIED:
+                selected.append(record.tool_name)
+                continue
+            if record.state is CapabilityState.AVAILABLE:
+                if normalized in {"assisted", "experimental"}:
+                    selected.append(record.tool_name)
+                else:
+                    excluded.append(record.tool_name)
+                continue
+            if record.state is CapabilityState.EXPERIMENTAL:
+                if normalized == "experimental":
+                    selected.append(record.tool_name)
+                    warnings.append(f"{record.tool_name} is experimental and requires explicit experimental planning policy")
+                else:
+                    excluded.append(record.tool_name)
+                continue
+            if record.state is CapabilityState.DEGRADED:
+                degraded.append(record.tool_name)
+                excluded.append(record.tool_name)
+                fallback = ", ".join(record.fallbacks) if record.fallbacks else "a qualified fallback"
+                warnings.append(f"{record.tool_name} is degraded and excluded from primary selection; use {fallback}")
+                continue
+            excluded.append(record.tool_name)
+        return CapabilityPlannerSelection(
+            mode=normalized,
+            selected_tools=tuple(dict.fromkeys(selected)),
+            degraded_tools=tuple(dict.fromkeys(degraded)),
+            excluded_tools=tuple(dict.fromkeys(excluded)),
+            warnings=tuple(dict.fromkeys(warnings)),
+        )
+
+    def planner_tool_names(self, *, mode: str = "assisted") -> tuple[str, ...]:
+        return self.planner_selection(mode=mode).selected_tools
 
     def qualified(self) -> tuple[CapabilityRecord, ...]:
         return tuple(record for record in self._records if record.state is CapabilityState.QUALIFIED)

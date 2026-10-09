@@ -45,9 +45,17 @@ def install(cls) -> None:
             qualification_manifest=_qualification_manifest(self),
         )
 
+    def _planning_mode(self) -> str:
+        mode = str(getattr(self, "_capability_planning_mode", "assisted") or "assisted").strip().lower()
+        return mode if mode in {"strict", "assisted", "experimental"} else "assisted"
+
+    def _planner_selection(self, capabilities: CapabilityRegistry | None = None):
+        capabilities = capabilities or _capabilities(self)
+        return capabilities.planner_selection(mode=_planning_mode(self))
+
     def _available_tools(self) -> tuple[str, ...] | None:
         capabilities = _capabilities(self)
-        return capabilities.available_tool_names() if capabilities.source_available else None
+        return _planner_selection(self, capabilities).selected_tools if capabilities.source_available else None
 
     def _patch_bridge(self) -> None:
         bridge = getattr(self, "_work_bridge", None)
@@ -128,6 +136,7 @@ def install(cls) -> None:
         self._hierarchical_last_review = None
         self._worker_registry = WorkerRegistry.default()
         self._playbook_registry = PlaybookRegistry.default()
+        self._capability_planning_mode = "assisted"
         self._capability_qualification_store = None
         if getattr(self, "_db", None) is not None:
             try:
@@ -199,10 +208,10 @@ def install(cls) -> None:
             raise ValueError("invalid strategic model response") from exc
         return parsed
 
-    def _apply_worker_review(self, candidate, review, capabilities):
+    def _apply_worker_review(self, candidate, review, capabilities, *, capability_warnings=()):
         assessment = self._worker_registry.assess_plan(candidate, capabilities)
         blockers = tuple(dict.fromkeys((*review.blockers, *assessment.blockers)))
-        warnings = tuple(dict.fromkeys((*review.warnings, *assessment.warnings)))
+        warnings = tuple(dict.fromkeys((*review.warnings, *assessment.warnings, *capability_warnings)))
         status = ReadinessStatus.HOLD if blockers else ReadinessStatus.DEGRADED if warnings else ReadinessStatus.READY
         score = max(0.0, min(review.score, assessment.score, 100.0 - 25.0 * len(blockers) - 5.0 * len(warnings)))
         review = replace(
@@ -230,6 +239,13 @@ def install(cls) -> None:
         )
         return candidate, review, assessment
 
+    def configure_capability_planning(self, mode: str):
+        """Configure planner visibility only; never grants execution authority."""
+        capabilities = _capabilities(self)
+        selection = capabilities.planner_selection(mode=str(mode))
+        self._capability_planning_mode = selection.mode
+        return selection.to_dict()
+
     def propose_hierarchical_plan(
         self,
         goal_id,
@@ -249,7 +265,8 @@ def install(cls) -> None:
         goal_spec = bridge.project_goal(projection_input)
 
         capabilities = _capabilities(self)
-        tools = capabilities.available_tool_names() if capabilities.source_available else None
+        selection = _planner_selection(self, capabilities) if capabilities.source_available else None
+        tools = selection.selected_tools if selection is not None else None
         playbook = self._playbook_registry.resolve(
             playbook_id=str(playbook_id) if playbook_id is not None else None,
             project_type=_project_type(self, goal_spec.project_id),
@@ -267,6 +284,14 @@ def install(cls) -> None:
             available_tools=tools or (),
             recent_results=recent,
         )
+        capability_guidance = ""
+        if selection is not None and selection.warnings:
+            capability_guidance = (
+                "Capability readiness warnings (advisory only; do not select excluded tools):\n- "
+                + "\n- ".join(selection.warnings)
+            )[:4000]
+        playbook_guidance = playbook.prompt_text() if playbook is not None else ""
+        combined_guidance = "\n\n".join(part for part in (playbook_guidance, capability_guidance) if part)
         strategic = StrategicWorkPlanner(
             lambda prompt, system: _generate_json(self, p10_goal, context, prompt, system)
         )
@@ -274,7 +299,23 @@ def install(cls) -> None:
             goal_spec,
             context,
             available_tools=tools,
-            planning_guidance=playbook.prompt_text() if playbook is not None else None,
+            planning_guidance=combined_guidance or None,
+        )
+        selection_payload = selection.to_dict() if selection is not None else {
+            "mode": "unavailable",
+            "selected_tools": [],
+            "degraded_tools": [],
+            "excluded_tools": [],
+            "warnings": [],
+            "authority": "planning_filter_only",
+        }
+        candidate = replace(
+            candidate,
+            critic={
+                **dict(candidate.critic),
+                "capability_selection": selection_payload,
+                "capability_selection_authority": "planning_filter_only",
+            },
         )
         if playbook is not None:
             candidate = replace(
@@ -285,7 +326,13 @@ def install(cls) -> None:
                     "playbook_authority": "advisory_only",
                 },
             )
-        candidate, review, worker_assessment = _apply_worker_review(self, candidate, review, capabilities)
+        candidate, review, worker_assessment = _apply_worker_review(
+            self,
+            candidate,
+            review,
+            capabilities,
+            capability_warnings=selection.warnings if selection is not None else (),
+        )
         self._hierarchical_last_review = review.to_dict()
 
         playbook_payload = playbook.to_dict() if playbook is not None else None
@@ -297,6 +344,7 @@ def install(cls) -> None:
                 warnings=list(review.warnings),
                 context_fingerprint=context.fingerprint,
                 worker_assessment=worker_assessment.to_dict(),
+                capability_selection=selection_payload,
                 playbook_id=playbook.id if playbook is not None else None,
                 model_output_authority=False,
             )
@@ -312,6 +360,7 @@ def install(cls) -> None:
                 },
                 "workers": worker_assessment.to_dict(),
                 "capabilities": capabilities.status(),
+                "capability_selection": selection_payload,
                 "playbook": playbook_payload,
                 "authority": "planning_only",
             }
@@ -337,6 +386,7 @@ def install(cls) -> None:
             warnings=list(review.warnings),
             context_fingerprint=context.fingerprint,
             worker_count=len(worker_assessment.assignments),
+            capability_selection=selection_payload,
             playbook_id=playbook.id if playbook is not None else None,
             model_output_authority=False,
             execution_authority="existing_p10_p6_runtime",
@@ -354,6 +404,7 @@ def install(cls) -> None:
             },
             "workers": worker_assessment.to_dict(),
             "capabilities": capabilities.status(),
+            "capability_selection": selection_payload,
             "playbook": playbook_payload,
             "authority": "existing_p10_p6_runtime",
         }
@@ -383,6 +434,7 @@ def install(cls) -> None:
         result = original_status(self)
         capabilities = _capabilities(self)
         qualification_store = getattr(self, "_capability_qualification_store", None)
+        selection = _planner_selection(self, capabilities).to_dict() if capabilities.source_available else None
         result["hierarchical_planning"] = {
             "installed": True,
             "authority": "planning_only",
@@ -390,6 +442,7 @@ def install(cls) -> None:
             "last_review": self._hierarchical_last_review,
             "workers": self._worker_registry.status(),
             "capabilities": capabilities.status(),
+            "capability_selection": selection,
             "qualification": qualification_store.status() if qualification_store is not None else {
                 "entries": 0,
                 "states": {},
@@ -401,6 +454,7 @@ def install(cls) -> None:
 
     cls.__init__ = __init__
     cls.propose_hierarchical_plan = propose_hierarchical_plan
+    cls.configure_capability_planning = configure_capability_planning
     cls.work_plan = work_plan
     cls.orchestration_playbooks = orchestration_playbooks
     cls.capability_manifest = capability_manifest

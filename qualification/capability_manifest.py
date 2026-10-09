@@ -12,7 +12,6 @@ from typing import Any, Mapping
 from .claims import (
     CapabilityClaim,
     CapabilityClaimGate,
-    CapabilityClaimState,
     CapabilityClaimStore,
 )
 from .replay import ReplayResult, ReplayStore
@@ -26,6 +25,7 @@ class QualificationState(StrEnum):
     AVAILABLE = "available"
     QUALIFIED = "qualified"
     EXPERIMENTAL = "experimental"
+    DEGRADED = "degraded"
     UNAVAILABLE = "unavailable"
     DISABLED = "disabled"
 
@@ -41,6 +41,10 @@ class CapabilityManifestEntry:
     evidence_refs: tuple[str, ...] = ()
     reason: str = ""
     qualified_at: str | None = None
+    requirements: tuple[str, ...] = ()
+    provider: str | None = None
+    fallbacks: tuple[str, ...] = ()
+    failure_reason: str = ""
     updated_at: str = field(default_factory=_now)
 
     def __post_init__(self) -> None:
@@ -56,11 +60,16 @@ class CapabilityManifestEntry:
             "capability": self.capability,
             "state": self.state.value,
             "exact_head_sha": self.exact_head_sha,
+            "qualified_commit": self.exact_head_sha,
             "qualification_suite": self.qualification_suite,
             "replay_ids": list(self.replay_ids),
             "evidence_refs": list(self.evidence_refs),
             "reason": self.reason,
             "qualified_at": self.qualified_at,
+            "requirements": list(self.requirements),
+            "provider": self.provider,
+            "fallbacks": list(self.fallbacks),
+            "failure_reason": self.failure_reason,
             "updated_at": self.updated_at,
         }
 
@@ -70,12 +79,16 @@ class CapabilityManifestEntry:
             tool_name=str(data["tool_name"]),
             capability=str(data["capability"]),
             state=QualificationState(str(data["state"])),
-            exact_head_sha=data.get("exact_head_sha"),
+            exact_head_sha=data.get("exact_head_sha") or data.get("qualified_commit"),
             qualification_suite=data.get("qualification_suite"),
             replay_ids=tuple(str(x) for x in data.get("replay_ids", [])),
             evidence_refs=tuple(str(x) for x in data.get("evidence_refs", [])),
             reason=str(data.get("reason") or ""),
             qualified_at=data.get("qualified_at"),
+            requirements=tuple(str(x) for x in data.get("requirements", [])),
+            provider=str(data.get("provider")) if data.get("provider") is not None else None,
+            fallbacks=tuple(str(x) for x in data.get("fallbacks", [])),
+            failure_reason=str(data.get("failure_reason") or ""),
             updated_at=str(data.get("updated_at") or _now()),
         )
 
@@ -143,6 +156,10 @@ class CapabilityQualificationStore:
         state: QualificationState | str,
         *,
         reason: str = "",
+        requirements: tuple[str, ...] = (),
+        provider: str | None = None,
+        fallbacks: tuple[str, ...] = (),
+        failure_reason: str = "",
     ) -> CapabilityManifestEntry:
         state = state if isinstance(state, QualificationState) else QualificationState(str(state))
         if state is QualificationState.QUALIFIED:
@@ -153,6 +170,10 @@ class CapabilityQualificationStore:
                 capability=str(capability),
                 state=state,
                 reason=str(reason)[:1000],
+                requirements=tuple(str(item)[:500] for item in requirements[:100]),
+                provider=str(provider)[:200] if provider else None,
+                fallbacks=tuple(str(item)[:200] for item in fallbacks[:50]),
+                failure_reason=str(failure_reason or reason)[:1000],
             )
         )
 
