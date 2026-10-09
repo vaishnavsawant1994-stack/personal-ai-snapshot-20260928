@@ -13,7 +13,9 @@ jobs:
         with: {python-version: '3.12'}
       - run: pip install -r requirements.txt pip-audit
       - run: pip-audit -r requirements.txt
-      - run: python -m compileall -q app agent automation browser capabilities core dashboard desktop devices future_intelligence identity integrations knowledge memory models proactive security server tools ui updates vision voice packaging
+      - run: python -m compileall -q app agent automation browser capabilities core dashboard desktop devices evidence evolution future_intelligence identity integrations knowledge memory models proactive security server tools ui updates vision voice packaging
+      - name: E5 evolution safety boundary
+        run: pytest -q tests/test_evolution_e5.py
       - name: P7 focused qualification
         run: pytest -q tests/test_p7_multimodal_core.py tests/test_p7_security_e2e.py tests/test_p7_performance_recovery.py
       - name: P7 performance measurements
