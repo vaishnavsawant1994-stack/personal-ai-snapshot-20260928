@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-import sqlite3
-
-import pytest
-
 from agent.effects import bind_effect_context
 from evidence import (
     EVIDENCE_SCHEMA_VERSION,
@@ -13,6 +9,7 @@ from evidence import (
     EvidenceStore,
 )
 from evidence.effect_bridge import GovernedEffectLedger
+from evidence.models import Receipt
 from evidence.sources import (
     feedback_record,
     recovery_record,
@@ -159,32 +156,31 @@ def test_governed_effect_ledger_records_normalized_receipt_context(tmp_path):
         assert lifecycle["status"] == EvidenceStatus.ACTIVE.value
 
 
-def test_duplicate_receipt_idempotency_key_cannot_claim_two_receipts():
-    ledger = GovernedEffectLedger(db_path=":memory:")
-    # A file path is required for independently reopened stores; this test uses
-    # one explicit EvidenceStore to prove the v3 unique context constraint.
+def test_reconciliation_receipts_may_share_one_idempotency_key():
     with EvidenceStore() as store:
         ingestor = EvidenceIngestor(store)
-        from evidence.models import Receipt
-
-        first = Receipt(
-            id="receipt-1",
-            operation="tool_result",
+        unknown = Receipt(
+            id="receipt-unknown",
+            operation="tool_dispatch_unknown",
             execution_id="exec-1",
             tool="tool",
             destination="dest",
             request_hash="hash-1",
         )
-        second = Receipt(
-            id="receipt-2",
+        verified = Receipt(
+            id="receipt-verified",
             operation="tool_result",
-            execution_id="exec-2",
+            execution_id="exec-1",
             tool="tool",
             destination="dest",
-            request_hash="hash-2",
+            request_hash="hash-1",
+            verified=True,
         )
-        store.record_receipt(first)
-        store.record_receipt(second)
-        ingestor.record_receipt_context(first.id, idempotency_key="same-key")
-        with pytest.raises(sqlite3.IntegrityError):
-            ingestor.record_receipt_context(second.id, idempotency_key="same-key")
+        store.record_receipt(unknown)
+        store.record_receipt(verified)
+        ingestor.record_receipt_context(unknown.id, idempotency_key="same-effect")
+        ingestor.record_receipt_context(verified.id, idempotency_key="same-effect", verified_at=verified.created_at)
+        assert store.connection.execute(
+            "SELECT COUNT(*) FROM receipt_context WHERE idempotency_key = ?",
+            ("same-effect",),
+        ).fetchone()[0] == 2
