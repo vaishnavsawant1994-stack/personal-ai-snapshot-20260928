@@ -42,7 +42,10 @@ try{
     assert.match(await page.locator('#host').innerText(),/WorkOrders · 2/i);
     assert.match(await page.locator('#host').innerText(),/Readiness · Ready/i);
     assert.match(await page.locator('#host').innerText(),/Plan v2/i);
-    assert.match(await page.locator('#host').innerText(),/Research result was verified/i);
+    const evidenceDetails=page.locator('.cw-order details').first();
+    assert.equal(await evidenceDetails.count(),1);
+    await evidenceDetails.evaluate(node=>{node.open=true});
+    assert.match(await evidenceDetails.innerText(),/Research result was verified/i);
     assert.equal(await page.locator('[data-cw-execute="research"]').count(),1);
 
     await page.locator('[data-cw-execute="research"]').click();
