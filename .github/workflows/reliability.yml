@@ -13,13 +13,15 @@ jobs:
         with: {python-version: '3.12'}
       - run: pip install -r requirements.txt pip-audit
       - run: pip-audit -r requirements.txt
-      - run: python -m compileall -q app agent automation browser capabilities core dashboard desktop devices evidence evolution future_intelligence identity integrations knowledge memory models proactive security server tools ui updates vision voice packaging
+      - run: python -m compileall -q app agent automation browser capabilities continuity core dashboard desktop devices evidence evolution future_intelligence identity integrations knowledge memory models proactive security server tools ui updates vision voice packaging
       - name: E5 evolution safety boundary
         run: pytest -q tests/test_evolution_e5.py
       - name: E6 evolution handoff safety boundary
         run: pytest -q tests/test_evolution_e6_handoff.py
       - name: E7 code-body evolution safety boundary
         run: pytest -q tests/test_evolution_e7_code_body.py tests/test_evolution_e7_policy.py tests/test_evolution_e7_review.py
+      - name: E8 cross-host continuity safety boundary
+        run: pytest -q tests/test_continuity_e8_*.py
       - name: P7 focused qualification
         run: pytest -q tests/test_p7_multimodal_core.py tests/test_p7_security_e2e.py tests/test_p7_performance_recovery.py
       - name: P7 performance measurements
