@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
 
-from future_intelligence.work_orchestration.recovery_attention import RecoveryAwareWorkAttentionService
+from future_intelligence.work_orchestration.review_attention import ReviewAwareWorkAttentionService
 from security.request_context import current_trusted_request
 
 
 def work_attention_router(runtime: dict, store) -> APIRouter:
     """Read-only owner attention projection; existing authorities own decisions."""
     router = APIRouter(prefix="/iphone/api/work/attention", tags=["work-attention"])
-    service = RecoveryAwareWorkAttentionService(runtime, store)
+    service = ReviewAwareWorkAttentionService(runtime, store)
     registry = runtime["device_registry"]
 
     def require_owner():
