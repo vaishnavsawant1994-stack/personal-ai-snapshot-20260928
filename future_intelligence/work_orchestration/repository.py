@@ -35,9 +35,13 @@ class RepositoryWorkspaceProvider(Protocol):
     push, merge, deploy, or activate a Vishnu Body revision through this contract.
     """
 
+    repository: str
+
     def resolve_revision(self, revision: str) -> str: ...
 
     def read_text_at(self, revision: str, path: str) -> str: ...
+
+    def changed_paths(self, *, base_revision: str, working_revision: str) -> tuple[str, ...]: ...
 
     def prepare(
         self,
@@ -116,6 +120,17 @@ class LocalGitRepositoryProvider:
         if not candidate.parts or candidate.is_absolute() or ".." in candidate.parts:
             raise ValueError("repository path must be a safe relative path")
         return self._run(("-C", str(self.repository_root), "show", f"{resolved}:{candidate.as_posix()}"))
+
+    def changed_paths(self, *, base_revision: str, working_revision: str) -> tuple[str, ...]:
+        base = self.resolve_revision(base_revision)
+        working = self.resolve_revision(working_revision)
+        raw = self._run(("-C", str(self.repository_root), "diff", "--name-only", f"{base}..{working}", "--"))
+        paths: list[str] = []
+        for value in raw.splitlines():
+            candidate = PurePosixPath(value.strip())
+            if candidate.parts and not candidate.is_absolute() and ".." not in candidate.parts:
+                paths.append(candidate.as_posix())
+        return tuple(dict.fromkeys(paths))
 
     @staticmethod
     def normalized_branch(branch_ref: str) -> str:
