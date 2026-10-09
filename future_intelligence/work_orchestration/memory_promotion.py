@@ -13,6 +13,11 @@ _SECRET = re.compile(
     r"authorization|bearer|cookie|private[ _-]?key|credential)\b",
     re.IGNORECASE,
 )
+_FORBIDDEN_CONTEXT = re.compile(
+    r"\b(system prompt|developer prompt|raw prompt|tool parameters?|tool arguments?|"
+    r"authorization header|request headers?)\b",
+    re.IGNORECASE,
+)
 _TRANSIENT = re.compile(
     r"\b(completed|succeeded|finished|passed|sent|published|deployed|created|uploaded|"
     r"downloaded|installed|started|stopped|running)\b",
@@ -42,6 +47,8 @@ def assess_usefulness(text: str) -> PromotionAssessment:
         return PromotionAssessment(False, "too_short_for_durable_knowledge")
     if _SECRET.search(value):
         return PromotionAssessment(False, "secret_shaped_content")
+    if _FORBIDDEN_CONTEXT.search(value):
+        return PromotionAssessment(False, "raw_prompt_or_tool_context")
     if len(_UUID.findall(value)) >= 2:
         return PromotionAssessment(False, "execution_identifier_heavy")
     reusable = bool(_REUSABLE.search(value))
@@ -49,8 +56,6 @@ def assess_usefulness(text: str) -> PromotionAssessment:
         return PromotionAssessment(False, "transient_execution_status")
     if reusable:
         return PromotionAssessment(True, "stable_reusable_fact")
-    # A longer declarative verified fact may still be useful even when it does not
-    # contain a known keyword, but short operation/status messages remain excluded.
     if len(value) >= 64 and any(token in value.lower() for token in (" is ", " are ", " has ", " maps to ", " belongs to ")):
         return PromotionAssessment(True, "verified_declarative_fact")
     return PromotionAssessment(False, "insufficient_reuse_signal")
@@ -70,7 +75,8 @@ def _verified_evidence(items: Iterable[Any]) -> list[Any]:
             continue
         if not _safe_classification(getattr(item, "data_classification", "internal")):
             continue
-        if _SECRET.search(str(getattr(item, "observation", ""))):
+        observation = str(getattr(item, "observation", ""))
+        if _SECRET.search(observation) or _FORBIDDEN_CONTEXT.search(observation):
             continue
         result.append(item)
     return result
@@ -219,8 +225,6 @@ class WorkMemoryPromotionBridge:
         proposed: list[str] = []
         used_text: set[str] = set()
 
-        # Prefer verified claims because they express the stable conclusion while
-        # their linked evidence gives traceable provenance.
         for claim in verified_claims:
             linked = [item for item in _verified_evidence(store.evidence_for_claim(claim.id)) if str(item.id) in evidence_by_id]
             if not linked:
@@ -250,8 +254,6 @@ class WorkMemoryPromotionBridge:
             if len(proposed) >= self.max_candidates_per_order:
                 return proposed
 
-        # If useful knowledge was observed but no verified claim expresses it,
-        # propose only verified, non-sensitive observations with reusable value.
         for item in evidence:
             text = " ".join(str(item.observation).split()).strip()
             key = text.lower()
