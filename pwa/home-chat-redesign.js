@@ -37,6 +37,11 @@
     if(normalHome&&document.body.classList.contains('chat-experience')){
       document.body.classList.remove('chat-experience','chat-empty-state','chat-response-clean','chat-details-open','chat-shell-collapsed');
     }
+    if(normalHome){
+      const stage=document.querySelector('.core-stage'),homeStage=document.getElementById('homeSphereStage');
+      if(stage&&homeStage&&!homeStage.contains(stage))homeStage.appendChild(stage);
+      if(stage&&homeStage&&typeof resizeCanvas==='function')requestAnimationFrame(resizeCanvas);
+    }
     const composer=document.getElementById('composer'),dock=document.getElementById('vChatDock'),details=document.getElementById('chatDetailsTop');
     if(!composer)return;
     const mobile=matchMedia('(max-width:760px)').matches;
