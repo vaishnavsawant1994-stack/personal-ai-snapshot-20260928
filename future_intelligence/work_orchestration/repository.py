@@ -4,7 +4,7 @@ import re
 import shutil
 import subprocess
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Protocol, Sequence
 
 
@@ -34,6 +34,10 @@ class RepositoryWorkspaceProvider(Protocol):
     Implementations may create local workspaces and local commits. They MUST NOT
     push, merge, deploy, or activate a Vishnu Body revision through this contract.
     """
+
+    def resolve_revision(self, revision: str) -> str: ...
+
+    def read_text_at(self, revision: str, path: str) -> str: ...
 
     def prepare(
         self,
@@ -100,6 +104,19 @@ class LocalGitRepositoryProvider:
             raise RuntimeError(error[:2000])
         return process.stdout
 
+    def resolve_revision(self, revision: str) -> str:
+        value = str(revision or "").strip()
+        if not value:
+            raise ValueError("revision is required")
+        return self._run(("-C", str(self.repository_root), "rev-parse", "--verify", f"{value}^{{commit}}" )).strip()
+
+    def read_text_at(self, revision: str, path: str) -> str:
+        resolved = self.resolve_revision(revision)
+        candidate = PurePosixPath(str(path or "").strip())
+        if not candidate.parts or candidate.is_absolute() or ".." in candidate.parts:
+            raise ValueError("repository path must be a safe relative path")
+        return self._run(("-C", str(self.repository_root), "show", f"{resolved}:{candidate.as_posix()}"))
+
     @staticmethod
     def normalized_branch(branch_ref: str) -> str:
         value = _BRANCH_SAFE.sub("-", str(branch_ref or "").strip()).strip("-./")
@@ -125,13 +142,8 @@ class LocalGitRepositoryProvider:
     ) -> RepositoryWorkspaceSession:
         if str(repository) != self.repository:
             raise ValueError("repository is outside the configured provider scope")
-        base = str(base_revision or "").strip()
-        if not base:
-            raise ValueError("base_revision is required")
+        resolved = self.resolve_revision(base_revision)
         branch = self.normalized_branch(branch_ref)
-        resolved = self._run(("-C", str(self.repository_root), "rev-parse", "--verify", f"{base}^{{commit}}" )).strip()
-        if not resolved:
-            raise ValueError("base_revision could not be resolved")
         target = self._workspace_path(work_order_id, attempt_id)
         if target.exists():
             raise FileExistsError(f"workspace already exists: {target.name}")
@@ -160,7 +172,7 @@ class LocalGitRepositoryProvider:
             repository=self.repository,
             work_order_id=str(work_order_id),
             attempt_id=str(attempt_id),
-            base_revision=str(base_revision),
+            base_revision=self.resolve_revision(base_revision),
             branch_ref=self.normalized_branch(branch_ref),
             local_path=self._workspace_path(work_order_id, attempt_id),
         )
