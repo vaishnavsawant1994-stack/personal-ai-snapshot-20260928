@@ -3,7 +3,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import datetime, timezone
 
-EVIDENCE_SCHEMA_VERSION = 1
+EVIDENCE_SCHEMA_VERSION = 2
 
 
 def _now() -> str:
@@ -95,5 +95,30 @@ def migrate_evidence_schema(connection: sqlite3.Connection) -> int:
             connection.execute(
                 "INSERT INTO evidence_schema_migrations(version, name, applied_at) VALUES (?, ?, ?)",
                 (1, "initial_evidence_claim_foundation", _now()),
+            )
+            applied.add(1)
+
+        if 2 not in applied:
+            # WorkOrder detail and Completion Judge read by work_order_id far more
+            # often than they scan an entire Project. Cover those paths, plus
+            # receipt verification and reverse claim-evidence lookup, without
+            # changing any evidence semantics.
+            connection.executescript(
+                """
+                CREATE INDEX IF NOT EXISTS idx_evidence_work_order_state_created
+                    ON evidence(work_order_id, verification_state, created_at, id);
+                CREATE INDEX IF NOT EXISTS idx_claims_work_order_state_updated
+                    ON claims(work_order_id, state, updated_at DESC, id);
+                CREATE INDEX IF NOT EXISTS idx_receipts_execution_verified_created
+                    ON receipts(execution_id, verified, created_at, id);
+                CREATE INDEX IF NOT EXISTS idx_claim_evidence_evidence
+                    ON claim_evidence(evidence_id, claim_id);
+                CREATE INDEX IF NOT EXISTS idx_retests_work_order_status_created
+                    ON retests(work_order_id, status, created_at, id);
+                """
+            )
+            connection.execute(
+                "INSERT INTO evidence_schema_migrations(version, name, applied_at) VALUES (?, ?, ?)",
+                (2, "indexed_work_evidence_read_paths", _now()),
             )
     return EVIDENCE_SCHEMA_VERSION
