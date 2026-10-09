@@ -176,7 +176,7 @@ def migrate_evidence_schema(connection: sqlite3.Connection) -> int:
                     FOREIGN KEY(receipt_id) REFERENCES receipts(id) ON DELETE CASCADE
                 );
 
-                CREATE UNIQUE INDEX IF NOT EXISTS idx_receipt_context_idempotency
+                CREATE INDEX IF NOT EXISTS idx_receipt_context_idempotency
                     ON receipt_context(idempotency_key)
                     WHERE idempotency_key IS NOT NULL;
                 CREATE INDEX IF NOT EXISTS idx_evidence_lifecycle_status
