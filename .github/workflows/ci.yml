@@ -29,4 +29,6 @@ jobs:
           tests/test_authoritative_completion_judge.py
           tests/test_completion_runtime_integration.py
           tests/test_project_autonomy_*.py
+      - name: Canonical Work release qualification gate
+        run: pytest -q tests/test_work_release_qualification.py tests/test_work_final_qualification.py
       - run: pytest -q
