@@ -48,11 +48,15 @@ class ContinuityCheckpointService:
         authority: HostContinuationAuthority,
         backups: BackupService,
         identity_store: IdentityStore,
+        running_git_revision: str,
     ) -> None:
         self.store = store
         self.authority = authority
         self.backups = backups
         self.identity_store = identity_store
+        self.running_git_revision = str(running_git_revision or "").strip()
+        if not self.running_git_revision:
+            raise ValueError("running_git_revision is required for cross-host continuity")
 
     @staticmethod
     def supported_schema_versions() -> dict[str, tuple[int, ...]]:
@@ -66,6 +70,10 @@ class ContinuityCheckpointService:
 
     def create(self) -> CheckpointArtifact:
         lease = self.authority.assert_active()
+        active_body = self.identity_store.active_body_revision()
+        if active_body is not None and str(active_body["git_revision"]) != self.running_git_revision:
+            raise RuntimeError("running revision does not match the active Body revision")
+
         checkpoint_id = f"ccp_{uuid4().hex}"
         backup = self.backups.create(f"continuity-{checkpoint_id}.paibackup")
         manifest = self.backups.inspect(backup)
@@ -75,7 +83,6 @@ class ContinuityCheckpointService:
         finally:
             payload.unlink(missing_ok=True)
 
-        active_body = self.identity_store.active_body_revision()
         files = tuple(manifest.get("files") or ())
         total_bytes = sum(int(item.get("size", 0)) for item in files if isinstance(item, dict))
         checkpoint = ContinuityCheckpoint(
@@ -88,7 +95,7 @@ class ContinuityCheckpointService:
             payload_sha256=payload_sha,
             data_manifest_hash=_manifest_hash(manifest),
             active_body_revision_id=(str(active_body["revision_id"]) if active_body else None),
-            active_body_git_revision=(str(active_body["git_revision"]) if active_body else None),
+            active_body_git_revision=self.running_git_revision,
             schema_versions=self.supported_schema_versions(),
             state_summary={
                 "file_count": len(files),
