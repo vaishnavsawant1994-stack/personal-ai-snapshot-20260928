@@ -17,6 +17,15 @@ from .models import (
 )
 from .p10_bridge import P10WorkBridge
 from .planner import InvalidStrategicPlan, StrategicWorkPlanner
+from .replanner import (
+    PlanDelta,
+    PlanDeltaChange,
+    PlanDeltaKind,
+    PlanDeltaStore,
+    ReplanSafetyError,
+    compute_task_delta,
+    prepare_safe_replacement,
+)
 from .reviewer import PlanReview, PlanReviewer, PlanReviewStore
 from .store import WorkStore
 
@@ -35,10 +44,15 @@ __all__ = [
     "InvalidStrategicPlan",
     "Milestone",
     "P10WorkBridge",
+    "PlanDelta",
+    "PlanDeltaChange",
+    "PlanDeltaKind",
+    "PlanDeltaStore",
     "PlanReview",
     "PlanReviewer",
     "PlanReviewStore",
     "ReadinessStatus",
+    "ReplanSafetyError",
     "ResourceScope",
     "StrategicWorkPlanner",
     "WorkOrder",
@@ -47,6 +61,8 @@ __all__ = [
     "WorkPlanStatus",
     "WorkStore",
     "bind_to_projection",
+    "compute_task_delta",
     "lower_to_p10_tasks",
     "migrate_work_schema",
+    "prepare_safe_replacement",
 ]
