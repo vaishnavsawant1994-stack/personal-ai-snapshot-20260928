@@ -1506,10 +1506,10 @@ try {
   await page.setViewportSize({width:390,height:844});
   await page.evaluate(()=>openConversation("new"));
   await page.waitForFunction(()=>!document.querySelector("#chatMenuButton").classList.contains("hidden"));
-  await page.click("#chatMenuButton");
+  await page.click("#chatDetailsTop");
   await page.click("#chatDelete");await page.click("#actionDialogCancel");
   assert.deepEqual(deletedConversationIds,[],"cancel must leave conversation untouched");
-  await page.click("#chatMenuButton");
+  await page.click("#chatDetailsTop");
   await page.click("#chatDelete");await page.click("#actionDialogSubmit");
   await page.waitForFunction(()=>document.body.classList.contains("home-landing")&&document.querySelector("#chatMenuButton").classList.contains("hidden"));
   assert.deepEqual(deletedConversationIds,["new"],"confirmed delete must call the secured conversation endpoint exactly once");
