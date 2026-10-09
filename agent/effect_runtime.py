@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from contextvars import ContextVar
+from pathlib import Path
 
 from agent.durable_executor import DurableAgentExecutor
 from agent.effects import EffectLedgerMixin, bind_effect_context
+from evidence.effect_bridge import GovernedEffectLedger
 
 
 _PENDING_APPROVAL_ID: ContextVar[str | None] = ContextVar(
@@ -12,11 +14,22 @@ _PENDING_APPROVAL_ID: ContextVar[str | None] = ContextVar(
 
 
 class EffectAwareDurableAgentExecutor(EffectLedgerMixin, DurableAgentExecutor):
-    """Existing durable executor plus evidence/receipt observation.
+    """Existing durable executor plus governed Evidence-v3 observation.
 
     DurableAgentExecutor remains the approval/dispatch implementation. This
-    class only composes the EffectLedgerMixin around its `_execute_step` path.
+    class only composes the effect ledger around its `_execute_step` path.
     """
+
+    def __init__(self, *args, effect_ledger=None, **kwargs):
+        if effect_ledger is None:
+            memory = kwargs.get("memory")
+            memory_path = getattr(memory, "path", None)
+            if memory_path is not None:
+                effect_ledger = GovernedEffectLedger(
+                    db_path=Path(memory_path).parent / "evidence.sqlite3",
+                    events=kwargs.get("events"),
+                )
+        super().__init__(*args, effect_ledger=effect_ledger, **kwargs)
 
     def approve(self, approval_id: str, **kwargs):
         token = _PENDING_APPROVAL_ID.set(str(approval_id))

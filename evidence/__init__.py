@@ -6,6 +6,12 @@ from .domain_claims import (
     DomainClaimType,
     requirement_for,
 )
+from .ingestion import (
+    EvidenceIngestor,
+    EvidenceSourceType,
+    EvidenceStatus,
+    IngestionRecord,
+)
 from .migrations import EVIDENCE_SCHEMA_VERSION, migrate_evidence_schema
 from .models import (
     Claim,
@@ -15,6 +21,7 @@ from .models import (
     Receipt,
     VerificationState,
 )
+from .redaction import contains_probable_secret, redact_text
 from .store import EvidenceStore
 
 __all__ = [
@@ -29,10 +36,16 @@ __all__ = [
     "DomainClaimType",
     "EVIDENCE_SCHEMA_VERSION",
     "Evidence",
+    "EvidenceIngestor",
     "EvidenceProvenance",
+    "EvidenceSourceType",
+    "EvidenceStatus",
     "EvidenceStore",
+    "IngestionRecord",
     "Receipt",
     "VerificationState",
+    "contains_probable_secret",
     "migrate_evidence_schema",
+    "redact_text",
     "requirement_for",
 ]
