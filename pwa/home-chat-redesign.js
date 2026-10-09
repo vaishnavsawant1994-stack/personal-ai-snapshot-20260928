@@ -61,7 +61,7 @@
       details.style.setProperty('width','44px','important');
       details.style.setProperty('height','44px','important');
       details.style.setProperty('position','absolute','important');
-      details.style.setProperty('right','max(58px,calc(env(safe-area-inset-right) + 58px))','important');
+      details.style.setProperty('right','max(104px,calc(env(safe-area-inset-right) + 104px))','important');
       details.style.setProperty('top','5px','important');
       details.style.setProperty('z-index','60','important');
     }
