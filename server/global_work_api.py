@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 from collections import Counter
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Cookie, HTTPException
 
 
-_ACTIVE = {"RUNNING", "VERIFYING", "RECOVERING"}
-_BLOCKED = {"BLOCKED", "UNCERTAIN", "FAILED"}
+_ACTIVE = {"RUNNING", "VERIFYING", "RECOVERING", "RETRYING"}
+_BLOCKED = {"BLOCKED", "UNCERTAIN", "FAILED", "RECOVERY_REQUIRED"}
 _TERMINAL_PLAN = {"COMPLETED", "FAILED", "CANCELLED", "UNCERTAIN"}
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 class GlobalWorkService:
@@ -53,15 +58,17 @@ class GlobalWorkService:
         }
 
     @staticmethod
-    def _living_state(*, active: int, approval: int, blocked: int, ready: int) -> tuple[str, str]:
+    def _living_state(*, active: int, approval: int, blocked: int, ready: int, verifying: int) -> tuple[str, str]:
         if approval:
             return "approval", f"{approval} WorkOrder{'s' if approval != 1 else ''} waiting for your approval."
         if blocked:
-            return "attention", f"{blocked} WorkOrder{'s' if blocked != 1 else ''} blocked or uncertain and need attention."
+            return "attention", f"{blocked} WorkOrder{'s' if blocked != 1 else ''} blocked or in recovery and need attention."
+        if verifying:
+            return "verifying", f"{verifying} WorkOrder{'s are' if verifying != 1 else ' is'} being verified."
         if active:
             return "background", f"Vishnu is working on {active} WorkOrder{'s' if active != 1 else ''} across your projects."
         if ready:
-            return "ready", f"{ready} WorkOrder{'s are' if ready != 1 else ' is'} ready to start."
+            return "ready", f"{ready} WorkOrder{'s are' if ready != 1 else ' is'} ready to continue."
         return "idle", "No canonical Project Work is active right now."
 
     def summary(self, *, project_limit: int = 50, work_order_limit: int = 250) -> dict:
@@ -138,6 +145,8 @@ class GlobalWorkService:
         active = sum(task_counts[state] for state in _ACTIVE)
         approval = task_counts["WAITING_APPROVAL"]
         blocked = sum(task_counts[state] for state in _BLOCKED)
+        verifying = task_counts["VERIFYING"]
+        recovering = task_counts["RECOVERING"] + task_counts["RECOVERY_REQUIRED"]
         ready = sum(1 for item in work_orders if item["ready"])
         completed = task_counts["COMPLETED"]
         active_projects = sum(1 for item in project_rows if str(item.get("state") or "").upper() not in _TERMINAL_PLAN)
@@ -146,9 +155,22 @@ class GlobalWorkService:
             approval=approval,
             blocked=blocked,
             ready=ready,
+            verifying=verifying,
         )
 
-        priority = {"WAITING_APPROVAL": 0, "BLOCKED": 1, "UNCERTAIN": 1, "FAILED": 1, "VERIFYING": 2, "RECOVERING": 2, "RUNNING": 2, "WAITING": 3, "COMPLETED": 5}
+        priority = {
+            "WAITING_APPROVAL": 0,
+            "BLOCKED": 1,
+            "UNCERTAIN": 1,
+            "FAILED": 1,
+            "RECOVERY_REQUIRED": 1,
+            "VERIFYING": 2,
+            "RECOVERING": 2,
+            "RETRYING": 2,
+            "RUNNING": 2,
+            "WAITING": 3,
+            "COMPLETED": 5,
+        }
         work_orders.sort(
             key=lambda item: (
                 priority.get(str(item.get("status") or ""), 4),
@@ -160,12 +182,15 @@ class GlobalWorkService:
         return {
             "authority": "read_only_projection",
             "execution_authority": "existing_p10_p6_runtime",
+            "updated_at": _now(),
             "projects_total": len(projects),
             "projects_with_work": len(project_rows),
             "active_projects": active_projects,
             "task_counts": dict(task_counts),
             "counts": {
                 "active": active,
+                "verifying": verifying,
+                "recovering": recovering,
                 "waiting_approval": approval,
                 "blocked": blocked,
                 "ready": ready,
