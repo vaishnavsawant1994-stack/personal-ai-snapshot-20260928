@@ -45,6 +45,16 @@ class RepositoryWorkspaceProvider(Protocol):
         branch_ref: str,
     ) -> RepositoryWorkspaceSession: ...
 
+    def resume(
+        self,
+        *,
+        repository: str,
+        work_order_id: str,
+        attempt_id: str,
+        base_revision: str,
+        branch_ref: str,
+    ) -> RepositoryWorkspaceSession: ...
+
     def status(self, session: RepositoryWorkspaceSession) -> RepositoryStatus: ...
 
     def commit_all(self, session: RepositoryWorkspaceSession, *, message: str) -> RepositoryStatus: ...
@@ -97,6 +107,13 @@ class LocalGitRepositoryProvider:
             raise ValueError("invalid branch_ref")
         return value[:180]
 
+    def _workspace_path(self, work_order_id: str, attempt_id: str) -> Path:
+        workspace_name = f"{str(work_order_id)[:48]}-{str(attempt_id)[:32]}"
+        target = (self.workspace_root / workspace_name).resolve()
+        if self.workspace_root not in target.parents:
+            raise ValueError("workspace path escapes configured workspace_root")
+        return target
+
     def prepare(
         self,
         *,
@@ -115,10 +132,7 @@ class LocalGitRepositoryProvider:
         resolved = self._run(("-C", str(self.repository_root), "rev-parse", "--verify", f"{base}^{{commit}}" )).strip()
         if not resolved:
             raise ValueError("base_revision could not be resolved")
-        workspace_name = f"{str(work_order_id)[:48]}-{str(attempt_id)[:32]}"
-        target = (self.workspace_root / workspace_name).resolve()
-        if self.workspace_root not in target.parents:
-            raise ValueError("workspace path escapes configured workspace_root")
+        target = self._workspace_path(work_order_id, attempt_id)
         if target.exists():
             raise FileExistsError(f"workspace already exists: {target.name}")
         self._run(("-C", str(self.repository_root), "worktree", "add", "-b", branch, str(target), resolved))
@@ -130,6 +144,31 @@ class LocalGitRepositoryProvider:
             branch_ref=branch,
             local_path=target,
         )
+
+    def resume(
+        self,
+        *,
+        repository: str,
+        work_order_id: str,
+        attempt_id: str,
+        base_revision: str,
+        branch_ref: str,
+    ) -> RepositoryWorkspaceSession:
+        if str(repository) != self.repository:
+            raise ValueError("repository is outside the configured provider scope")
+        session = RepositoryWorkspaceSession(
+            repository=self.repository,
+            work_order_id=str(work_order_id),
+            attempt_id=str(attempt_id),
+            base_revision=str(base_revision),
+            branch_ref=self.normalized_branch(branch_ref),
+            local_path=self._workspace_path(work_order_id, attempt_id),
+        )
+        self._validate_session(session)
+        actual_branch = self._run(("-C", str(session.local_path), "branch", "--show-current")).strip()
+        if actual_branch != session.branch_ref:
+            raise RuntimeError("workspace branch no longer matches durable workspace metadata")
+        return session
 
     def status(self, session: RepositoryWorkspaceSession) -> RepositoryStatus:
         self._validate_session(session)
