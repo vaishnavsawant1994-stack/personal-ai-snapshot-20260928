@@ -1,5 +1,46 @@
 /* Sequential loader for Home/Chat plus canonical Projects Work surfaces. */
 (()=>{
+  // Owner-frozen shared mobile chrome contract. The Chat Experience stylesheet
+  // deliberately changes the conversation layout, so re-assert the shared
+  // fixed SMS composer and context dock after all static stylesheets load.
+  // This keeps Home and Chat on the same 24px bottom inset and prevents the
+  // project-context chip from being covered by the composer.
+  const enforceSharedMobileComposerChrome=()=>{
+    if(document.getElementById('vishnuSharedMobileComposerGuard'))return;
+    const style=document.createElement('style');
+    style.id='vishnuSharedMobileComposerGuard';
+    style.textContent=`@media(max-width:760px){
+      body.chat-experience:not(.home-landing) #composer{
+        position:fixed!important;
+        z-index:45!important;
+        left:max(var(--shared-chrome-x,18px),env(safe-area-inset-left))!important;
+        right:max(var(--shared-chrome-x,18px),env(safe-area-inset-right))!important;
+        bottom:var(--shared-composer-bottom,24px)!important;
+        width:auto!important;
+        max-width:var(--shared-chrome-max,720px)!important;
+        margin:0 auto!important;
+      }
+      body.chat-experience:not(.home-landing) #vChatDock{
+        position:fixed!important;
+        z-index:46!important;
+        left:50%!important;
+        right:auto!important;
+        transform:translateX(-50%)!important;
+        bottom:calc(var(--shared-composer-bottom,24px) + var(--shared-composer-h,54px) + 10px)!important;
+        width:min(820px,calc(100% - 28px))!important;
+        margin:0!important;
+      }
+      body.chat-experience:not(.home-landing) .message-stream{
+        scroll-padding-bottom:calc(var(--shared-composer-bottom,24px) + var(--shared-composer-h,54px) + 58px)!important;
+      }
+      body.chat-experience.keyboard-open:not(.home-landing) #vChatDock{
+        bottom:max(calc(var(--shared-composer-bottom,24px) + var(--shared-composer-h,54px) + 10px),calc(100dvh - var(--keyboard-visible-height,100dvh) + var(--shared-composer-bottom,24px) + var(--shared-composer-h,54px) + 10px))!important;
+      }
+    }`;
+    document.head.append(style);
+  };
+  enforceSharedMobileComposerChrome();
+
   const loadChatContextOwner=()=>{
     if(window.__vishnuChatContextOwner||document.querySelector('script[data-chat-context-owner]'))return;
     const context=document.createElement('script');
