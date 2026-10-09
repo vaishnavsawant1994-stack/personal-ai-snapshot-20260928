@@ -192,6 +192,29 @@ def test_plan_delta_redacts_secret_like_structured_metadata():
     assert metadata["parameters"]["query"] == "safe"
 
 
+def test_projection_failure_reports_p10_replan_as_persisted(tmp_path, monkeypatch):
+    autonomy = _autonomy(tmp_path)
+    _goal, plan = _goal_and_plan(autonomy)
+    bridge = autonomy._work_bridge
+
+    def fail_projection(*_args, **_kwargs):
+        raise RuntimeError("projection unavailable")
+
+    monkeypatch.setattr(bridge, "project_plan", fail_projection)
+    result = autonomy.replan(
+        plan["id"],
+        [{"id": "replacement", "objective": "Replacement work", "required_capabilities": ["research"]}],
+        reason="projection-failure-test",
+    )
+
+    assert result["work_projection"]["state"] == "failed"
+    assert result["work_projection"]["error_type"] == "RuntimeError"
+    assert result["work_projection"]["p10_replan_persisted"] is True
+    persisted = autonomy.plan(plan["id"])
+    assert persisted["replan_count"] == 1
+    assert [task["id"] for task in persisted["tasks"]] == ["replacement"]
+
+
 def test_status_exposes_versioned_replanning_as_planning_only(tmp_path):
     autonomy = _autonomy(tmp_path)
     status = autonomy.status()["versioned_replanning"]
