@@ -84,7 +84,7 @@
     if(projectLookupFor===current.id){renderDetails();return}
     projectName='';projectContextKnown=false;projectContextLoading=true;projectLookupFor=current.id;renderDetails();
     try{const data=await b.api('/projects');const projects=Array.isArray(data.projects)?data.projects:[];const found=projects.find(p=>p.conversation_id===current.id);projectName=found?(found.name||'Project'):'';projectContextKnown=true;projectContextLoading=false}catch{projectName='';projectContextKnown=false;projectContextLoading=false;projectLookupFor=''}
-    if(state().id===current.id)renderDetails();
+    if(state().id===current.id){setContextLabel(projectName);renderDetails();}
   }
   let sphereOriginalParent=null,sphereOriginalNext=null;
   function openDetails(returnFocus=null){detailReturnFocus=returnFocus||document.activeElement;updateDetails();document.body.classList.add('chat-details-open');$('chatDetailsTop')?.setAttribute('aria-expanded','true');if(matchMedia('(max-width:760px)').matches){const panel=$('chatDetailMobile'),actual=document.querySelector('.topbar .header-core .core-stage'),placeholder=panel.querySelector('.chat-detail-mobile-header .core-stage');if(actual&&placeholder){sphereOriginalParent=actual.parentElement;sphereOriginalNext=actual.nextSibling;placeholder.replaceWith(actual)}panel.classList.add('open');panel.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';requestAnimationFrame(()=>panel.querySelector('[data-chat-detail="back"]')?.focus({preventScroll:true}))}else{$('chatDetailDesktop').classList.remove('hidden');$('chatDetailDesktop').setAttribute('aria-hidden','false')}}
