@@ -32,6 +32,13 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Authenticode signing failed' }
           & $signtool verify /pa /all /v $msi
           if ($LASTEXITCODE -ne 0) { throw 'Authenticode verification failed' }
+      - name: Bind Windows artifact identity
+        shell: pwsh
+        run: |
+          $msi=(Get-ChildItem dist -Filter *.msi | Select-Object -First 1).FullName
+          if (-not $msi) { throw 'MSI not found after signing' }
+          $arch=$env:RUNNER_ARCH.ToLowerInvariant()
+          Rename-Item -Path $msi -NewName "Vishnu-${env:GITHUB_REF_NAME}-windows-$arch.msi"
       - uses: actions/upload-artifact@v4
         with:
           name: release-windows
@@ -90,6 +97,10 @@ jobs:
           xcrun notarytool submit dist/PersonalAI.dmg --apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
           xcrun stapler staple dist/PersonalAI.dmg
           xcrun stapler validate dist/PersonalAI.dmg
+      - name: Bind macOS artifact identity
+        run: |
+          ARCH="$(printf '%s' "$RUNNER_ARCH" | tr '[:upper:]' '[:lower:]')"
+          mv dist/PersonalAI.dmg "dist/Vishnu-${GITHUB_REF_NAME}-macos-${ARCH}.dmg"
       - uses: actions/upload-artifact@v4
         with:
           name: release-macos
@@ -109,7 +120,13 @@ jobs:
         run: |
           export PERSONAL_AI_VERSION="${PERSONAL_AI_VERSION#v}"
           python packaging/build_installer.py
-      - run: dpkg-deb --info dist/*.deb
+      - name: Validate and bind Linux artifact identity
+        run: |
+          DEB="$(find dist -maxdepth 1 -name '*.deb' -print -quit)"
+          test -n "$DEB"
+          dpkg-deb --info "$DEB"
+          ARCH="$(dpkg-deb -f "$DEB" Architecture)"
+          mv "$DEB" "dist/Vishnu-${GITHUB_REF_NAME}-linux-${ARCH}.deb"
       - uses: actions/upload-artifact@v4
         with:
           name: release-linux
@@ -133,15 +150,33 @@ jobs:
         run: |
           test -n "$PERSONAL_AI_RELEASE_PRIVATE_KEY_B64"
           test -n "$RELEASE_PUBLIC_KEY_B64"
-      - name: Sign installer manifest
+      - name: Sign and verify installer manifest
         run: |
           python - <<'PY'
           from pathlib import Path
           import os,subprocess,sys
           artifacts=sorted(p for p in Path('release-artifacts').iterdir() if p.suffix.lower() in {'.msi','.dmg','.deb'})
           if len(artifacts)!=3:raise SystemExit(f'expected 3 release installers, found {len(artifacts)}: {artifacts}')
-          subprocess.check_call([sys.executable,'updates/release_sign.py','--version',os.environ['GITHUB_REF_NAME'],'--output','release-artifacts/manifest.json',*[str(p) for p in artifacts]])
-          subprocess.check_call([sys.executable,'updates/release_verify.py','--manifest','release-artifacts/manifest.json','--signature','release-artifacts/manifest.json.sig','--public-key-b64',os.environ['RELEASE_PUBLIC_KEY_B64'],'--artifact-dir','release-artifacts'])
+          version=os.environ['GITHUB_REF_NAME']
+          source_commit=os.environ['GITHUB_SHA']
+          subprocess.check_call([
+              sys.executable,'updates/release_sign.py',
+              '--version',version,
+              '--source-commit',source_commit,
+              '--channel','stable',
+              '--output','release-artifacts/manifest.json',
+              *[str(p) for p in artifacts],
+          ])
+          subprocess.check_call([
+              sys.executable,'updates/release_verify.py',
+              '--manifest','release-artifacts/manifest.json',
+              '--signature','release-artifacts/manifest.json.sig',
+              '--public-key-b64',os.environ['RELEASE_PUBLIC_KEY_B64'],
+              '--artifact-dir','release-artifacts',
+              '--expected-version',version,
+              '--expected-source-commit',source_commit,
+              '--expected-channel','stable',
+          ])
           PY
       - uses: softprops/action-gh-release@v2
         with:
