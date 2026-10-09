@@ -34,7 +34,7 @@ jobs:
       - name: E6 owner-approved handoff qualification gate
         run: pytest -q tests/test_evolution_e6_handoff.py
       - name: E7 isolated code-body qualification gate
-        run: pytest -q tests/test_evolution_e7_code_body.py tests/test_evolution_e7_policy.py
+        run: pytest -q tests/test_evolution_e7_code_body.py tests/test_evolution_e7_policy.py tests/test_evolution_e7_review.py
       - name: Canonical Work release qualification gate
         run: pytest -q tests/test_work_release_qualification.py tests/test_work_final_qualification.py
       - run: pytest -q
