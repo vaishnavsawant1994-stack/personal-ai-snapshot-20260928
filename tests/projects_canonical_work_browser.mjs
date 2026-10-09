@@ -58,7 +58,7 @@ try{
     await page.locator('.cw-live-list').waitFor();
     const liveText=await page.locator('#host').innerText();
     assert.match(liveText,/Live work/i);
-    assert.match(liveText,/Waiting For Approval/i);
+    assert.match(liveText,/Waiting Approval/i);
     assert.match(liveText,/Actual P10 WorkOrder state/i);
     assert.match(liveText,/Evidence · 1/i);
     assert.equal(await page.locator('[data-cw-live-select="publish"]').count(),1);
