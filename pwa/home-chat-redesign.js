@@ -9,6 +9,12 @@
     context.onerror=()=>console.warn('Chat project-context controller could not be loaded.');
     document.body.append(context);
   };
+
+  // Chat owns shared composer/context/menu behavior and must not wait for the
+  // much larger Projects/Work enhancement chain. Loading it first removes a
+  // first-render race where legacy Home CSS/handlers temporarily win.
+  loadChatContextOwner();
+
   const loadAttentionCenter=()=>{
     if(window.__vishnuWorkAttentionCenter){loadChatContextOwner();return}
     const existing=document.querySelector('script[data-work-attention-center]');
