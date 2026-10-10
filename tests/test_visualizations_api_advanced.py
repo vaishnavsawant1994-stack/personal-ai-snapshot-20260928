@@ -49,24 +49,23 @@ class _Projects:
 
 
 class _Knowledge:
+    ROWS = [
+        {'id': 'doc-1', 'title': 'Architecture', 'filename': 'architecture.md', 'source': 'owner-upload', 'checksum': 'a', 'access_class': 'owner', 'metadata': {}, 'lineage_id': 'l1', 'version': 1, 'updated_at': 'now'},
+        {'id': 'doc-2', 'title': 'Private Runbook', 'filename': 'private.md', 'source': 'owner-upload', 'checksum': 'b', 'access_class': 'private', 'metadata': {}, 'lineage_id': 'l2', 'version': 1, 'updated_at': 'now'},
+    ]
+
     def __init__(self):
         self.last_access_classes = None
 
     def list(self, query='', limit=100, *, access_classes=None, include_history=False):
         self.last_access_classes = set(access_classes or ())
-        rows = [
-            {'id': 'doc-1', 'title': 'Architecture', 'filename': 'architecture.md', 'source': 'owner-upload', 'checksum': 'a', 'access_class': 'owner', 'metadata': {}, 'lineage_id': 'l1', 'version': 1, 'updated_at': 'now'},
-            {'id': 'doc-2', 'title': 'Private Runbook', 'filename': 'private.md', 'source': 'owner-upload', 'checksum': 'b', 'access_class': 'private', 'metadata': {}, 'lineage_id': 'l2', 'version': 1, 'updated_at': 'now'},
-        ]
-        allowed = self.last_access_classes
-        return [row for row in rows if row['access_class'] in allowed][:limit]
+        return [row for row in self.ROWS if row['access_class'] in self.last_access_classes][:limit]
 
     def collections(self):
         return []
 
     def detail(self, document_id, include_history=False):
-        rows = self.list(access_classes={'owner', 'private'})
-        row = next(item for item in rows if item['id'] == document_id)
+        row = next(item for item in self.ROWS if item['id'] == document_id)
         return {**row, 'memory_links': []}
 
 
