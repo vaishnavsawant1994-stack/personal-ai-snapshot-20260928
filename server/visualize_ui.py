@@ -9,10 +9,12 @@ from fastapi.responses import Response
 _VISUALIZE_HEAD = (
     '<link rel="stylesheet" href="/iphone/visualize-workspace.css" />'
     '<link rel="stylesheet" href="/iphone/visualize-sources.css" />'
+    '<link rel="stylesheet" href="/iphone/visualize-advanced.css" />'
 )
 _VISUALIZE_SCRIPT = (
     '<script src="/iphone/visualize-workspace.js" defer></script>'
     '<script src="/iphone/visualize-sources.js" defer></script>'
+    '<script src="/iphone/visualize-advanced.js" defer></script>'
 )
 
 
@@ -61,11 +63,15 @@ class VisualizeUiMiddleware:
                                 text = text.replace('</head>', f'{_VISUALIZE_HEAD}</head>', 1)
                             else:
                                 text = _VISUALIZE_HEAD + text
+                        elif '/iphone/visualize-advanced.css' not in text and '</head>' in text:
+                            text = text.replace('</head>', '<link rel="stylesheet" href="/iphone/visualize-advanced.css" /></head>', 1)
                         if '/iphone/visualize-workspace.js' not in text:
                             if '</body>' in text:
                                 text = text.replace('</body>', f'{_VISUALIZE_SCRIPT}</body>', 1)
                             else:
                                 text += _VISUALIZE_SCRIPT
+                        elif '/iphone/visualize-advanced.js' not in text and '</body>' in text:
+                            text = text.replace('</body>', '<script src="/iphone/visualize-advanced.js" defer></script></body>', 1)
                         body = text.encode('utf-8')
                     filtered = [(key, value) for key, value in headers if key.lower() != b'content-length']
                     filtered.append((b'content-length', str(len(body)).encode('ascii')))
@@ -80,26 +86,24 @@ def visualize_assets_router(settings):
     web_dir = Path(settings.base_dir) / 'pwa'
 
     def asset(name: str, media_type: str):
-        return Response(
-            (web_dir / name).read_text(encoding='utf-8'),
-            media_type=media_type,
-            headers={'Cache-Control': 'no-cache'},
-        )
+        return Response((web_dir / name).read_text(encoding='utf-8'), media_type=media_type, headers={'Cache-Control': 'no-cache'})
 
     @router.get('/visualize-workspace.js', include_in_schema=False)
-    def visualize_script():
-        return asset('visualize-workspace.js', 'application/javascript')
+    def visualize_script(): return asset('visualize-workspace.js', 'application/javascript')
 
     @router.get('/visualize-workspace.css', include_in_schema=False)
-    def visualize_styles():
-        return asset('visualize-workspace.css', 'text/css')
+    def visualize_styles(): return asset('visualize-workspace.css', 'text/css')
 
     @router.get('/visualize-sources.js', include_in_schema=False)
-    def visualize_sources_script():
-        return asset('visualize-sources.js', 'application/javascript')
+    def visualize_sources_script(): return asset('visualize-sources.js', 'application/javascript')
 
     @router.get('/visualize-sources.css', include_in_schema=False)
-    def visualize_sources_styles():
-        return asset('visualize-sources.css', 'text/css')
+    def visualize_sources_styles(): return asset('visualize-sources.css', 'text/css')
+
+    @router.get('/visualize-advanced.js', include_in_schema=False)
+    def visualize_advanced_script(): return asset('visualize-advanced.js', 'application/javascript')
+
+    @router.get('/visualize-advanced.css', include_in_schema=False)
+    def visualize_advanced_styles(): return asset('visualize-advanced.css', 'text/css')
 
     return router
