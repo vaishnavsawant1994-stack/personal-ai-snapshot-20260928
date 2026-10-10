@@ -56,6 +56,7 @@ async function mockApi(page){
     else if(path==='/iphone/api/agents/agent-coding/conversations' && req.method()==='POST') body={conversation:{id:'chat-1',template_id:'agent-coding',version_id:'ver-coding-1',instance_id:'worker-1',project_id:'project-a',title:'Coding Agent · Vishnu',state:'active',created_at:'2026-10-10T10:00:00Z',updated_at:'2026-10-10T10:00:00Z'}};
     else if(path==='/iphone/api/agents/conversations/chat-1' && req.method()==='GET') body={id:'chat-1',template_id:'agent-coding',version_id:'ver-coding-1',instance_id:'worker-1',project_id:'project-a',title:'Coding Agent · Vishnu',state:'active',messages:[]};
     else if(path==='/iphone/api/agents/conversations/chat-1/messages' && req.method()==='POST') body={conversation:{id:'chat-1',project_id:'project-a'},user_message:{role:'user',content:'Check the failing tests',created_at:'2026-10-10T10:01:00Z'},assistant_message:{role:'assistant',content:'I can inspect the Project-scoped test context. Tool execution remains governed by Vishnu.',provider:'test',model_id:'test-model',created_at:'2026-10-10T10:01:01Z'},usage:{total_tokens:10},model_output_authority:false,tool_execution_authority:false,completion_authority:false};
+    else if(path==='/iphone/api/agents/agent-coding/work-requests' && req.method()==='POST') body={project_id:'project-a',template_id:'agent-coding',conversation_id:'chat-1',message:'Canonical Project Work created for this request. Vishnu remains execution authority; tools, approvals, Evidence and completion continue through the governed Work runtime.',work:{created:true,plan_id:'plan-1'},team:[],unmapped_work_orders:[],execution_authority:false,tool_authority:false,completion_authority:false};
     else return route.fulfill({status:404,contentType:'application/json',body:JSON.stringify({detail:`No mock for ${req.method()} ${path}`})});
     return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(body)});
   });
@@ -80,6 +81,9 @@ try{
   await desktop.locator('#agentChatInput').fill('Check the failing tests');
   await desktop.locator('#agentChatForm button[type="submit"]').click();
   await desktop.getByText('Tool execution remains governed by Vishnu.').waitFor();
+  await desktop.locator('#agentChatInput').fill('Implement the verified fix as canonical Project Work');
+  await desktop.locator('[data-create-work]').click();
+  await desktop.getByText('Canonical Project Work created for this request.').waitFor();
   await desktop.locator('[data-detail-tab="versions"]').click();
   await desktop.getByText('Historical versions remain attributable to their work.').waitFor();
   await assertNoHorizontalOverflow(desktop,'desktop workforce');
