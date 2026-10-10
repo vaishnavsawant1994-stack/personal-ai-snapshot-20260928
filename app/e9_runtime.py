@@ -5,6 +5,7 @@ import os
 from automation.work_bridge import AutomationWorkBridge
 from evolution import ContinuousEvolutionRuntime
 from future_intelligence.agent_workforce import AgentWorkforceService, AgentWorkforceStore
+from future_intelligence.agent_workforce.evolution import AgentEvolutionRuntime
 from identity import IdentityRuntime
 from integrations.extension_contracts import ExtensionGrantStore
 from integrations.provider_contracts import runtime_provider_inventory
@@ -71,6 +72,7 @@ def attach_e9_runtime(runtime: dict) -> dict:
     )
     runtime["agent_workforce_store"] = workforce_store
     runtime["agent_workforce"] = workforce
+    runtime["agent_evolution"] = AgentEvolutionRuntime(workforce, events=events)
 
     extension_grants = ExtensionGrantStore(runtime["settings"].data_dir / "extension-grants.sqlite3")
     runtime["extension_grants"] = extension_grants
@@ -94,6 +96,7 @@ def attach_e9_runtime(runtime: dict) -> dict:
         identity_state=identity.status().bootstrap_state,
         work_authority=getattr(getattr(runtime.get("advanced_autonomy"), "_canonical_work_authority", None), "mode", "unavailable"),
         continuous_evolution=continuous.enabled,
+        agent_evolution=runtime["agent_evolution"].enabled,
         providers=len(runtime["provider_inventory"]),
         agent_types=workforce.summary()["total_agents"],
     )
@@ -104,9 +107,15 @@ def start_e9_services(runtime: dict) -> None:
     continuous = runtime.get("continuous_evolution")
     if continuous is not None:
         continuous.start()
+    agent_evolution = runtime.get("agent_evolution")
+    if agent_evolution is not None:
+        agent_evolution.start()
 
 
 def stop_e9_services(runtime: dict) -> None:
+    agent_evolution = runtime.get("agent_evolution")
+    if agent_evolution is not None:
+        agent_evolution.stop()
     continuous = runtime.get("continuous_evolution")
     if continuous is not None:
         continuous.stop()
