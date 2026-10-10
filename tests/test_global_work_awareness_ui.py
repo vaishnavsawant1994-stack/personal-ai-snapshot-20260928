@@ -64,7 +64,8 @@ def test_global_summary_api_is_owner_scoped_read_only_projection():
     assert 'APIRouter(prefix="/iphone/api/work"' in source
     assert '@router.get("/summary")' in source
     assert '"authority": "read_only_projection"' in source
-    assert '"execution_authority": "existing_p10_p6_runtime"' in source
+    assert 'execution_authority = "canonical_work" if authority else "existing_p10_p6_runtime"' in source
+    assert '"work_authority_mode": work_authority_mode' in source
     assert "registry.authenticate(device_id, token)" in source
     assert "execute_task" not in source
     assert "@router.post" not in source
