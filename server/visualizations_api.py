@@ -4,12 +4,14 @@ from pathlib import PurePath
 from typing import Any
 
 from fastapi import APIRouter, Cookie, HTTPException, Query
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, Field
 
+from visual_intelligence.deep_repository import DeepGitHubRepositoryAnalyzer
 from visual_intelligence.file_sources import decode_file_payload, extract_source_text
 from visual_intelligence.github_repository import GitHubRepositoryAnalyzer
 from visual_intelligence.models import VisualMode, VisualType
+from visual_intelligence.native_maps import build_knowledge_graph, build_live_work_graph, build_memory_graph
 
 
 class VisualCreateBody(BaseModel):
@@ -61,13 +63,38 @@ class CompareBody(BaseModel):
     after_id: str = Field(min_length=1, max_length=160)
 
 
+class EditBody(BaseModel):
+    instruction: str = Field(min_length=1, max_length=1200)
+
+
+class KnowledgeMapBody(BaseModel):
+    title: str = Field(default='Knowledge Map', min_length=1, max_length=160)
+    query: str = Field(default='', max_length=1000)
+    limit: int = Field(default=120, ge=1, le=250)
+
+
+class MemoryMapBody(BaseModel):
+    title: str = Field(default='Memory Map', min_length=1, max_length=160)
+    node_type: str | None = Field(default=None, max_length=64)
+    limit: int = Field(default=150, ge=1, le=500)
+    include_sensitive: bool = False
+
+
+class LiveWorkMapBody(BaseModel):
+    project_id: str = Field(min_length=1, max_length=120)
+    title: str | None = Field(default=None, max_length=160)
+
+
 def visualizations_router(runtime):
     router = APIRouter(prefix='/iphone/api/visualizations', tags=['visualize'])
     service = runtime['visual_intelligence']
     registry = runtime['device_registry']
     projects = runtime.get('project_store')
     continuity = runtime.get('continuity')
+    knowledge = runtime.get('knowledge')
+    life_graph = runtime.get('second_brain_life_graph')
     repository_analyzer = GitHubRepositoryAnalyzer()
+    deep_repository_analyzer = DeepGitHubRepositoryAnalyzer()
 
     def require_owner(pa_device: str | None, pa_token: str | None) -> str:
         if not pa_device or not pa_token or not registry.authenticate(pa_device, pa_token):
@@ -77,6 +104,12 @@ def visualizations_router(runtime):
         if hasattr(registry, 'authorize') and not registry.authorize(pa_device, 'ai:chat'):
             raise HTTPException(403, 'This device cannot access Visualize')
         return 'owner'
+
+    def require_scope(device_id: str | None, scope: str):
+        if not device_id:
+            raise HTTPException(401, 'Trusted device is required')
+        if hasattr(registry, 'authorize') and not registry.authorize(device_id, scope):
+            raise HTTPException(403, f'This device cannot access {scope}')
 
     def not_found(exc: KeyError):
         raise HTTPException(404, 'Visualization not found') from exc
@@ -120,21 +153,12 @@ def visualizations_router(runtime):
         return str(thread.get('title') or 'Conversation'), '\n'.join(parts)[-20000:]
 
     @router.get('')
-    def list_visuals(
-        project_id: str | None = Query(default=None, max_length=120),
-        limit: int = Query(default=100, ge=1, le=250),
-        pa_device: str | None = Cookie(default=None),
-        pa_token: str | None = Cookie(default=None),
-    ):
+    def list_visuals(project_id: str | None = Query(default=None, max_length=120), limit: int = Query(default=100, ge=1, le=250), pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
         owner_id = require_owner(pa_device, pa_token)
         return {'visualizations': service.list(owner_id, project_id=project_id, limit=limit)}
 
     @router.post('')
-    def create_visual(
-        body: VisualCreateBody,
-        pa_device: str | None = Cookie(default=None),
-        pa_token: str | None = Cookie(default=None),
-    ):
+    def create_visual(body: VisualCreateBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
         owner_id = require_owner(pa_device, pa_token)
         title = body.title
         description = body.description
@@ -157,10 +181,8 @@ def visualizations_router(runtime):
                 title = conversation_title
         elif body.source_kind == 'github' and source_ref and graph is None:
             try:
-                repository_graph = repository_analyzer.analyze(
-                    source_ref,
-                    title=None if title.casefold() == 'untitled visual' else title,
-                )
+                depth = str(context.get('analysis_depth') or 'deep').casefold()
+                repository_graph = repository_analyzer.analyze(source_ref, title=None if title.casefold() == 'untitled visual' else title) if depth == 'tree' else deep_repository_analyzer.analyze(source_ref, title=None if title.casefold() == 'untitled visual' else title)
             except ValueError as exc:
                 raise HTTPException(422, str(exc)) from exc
             graph = repository_graph
@@ -172,36 +194,55 @@ def visualizations_router(runtime):
             raise HTTPException(422, str(exc)) from exc
 
     @router.post('/from-file')
-    def create_visual_from_file(
-        body: FileVisualBody,
-        pa_device: str | None = Cookie(default=None),
-        pa_token: str | None = Cookie(default=None),
-    ):
+    def create_visual_from_file(body: FileVisualBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
         owner_id = require_owner(pa_device, pa_token)
         try:
             raw = decode_file_payload(body.filename, body.content_base64)
             description, metadata = extract_source_text(body.filename, raw)
             title = str(body.title or PurePath(body.filename).stem or 'File visual').strip()[:160]
-            item = service.create(
-                owner_id=owner_id,
-                title=title,
-                visual_type=body.type,
-                mode=body.mode,
-                description=description,
-                context={'file': metadata},
-                source_kind='files',
-                source_ref=body.filename,
-            )
+            item = service.create(owner_id=owner_id, title=title, visual_type=body.type, mode=body.mode, description=description, context={'file': metadata}, source_kind='files', source_ref=body.filename)
             return {'visualization': item, 'source': metadata}
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
 
+    @router.post('/knowledge-map')
+    def create_knowledge_map(body: KnowledgeMapBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        owner_id = require_owner(pa_device, pa_token); require_scope(pa_device, 'knowledge:read')
+        if knowledge is None:
+            raise HTTPException(503, 'Knowledge store is unavailable')
+        access_classes = {'owner', 'trusted-devices'}
+        if not hasattr(registry, 'authorize') or registry.authorize(pa_device, 'knowledge:private'):
+            access_classes.add('private')
+        graph = build_knowledge_graph(knowledge, access_classes=access_classes, query=body.query, limit=body.limit, title=body.title)
+        return {'visualization': service.create(owner_id=owner_id, title=body.title, visual_type=VisualType.PROJECT_MAP, mode=VisualMode.SNAPSHOT, graph=graph, source_kind='knowledge', source_ref=body.query or 'all-authorized-knowledge')}
+
+    @router.post('/memory-map')
+    def create_memory_map(body: MemoryMapBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        owner_id = require_owner(pa_device, pa_token); require_scope(pa_device, 'memory:read')
+        if life_graph is None:
+            raise HTTPException(503, 'Second Brain Life Graph is unavailable')
+        allowed = {'normal'}
+        if body.include_sensitive:
+            require_scope(pa_device, 'memory:sensitive')
+            allowed.update({'sensitive', 'secret'})
+        payload = life_graph.graph(type=body.node_type, limit=body.limit, allowed_sensitivities=allowed)
+        graph = build_memory_graph(payload, title=body.title)
+        graph.metadata['allowed_sensitivities'] = sorted(allowed)
+        return {'visualization': service.create(owner_id=owner_id, title=body.title, visual_type=VisualType.PROJECT_MAP, mode=VisualMode.SNAPSHOT, graph=graph, source_kind='memory', source_ref=body.node_type or 'life-graph')}
+
+    @router.post('/live-work-map')
+    def create_live_work_map(body: LiveWorkMapBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        owner_id = require_owner(pa_device, pa_token)
+        if projects is None:
+            raise HTTPException(503, 'Project workspace is unavailable')
+        project = projects.get(body.project_id)
+        if not project:
+            raise HTTPException(404, 'Project not found')
+        graph = build_live_work_graph(project, title=body.title)
+        return {'visualization': service.create(owner_id=owner_id, title=graph.title, visual_type=VisualType.PROJECT_MAP, mode=VisualMode.LIVE, graph=graph, project_id=body.project_id, source_kind='live_work', source_ref=body.project_id)}
+
     @router.post('/compare')
-    def compare(
-        body: CompareBody,
-        pa_device: str | None = Cookie(default=None),
-        pa_token: str | None = Cookie(default=None),
-    ):
+    def compare(body: CompareBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
         owner_id = require_owner(pa_device, pa_token)
         try:
             return service.compare(owner_id, body.before_id, body.after_id)
@@ -209,11 +250,7 @@ def visualizations_router(runtime):
             not_found(exc)
 
     @router.get('/{visual_id}')
-    def get_visual(
-        visual_id: str,
-        pa_device: str | None = Cookie(default=None),
-        pa_token: str | None = Cookie(default=None),
-    ):
+    def get_visual(visual_id: str, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
         owner_id = require_owner(pa_device, pa_token)
         item = service.get(owner_id, visual_id)
         if item is None:
@@ -221,12 +258,7 @@ def visualizations_router(runtime):
         return {'visualization': item}
 
     @router.patch('/{visual_id}')
-    def patch_visual(
-        visual_id: str,
-        body: VisualPatchBody,
-        pa_device: str | None = Cookie(default=None),
-        pa_token: str | None = Cookie(default=None),
-    ):
+    def patch_visual(visual_id: str, body: VisualPatchBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
         owner_id = require_owner(pa_device, pa_token)
         try:
             return {'visualization': service.update(owner_id, visual_id, title=body.title, mode=body.mode, graph=body.graph, reason=body.reason)}
@@ -236,23 +268,34 @@ def visualizations_router(runtime):
             raise HTTPException(422, str(exc)) from exc
 
     @router.delete('/{visual_id}')
-    def delete_visual(
-        visual_id: str,
-        pa_device: str | None = Cookie(default=None),
-        pa_token: str | None = Cookie(default=None),
-    ):
+    def delete_visual(visual_id: str, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
         owner_id = require_owner(pa_device, pa_token)
         if not service.delete(owner_id, visual_id):
             raise HTTPException(404, 'Visualization not found')
         return {'ok': True}
 
+    @router.post('/{visual_id}/edit')
+    def edit_visual(visual_id: str, body: EditBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        owner_id = require_owner(pa_device, pa_token)
+        try:
+            return service.edit(owner_id, visual_id, body.instruction)
+        except KeyError as exc:
+            not_found(exc)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+
+    @router.post('/{visual_id}/repair')
+    def repair_visual(visual_id: str, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        owner_id = require_owner(pa_device, pa_token)
+        try:
+            return service.repair(owner_id, visual_id)
+        except KeyError as exc:
+            not_found(exc)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+
     @router.post('/{visual_id}/refresh')
-    def refresh_visual(
-        visual_id: str,
-        body: VisualRefreshBody,
-        pa_device: str | None = Cookie(default=None),
-        pa_token: str | None = Cookie(default=None),
-    ):
+    def refresh_visual(visual_id: str, body: VisualRefreshBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
         owner_id = require_owner(pa_device, pa_token)
         current = service.get(owner_id, visual_id)
         if current is None:
@@ -266,10 +309,18 @@ def visualizations_router(runtime):
             _, description = conversation_description(current['conversation_id'])
         elif current.get('source_kind') == 'github' and current.get('source_ref'):
             try:
-                graph = repository_analyzer.analyze(current['source_ref'], title=current['title'])
-                return {'visualization': service.update(owner_id, visual_id, graph=graph.to_dict(), reason=body.reason or 'repository refresh')}
+                graph = deep_repository_analyzer.analyze(current['source_ref'], title=current['title'])
+                return {'visualization': service.update(owner_id, visual_id, graph=graph.to_dict(), reason=body.reason or 'deep repository refresh')}
             except ValueError as exc:
                 raise HTTPException(422, str(exc)) from exc
+        elif current.get('source_kind') == 'live_work' and current.get('project_id'):
+            if projects is None:
+                raise HTTPException(503, 'Project workspace is unavailable')
+            project = projects.get(current['project_id'])
+            if not project:
+                raise HTTPException(404, 'Project not found')
+            graph = build_live_work_graph(project, title=current['title'])
+            return {'visualization': service.update(owner_id, visual_id, graph=graph.to_dict(), reason=body.reason or 'live-work refresh')}
         try:
             return {'visualization': service.refresh(owner_id, visual_id, description=description, context=context, reason=body.reason)}
         except KeyError as exc:
@@ -278,11 +329,7 @@ def visualizations_router(runtime):
             raise HTTPException(422, str(exc)) from exc
 
     @router.get('/{visual_id}/revisions')
-    def revisions(
-        visual_id: str,
-        pa_device: str | None = Cookie(default=None),
-        pa_token: str | None = Cookie(default=None),
-    ):
+    def revisions(visual_id: str, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
         owner_id = require_owner(pa_device, pa_token)
         try:
             return {'revisions': service.revisions(owner_id, visual_id)}
@@ -290,12 +337,7 @@ def visualizations_router(runtime):
             not_found(exc)
 
     @router.post('/{visual_id}/reach')
-    def reach(
-        visual_id: str,
-        body: ReachBody,
-        pa_device: str | None = Cookie(default=None),
-        pa_token: str | None = Cookie(default=None),
-    ):
+    def reach(visual_id: str, body: ReachBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
         owner_id = require_owner(pa_device, pa_token)
         try:
             return service.reach(owner_id, visual_id, body.origin, body.direction)
@@ -303,24 +345,44 @@ def visualizations_router(runtime):
             raise HTTPException(404, f'Visualization or node not found: {exc.args[0]}') from exc
 
     @router.post('/{visual_id}/path')
-    def path(
-        visual_id: str,
-        body: PathBody,
-        pa_device: str | None = Cookie(default=None),
-        pa_token: str | None = Cookie(default=None),
-    ):
+    def path(visual_id: str, body: PathBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
         owner_id = require_owner(pa_device, pa_token)
         try:
             return service.path(owner_id, visual_id, body.source, body.target)
         except KeyError as exc:
             raise HTTPException(404, f'Visualization or node not found: {exc.args[0]}') from exc
 
+    @router.get('/{visual_id}/presentation')
+    def presentation(visual_id: str, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        owner_id = require_owner(pa_device, pa_token)
+        try:
+            return service.presentation(owner_id, visual_id)
+        except KeyError as exc:
+            not_found(exc)
+
+    @router.get('/{visual_id}/scene')
+    def scene(visual_id: str, dimension: str = Query(default='3d', pattern='^(2d|3d)$'), pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        owner_id = require_owner(pa_device, pa_token)
+        try:
+            return service.scene(owner_id, visual_id, dimension=dimension)
+        except KeyError as exc:
+            not_found(exc)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+
+    @router.get('/{visual_id}/export')
+    def export_visual(visual_id: str, format: str = Query(default='html', pattern='^(html|svg|json|png|webp|pdf)$'), pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+        owner_id = require_owner(pa_device, pa_token)
+        try:
+            data, media_type, filename = service.export(owner_id, visual_id, format)
+            return Response(data, media_type=media_type, headers={'Content-Disposition': f'attachment; filename="{filename}"', 'Cache-Control': 'no-store'})
+        except KeyError as exc:
+            not_found(exc)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+
     @router.get('/{visual_id}/artifact', response_class=HTMLResponse)
-    def artifact(
-        visual_id: str,
-        pa_device: str | None = Cookie(default=None),
-        pa_token: str | None = Cookie(default=None),
-    ):
+    def artifact(visual_id: str, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
         owner_id = require_owner(pa_device, pa_token)
         try:
             return HTMLResponse(service.artifact(owner_id, visual_id), headers={'Cache-Control': 'no-store'})
