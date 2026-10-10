@@ -45,6 +45,7 @@ from server.connector_api import connector_router
 from server.connector_ui import ConnectorUiMiddleware, connector_ui_router
 from server.connector_oauth_callback import connector_oauth_callback_router
 from projects.store import ProjectStore
+from projects.workforce_adapter import ProjectWorkforceStoreAdapter
 from server.projects_api import projects_router
 from server.project_work_api import project_work_router
 from server.project_autonomy_api import project_autonomy_router
@@ -63,7 +64,8 @@ class CanonicalConversationProjection:
 
 storage_status=validate_runtime_storage(settings)
 runtime=build_runtime();runtime['storage_status']=storage_status;runtime['pwa_sessions']=PwaSessionStore(settings.data_dir/'pwa-sessions.sqlite3')
-project_store=ProjectStore(settings.data_dir/'projects.sqlite3');runtime['project_store']=project_store
+base_project_store=ProjectStore(settings.data_dir/'projects.sqlite3')
+project_store=ProjectWorkforceStoreAdapter(base_project_store,runtime['agent_workforce'],events=runtime.get('events'));runtime['project_store']=project_store;runtime['base_project_store']=base_project_store
 print(json.dumps({'event':'storage.ready',**storage_status}),flush=True)
 
 @asynccontextmanager
