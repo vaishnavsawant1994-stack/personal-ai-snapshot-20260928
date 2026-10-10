@@ -1,7 +1,11 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request
+import sqlite3
+
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
+
+from models.router import ModelError
 
 
 class CustomAgentBody(BaseModel):
@@ -63,6 +67,19 @@ class LearningBody(BaseModel):
     evidence_ref: str | None = Field(default=None, max_length=1000)
 
 
+class AgentConversationBody(BaseModel):
+    project_id: str = Field(min_length=1, max_length=200)
+    instance_id: str | None = Field(default=None, max_length=160)
+    title: str = Field(default="New agent chat", max_length=180)
+
+
+class AgentConversationMessageBody(BaseModel):
+    project_id: str = Field(min_length=1, max_length=200)
+    prompt: str = Field(min_length=1, max_length=16000)
+    project_context: str = Field(default="", max_length=16000)
+    sensitivity: str = Field(default="internal", pattern="^(public|internal|sensitive|private_local)$")
+
+
 def agent_workforce_router(runtime, *, prefix: str = "/owner/agents", require_loopback: bool = True) -> APIRouter:
     router = APIRouter(prefix=prefix, tags=["agent-workforce"])
 
@@ -112,7 +129,7 @@ def agent_workforce_router(runtime, *, prefix: str = "/owner/agents", require_lo
             return service().create_version(template_id, **body.model_dump())
         except KeyError as exc:
             raise HTTPException(404, "agent or parent version not found") from exc
-        except ValueError as exc:
+        except (ValueError, sqlite3.IntegrityError) as exc:
             raise HTTPException(400, str(exc)) from exc
 
     @router.post("/versions/{version_id}/state")
@@ -175,10 +192,10 @@ def agent_workforce_router(runtime, *, prefix: str = "/owner/agents", require_lo
     @router.post("/{template_id}/chat")
     def specialist_chat(template_id: str, body: SpecialistChatBody, request: Request):
         owner_boundary(request)
-        instance = service().store.get_instance(body.instance_id)
-        if instance["template_id"] != template_id:
-            raise HTTPException(403, "instance does not belong to this agent")
         try:
+            instance = service().store.get_instance(body.instance_id)
+            if instance["template_id"] != template_id:
+                raise PermissionError("instance does not belong to this agent")
             return service().specialist_proposal(**body.model_dump())
         except KeyError as exc:
             raise HTTPException(404, "WorkOrder or agent instance not found") from exc
@@ -187,8 +204,54 @@ def agent_workforce_router(runtime, *, prefix: str = "/owner/agents", require_lo
         except RuntimeError as exc:
             raise HTTPException(503, str(exc)) from exc
 
+    @router.get("/{template_id}/conversations")
+    def conversations(template_id: str, request: Request, project_id: str = Query(min_length=1, max_length=200), limit: int = Query(default=100, ge=1, le=500)):
+        owner_boundary(request)
+        try:
+            return {"conversations": service().list_conversations(template_id=template_id, project_id=project_id, limit=limit)}
+        except KeyError as exc:
+            raise HTTPException(404, "agent not found") from exc
+
+    @router.post("/{template_id}/conversations")
+    def create_conversation(template_id: str, body: AgentConversationBody, request: Request):
+        owner_boundary(request)
+        try:
+            return {"conversation": service().create_conversation(template_id, **body.model_dump())}
+        except KeyError as exc:
+            raise HTTPException(404, "agent or instance not found") from exc
+        except PermissionError as exc:
+            raise HTTPException(403, str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    @router.get("/conversations/{conversation_id}")
+    def conversation(conversation_id: str, request: Request, project_id: str = Query(min_length=1, max_length=200)):
+        owner_boundary(request)
+        try:
+            return service().conversation(conversation_id, project_id=project_id)
+        except KeyError as exc:
+            raise HTTPException(404, "agent conversation not found") from exc
+        except PermissionError as exc:
+            raise HTTPException(403, str(exc)) from exc
+
+    @router.post("/conversations/{conversation_id}/messages")
+    def send_message(conversation_id: str, body: AgentConversationMessageBody, request: Request):
+        owner_boundary(request)
+        try:
+            return service().direct_chat(
+                conversation_id,
+                project_id=body.project_id,
+                prompt=body.prompt,
+                project_context=body.project_context,
+                sensitivity=body.sensitivity,
+            )
+        except KeyError as exc:
+            raise HTTPException(404, "agent conversation, instance or version not found") from exc
+        except PermissionError as exc:
+            raise HTTPException(403, str(exc)) from exc
+        except ModelError as exc:
+            raise HTTPException(exc.status_code, {"code": exc.code, "message": exc.user_message}) from exc
+        except RuntimeError as exc:
+            raise HTTPException(409, str(exc)) from exc
+
     return router
-
-
-# Import kept at module end so FastAPI model declarations stay dependency-light.
-import sqlite3
