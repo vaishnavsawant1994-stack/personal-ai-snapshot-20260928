@@ -103,10 +103,6 @@ class WorkerRegistry:
             else:
                 blockers.append(f"{order.id} worker role {profile.id} does not support required capability {requirement}")
 
-        # A model cannot omit per-order capabilities to escape the parent goal scope.
-        # Specific parent capabilities must be advertised by the tool. A broad parent
-        # role capability (for example `research`) may use a tool statically compatible
-        # with that trusted role profile.
         if requested_tool and not order.allowed_capabilities and parent_capabilities:
             aligned = False
             role_scope = normalize_capability(profile.id)
@@ -140,6 +136,15 @@ class WorkerRegistry:
                 "tool_registry_available": capabilities.source_available,
                 "role_only": not bool(requested_tool),
                 "parent_capability_scope_present": bool(parent_capabilities),
+                "intelligence": {
+                    "agent_role": profile.id,
+                    "routing_policy": profile.routing_policy,
+                    "required_model_capabilities": list(profile.required_model_capabilities),
+                    "preferred_model_capabilities": list(profile.preferred_model_capabilities),
+                    "parallelizable": profile.parallelizable,
+                    "deliberation_mode": profile.deliberation_mode,
+                    "model_is_authority": False,
+                },
             },
         )
         return assignment, blockers, warnings
@@ -172,4 +177,14 @@ class WorkerRegistry:
             "worker_ids": list(self._profiles),
             "authority": "proposal_only",
             "execution_authority": "existing_p10_p6_tool_registry",
+            "intelligence_profiles": {
+                profile.id: {
+                    "routing_policy": profile.routing_policy,
+                    "required_model_capabilities": list(profile.required_model_capabilities),
+                    "preferred_model_capabilities": list(profile.preferred_model_capabilities),
+                    "parallelizable": profile.parallelizable,
+                    "deliberation_mode": profile.deliberation_mode,
+                }
+                for profile in self._profiles.values()
+            },
         }

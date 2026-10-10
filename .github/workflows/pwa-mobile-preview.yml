@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - 'ui/**'
+      - 'feature/**'
     paths:
       - 'pwa/**'
       - 'tests/pwa_mobile_preview.mjs'
@@ -18,6 +19,7 @@ on:
       - 'tests/workorder_detail_browser.mjs'
       - 'tests/work_attention_center_browser.mjs'
       - 'tests/chat_experience_browser.mjs'
+      - 'tests/agent_workforce_browser.mjs'
       - 'personal-ai/pwa/**'
       - '.github/workflows/pwa-mobile-preview.yml'
   pull_request:
@@ -34,6 +36,7 @@ on:
       - 'tests/workorder_detail_browser.mjs'
       - 'tests/work_attention_center_browser.mjs'
       - 'tests/chat_experience_browser.mjs'
+      - 'tests/agent_workforce_browser.mjs'
       - 'personal-ai/pwa/**'
       - '.github/workflows/pwa-mobile-preview.yml'
 
@@ -67,6 +70,7 @@ jobs:
           curl --fail --silent http://127.0.0.1:4173/iphone/ >/dev/null
           curl --fail --silent http://127.0.0.1:4173/standalone/ >/dev/null
           mkdir -p artifacts/project-workspace
+          mkdir -p artifacts/agent-workforce
           PROJECT_SCREENSHOT_DIR=artifacts/project-workspace node tests/projects_workspace_browser.mjs
           node tests/projects_canonical_work_browser.mjs
           node tests/projects_canonical_visualizations_browser.mjs
@@ -75,6 +79,7 @@ jobs:
           node tests/workorder_detail_browser.mjs
           node tests/work_attention_center_browser.mjs
           node tests/chat_experience_browser.mjs
+          AGENT_WORKFORCE_SCREENSHOT_DIR=artifacts/agent-workforce node tests/agent_workforce_browser.mjs
           node tests/pwa_mobile_preview_runner.mjs
           node tests/standalone_pwa_responsive.mjs
       - uses: actions/upload-artifact@v4

@@ -12,18 +12,29 @@ class Planner:
 
     Planning metadata is advisory structure only. ToolRegistry, permissions,
     approvals, continuation authority and runtime verification remain the sole
-    execution authorities.
+    execution authorities. Model requirements describe needed intelligence;
+    they never grant access to a provider, tool, or action.
     """
 
     MAX_STEPS = 12
     MAX_DEPENDENCIES = 12
     MAX_SUCCESS_CRITERIA = 8
+    MAX_MODEL_CAPABILITIES = 12
     MAX_TIMEOUT_SECONDS = 900
     MAX_ATTEMPTS = 4
     MAX_REPLANS = 4
     MAX_TOOL_CALLS = 48
     MAX_DEADLINE_SECONDS = 86_400
     _STEP_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
+    ROUTING_POLICIES = {
+        "fast_chat", "deep_reasoning", "coding", "research", "vision",
+        "tool_execution", "long_context", "background", "low_cost",
+        "critical", "private_local", "review",
+    }
+    AGENT_ROLES = {
+        "research", "coding", "browser", "files", "data", "communications",
+        "knowledge", "project", "reviewer", "tool", "general",
+    }
 
     def __init__(self, models, tools):
         self.models = models
@@ -47,6 +58,11 @@ Return valid JSON only. Prefer this structure when tools are required:
     "description": "...",
     "parameters": {{}},
     "depends_on": [],
+    "agent_role": "coding|research|browser|files|data|communications|knowledge|project|reviewer|tool|general",
+    "routing_policy": "coding|research|deep_reasoning|tool_execution|fast_chat|long_context|critical|review|background|low_cost|private_local|vision",
+    "required_model_capabilities": ["chat"],
+    "preferred_model_capabilities": ["json"],
+    "parallelizable": true,
     "expected_output": "...",
     "success_criteria": ["..."],
     "verification": {{"required": true, "method": "tool_contract"}},
@@ -56,8 +72,11 @@ Return valid JSON only. Prefer this structure when tools are required:
 }}
 
 Use the minimum necessary steps. Do not invent tools. Dependencies must refer
-only to earlier step ids. Planning metadata never grants permission to execute.
-If no tool is required, return an empty steps list.
+only to earlier step ids. Describe model needs by capability/policy rather than
+hard-coding a provider or model. Planning metadata never grants permission to
+execute. Independent steps may be marked parallelizable, but dependencies and
+runtime concurrency limits remain authoritative. If no tool is required, return
+an empty steps list.
 """
         identity = str(identity_context or "")[:6000]
         system = (
@@ -149,6 +168,18 @@ If no tool is required, return an empty steps list.
             "safe_only": safe_only,
         }
 
+    def _validate_capability_list(self, value, index, field):
+        if value is None:
+            return None
+        if not isinstance(value, list) or len(value) > self.MAX_MODEL_CAPABILITIES:
+            raise InvalidPlan(f"plan step {index} {field} must be a short list")
+        clean = []
+        for capability in value:
+            if not isinstance(capability, str) or not capability.strip():
+                raise InvalidPlan(f"plan step {index} has an invalid {field} entry")
+            clean.append(capability.strip()[:100])
+        return list(dict.fromkeys(clean))
+
     def validate(self, plan):
         if not isinstance(plan, dict):
             raise InvalidPlan("plan must be an object")
@@ -210,6 +241,31 @@ If no tool is required, return an empty steps list.
                 if missing:
                     raise InvalidPlan(f"plan step {position} depends on unavailable or future step ids")
                 item["depends_on"] = list(dependencies)
+
+            agent_role = step.get("agent_role")
+            if agent_role is not None:
+                if not isinstance(agent_role, str) or agent_role not in self.AGENT_ROLES:
+                    raise InvalidPlan(f"plan step {position} has unsupported agent_role")
+                item["agent_role"] = agent_role
+
+            routing_policy = step.get("routing_policy")
+            if routing_policy is not None:
+                if not isinstance(routing_policy, str) or routing_policy not in self.ROUTING_POLICIES:
+                    raise InvalidPlan(f"plan step {position} has unsupported routing_policy")
+                item["routing_policy"] = routing_policy
+
+            required_caps = self._validate_capability_list(step.get("required_model_capabilities"), position, "required_model_capabilities")
+            if required_caps is not None:
+                item["required_model_capabilities"] = required_caps
+            preferred_caps = self._validate_capability_list(step.get("preferred_model_capabilities"), position, "preferred_model_capabilities")
+            if preferred_caps is not None:
+                item["preferred_model_capabilities"] = preferred_caps
+
+            parallelizable = step.get("parallelizable")
+            if parallelizable is not None:
+                if not isinstance(parallelizable, bool):
+                    raise InvalidPlan(f"plan step {position} parallelizable must be boolean")
+                item["parallelizable"] = parallelizable
 
             expected_output = step.get("expected_output")
             if expected_output is not None:

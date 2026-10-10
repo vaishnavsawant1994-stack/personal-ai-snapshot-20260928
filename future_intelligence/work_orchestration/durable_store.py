@@ -8,12 +8,13 @@ from typing import Iterable
 from .attempts import WorkAttemptStatus
 from .durability import WorkDurabilityMixin
 from .durability_migrations import migrate_work_durability_schema
+from .intelligence_durability import IntelligenceDurabilityMixin
 from .models import WorkOrderStatus
 from .store import WorkStore
 
 
-class DurableWorkStore(WorkDurabilityMixin, WorkStore):
-    """Canonical WorkStore plus additive execution durability primitives."""
+class DurableWorkStore(IntelligenceDurabilityMixin, WorkDurabilityMixin, WorkStore):
+    """Canonical WorkStore plus additive execution/intelligence durability primitives."""
 
     def __init__(
         self,

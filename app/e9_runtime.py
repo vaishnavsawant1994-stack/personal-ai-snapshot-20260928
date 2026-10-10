@@ -4,6 +4,9 @@ import os
 
 from automation.work_bridge import AutomationWorkBridge
 from evolution import ContinuousEvolutionRuntime
+from future_intelligence.agent_workforce import AgentWorkforceService, AgentWorkforceStore
+from future_intelligence.agent_workforce.evolution import AgentEvolutionRuntime
+from future_intelligence.agent_workforce.learning_bridge import AgentLearningEventBridge
 from identity import IdentityRuntime
 from integrations.extension_contracts import ExtensionGrantStore
 from integrations.provider_contracts import runtime_provider_inventory
@@ -56,6 +59,23 @@ def attach_e9_runtime(runtime: dict) -> dict:
         runtime["automation_work_bridge"] = None
         runtime["canonical_work_store"] = None
 
+    # The workforce is a coordination/intelligence layer over canonical Work.
+    # It cannot execute tools, approve effects, manufacture evidence or decide
+    # canonical completion. Runtime instances are bound to exactly one Project.
+    workforce_store = AgentWorkforceStore(runtime["settings"].data_dir / "agent-workforce.sqlite3")
+    workforce = AgentWorkforceService(
+        workforce_store,
+        worker_registry=getattr(runtime.get("advanced_autonomy"), "_worker_registry", None),
+        work_store=runtime.get("canonical_work_store"),
+        worker_intelligence=runtime.get("worker_intelligence"),
+        models=runtime.get("models"),
+        events=events,
+    )
+    runtime["agent_workforce_store"] = workforce_store
+    runtime["agent_workforce"] = workforce
+    runtime["agent_learning_bridge"] = AgentLearningEventBridge(workforce, events)
+    runtime["agent_evolution"] = AgentEvolutionRuntime(workforce, events=events)
+
     extension_grants = ExtensionGrantStore(runtime["settings"].data_dir / "extension-grants.sqlite3")
     runtime["extension_grants"] = extension_grants
     for plugin in runtime.get("plugins").list() if runtime.get("plugins") is not None else ():
@@ -78,7 +98,10 @@ def attach_e9_runtime(runtime: dict) -> dict:
         identity_state=identity.status().bootstrap_state,
         work_authority=getattr(getattr(runtime.get("advanced_autonomy"), "_canonical_work_authority", None), "mode", "unavailable"),
         continuous_evolution=continuous.enabled,
+        agent_evolution=runtime["agent_evolution"].enabled,
+        agent_learning=True,
         providers=len(runtime["provider_inventory"]),
+        agent_types=workforce.summary()["total_agents"],
     )
     return runtime
 
@@ -87,12 +110,24 @@ def start_e9_services(runtime: dict) -> None:
     continuous = runtime.get("continuous_evolution")
     if continuous is not None:
         continuous.start()
+    agent_evolution = runtime.get("agent_evolution")
+    if agent_evolution is not None:
+        agent_evolution.start()
 
 
 def stop_e9_services(runtime: dict) -> None:
+    agent_evolution = runtime.get("agent_evolution")
+    if agent_evolution is not None:
+        agent_evolution.stop()
+    learning = runtime.get("agent_learning_bridge")
+    if learning is not None:
+        learning.close()
     continuous = runtime.get("continuous_evolution")
     if continuous is not None:
         continuous.stop()
     bridge = runtime.get("automation_work_bridge")
     if bridge is not None:
         bridge.close()
+    workforce_store = runtime.get("agent_workforce_store")
+    if workforce_store is not None:
+        workforce_store.connection.close()
