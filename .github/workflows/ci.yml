@@ -20,6 +20,9 @@ jobs:
         run: |
           node --check pwa/visualize-workspace.js
           node --check pwa/visualize-sources.js
+          node --check pwa/visualize-advanced.js
+          node --check tests/visualize_workspace_browser.mjs
+          node --check tests/visualize_workspace_browser_runner.mjs
       - name: Vishnu Visualize qualification gate
         run: pytest -q tests/test_visual_intelligence.py tests/test_visualize_sources.py
       - name: Canonical Work consistency gate
