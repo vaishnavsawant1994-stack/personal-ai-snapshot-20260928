@@ -75,12 +75,12 @@ try{
   await desktop.getByText('Coding Agent',{exact:true}).first().waitFor();
   assert.equal(await desktop.locator('[data-kpi="total_agents"]').textContent(),'3');
   assert.equal(await desktop.locator('[data-kpi="success_rate"]').textContent(),'100%');
-  await desktop.getByRole('button',{name:'Chat',exact:true}).click();
+  await desktop.locator('[data-detail-action="chat"]').click();
   await desktop.getByRole('button',{name:'＋ New'}).click();
   await desktop.locator('#agentChatInput').fill('Check the failing tests');
   await desktop.locator('#agentChatForm button[type="submit"]').click();
   await desktop.getByText('Tool execution remains governed by Vishnu.').waitFor();
-  await desktop.getByRole('button',{name:'Versions'}).click();
+  await desktop.locator('[data-detail-tab="versions"]').click();
   await desktop.getByText('Historical versions remain attributable to their work.').waitFor();
   await assertNoHorizontalOverflow(desktop,'desktop workforce');
   if(screenshotDir)await desktop.screenshot({path:`${screenshotDir}/agents-desktop.png`,fullPage:true});
@@ -93,7 +93,7 @@ try{
   assert.equal(await mobile.evaluate(()=>document.body.classList.contains('sidebar-open')),true);
   await mobile.keyboard.press('Escape');
   await mobile.getByText('Coding Agent',{exact:true}).first().click();
-  await mobile.getByRole('button',{name:'Instances'}).click();
+  await mobile.locator('[data-detail-tab="instances"]').click();
   await mobile.getByText('Runtime instances').waitFor();
   await assertNoHorizontalOverflow(mobile,'mobile workforce');
   if(screenshotDir)await mobile.screenshot({path:`${screenshotDir}/agents-mobile.png`,fullPage:true});
