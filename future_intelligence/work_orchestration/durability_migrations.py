@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from .migrations import migrate_work_schema
 
-WORK_DURABILITY_SCHEMA_VERSION = 3
+WORK_DURABILITY_SCHEMA_VERSION = 4
 
 
 def _now() -> str:
@@ -97,5 +97,53 @@ def migrate_work_durability_schema(connection: sqlite3.Connection) -> int:
             connection.execute(
                 "INSERT INTO work_schema_migrations(version, name, applied_at) VALUES (?, ?, ?)",
                 (3, "durable_work_attempts_leases_events_workspaces", _now()),
+            )
+            applied.add(3)
+
+        if 4 not in applied:
+            connection.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS work_intelligence_assignments (
+                    work_order_id TEXT PRIMARY KEY,
+                    worker_id TEXT NOT NULL,
+                    routing_policy TEXT NOT NULL,
+                    required_capabilities_json TEXT NOT NULL,
+                    preferred_capabilities_json TEXT NOT NULL,
+                    parallelizable INTEGER NOT NULL CHECK(parallelizable IN (0, 1)),
+                    deliberation_mode TEXT NOT NULL,
+                    metadata_json TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY(work_order_id) REFERENCES work_orders(id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS work_model_handoffs (
+                    id TEXT PRIMARY KEY,
+                    work_order_id TEXT NOT NULL,
+                    attempt_id TEXT,
+                    execution_id TEXT,
+                    agent_id TEXT NOT NULL,
+                    from_provider TEXT,
+                    from_model TEXT,
+                    to_provider TEXT,
+                    to_model TEXT,
+                    reason TEXT NOT NULL,
+                    public_payload_json TEXT NOT NULL,
+                    checkpoint_reference TEXT,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(work_order_id) REFERENCES work_orders(id) ON DELETE CASCADE,
+                    FOREIGN KEY(attempt_id) REFERENCES work_attempts(id) ON DELETE SET NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_work_intelligence_policy
+                    ON work_intelligence_assignments(routing_policy, worker_id);
+                CREATE INDEX IF NOT EXISTS idx_work_model_handoffs_order_created
+                    ON work_model_handoffs(work_order_id, created_at, id);
+                CREATE INDEX IF NOT EXISTS idx_work_model_handoffs_execution
+                    ON work_model_handoffs(execution_id, created_at, id);
+                """
+            )
+            connection.execute(
+                "INSERT INTO work_schema_migrations(version, name, applied_at) VALUES (?, ?, ?)",
+                (4, "work_intelligence_assignments_and_model_handoffs", _now()),
             )
     return WORK_DURABILITY_SCHEMA_VERSION
