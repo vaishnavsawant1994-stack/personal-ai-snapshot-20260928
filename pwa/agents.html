@@ -11,79 +11,97 @@
   <div class="aw-app" id="agentsApp">
     <aside class="aw-sidebar" aria-label="Vishnu navigation">
       <a class="aw-brand" href="/iphone/" aria-label="Vishnu Home">
-        <span class="aw-brand-mark">V</span>
-        <span><strong>VISHNU</strong><small>AI Agent Workforce</small></span>
+        <span class="aw-brand-mark"><span>V</span></span>
+        <span class="aw-brand-copy"><strong>VISHNU</strong><small>AI Workforce Platform</small></span>
       </a>
+
       <nav class="aw-nav">
-        <a href="/iphone/">⌂ <span>Home</span></a>
-        <a href="/iphone/#today">▣ <span>Today</span></a>
-        <a href="/iphone/#conversations">◯ <span>Conversations</span></a>
-        <a href="/iphone/#projects">▱ <span>Projects</span></a>
-        <a class="active" href="/iphone/agents.html">♙ <span>Agents</span></a>
-        <a href="/iphone/#memory">▤ <span>Memory</span></a>
-        <a href="/iphone/#knowledge">◇ <span>Knowledge</span></a>
-        <a href="/iphone/#activities">☷ <span>Activities</span></a>
-        <a href="/iphone/#tools">⌘ <span>Tools</span></a>
-        <a href="/iphone/#workflows">⌬ <span>Workflows</span></a>
-        <a href="/iphone/#settings">⚙ <span>Settings</span></a>
+        <a href="/iphone/"><span class="aw-nav-icon">⌂</span><span>Home</span></a>
+        <a href="/iphone/#conversations"><span class="aw-nav-icon">◌</span><span>Chat with Vishnu</span></a>
+        <a href="/iphone/#projects"><span class="aw-nav-icon">▱</span><span>Projects</span><b id="navProjectCount" class="aw-nav-count">—</b></a>
+        <a class="active" href="/iphone/agents.html"><span class="aw-nav-icon">♙</span><span>Agents</span></a>
+        <a href="/iphone/agents.html#teams" data-side-action="teams"><span class="aw-nav-icon">♧</span><span>Teams</span></a>
+        <a href="/iphone/#today"><span class="aw-nav-icon">☑</span><span>Tasks</span></a>
+        <a href="/iphone/#today"><span class="aw-nav-icon">☷</span><span>Work Queue</span></a>
+        <a href="/iphone/#today"><span class="aw-nav-icon">□</span><span>Calendar</span></a>
+        <a href="/iphone/#knowledge"><span class="aw-nav-icon">▣</span><span>Knowledge</span></a>
+        <a href="/iphone/#files"><span class="aw-nav-icon">▤</span><span>Documents</span></a>
+        <a href="/iphone/#tools"><span class="aw-nav-icon">⌘</span><span>Tools</span></a>
+        <a href="/iphone/#activities"><span class="aw-nav-icon">⌁</span><span>Monitoring</span></a>
+        <a href="/iphone/#settings"><span class="aw-nav-icon">⚙</span><span>Settings</span></a>
       </nav>
-      <div class="aw-health">
-        <div><span class="aw-dot"></span> Workforce connected</div>
-        <small id="healthCopy">Checking runtime…</small>
+
+      <section class="aw-usage" aria-label="System usage">
+        <div class="aw-usage-title"><span><i class="aw-live-dot"></i>System Usage</span><b>Live</b></div>
+        <div class="aw-usage-row"><span>Agents</span><strong data-kpi="total_agents">—</strong></div>
+        <div class="aw-usage-row"><span>Workers</span><strong data-kpi="total_instances">—</strong></div>
+        <div class="aw-usage-row"><span>Running Tasks</span><strong data-kpi="running_tasks">—</strong></div>
+        <div class="aw-usage-meter"><span>Capacity</span><div><i id="capacityMeter"></i></div><b id="capacityText">—</b></div>
+      </section>
+
+      <div class="aw-sidebar-footer">
+        <span class="aw-mini-logo">V</span>
+        <span><strong>VISHNU</strong><small>AI Workforce Platform</small></span>
       </div>
     </aside>
 
     <main class="aw-main">
       <header class="aw-topbar">
         <button class="aw-mobile-menu" id="menuButton" aria-label="Toggle navigation">☰</button>
-        <label class="aw-global-search"><span>⌕</span><input id="globalSearch" placeholder="Search agents, projects, tasks…" /></label>
+        <label class="aw-global-search"><span>⌕</span><input id="globalSearch" placeholder="Search agents, projects, tasks, or ask Vishnu…" /><kbd>Ctrl+K</kbd></label>
         <div class="aw-top-actions">
-          <button class="aw-btn primary" data-action="new-project">＋ Create Project</button>
+          <button class="aw-btn primary" data-action="new-project">＋ New Project</button>
+          <button class="aw-btn violet" id="deployTeamButton">♧ Deploy Team</button>
           <button class="aw-icon-btn" aria-label="Notifications">♢</button>
+          <button class="aw-icon-btn" aria-label="Settings" data-action="settings">⚙</button>
           <button class="aw-avatar">V</button>
+          <span class="aw-owner"><strong>Vaishnav</strong><small>Owner</small></span>
         </div>
       </header>
 
       <section class="aw-page">
         <div class="aw-heading-row">
-          <div><h1>Agents</h1><p>Your AI workforce. Deploy, manage, chat with, version and improve specialist agents.</p></div>
-          <button class="aw-btn gradient" id="createAgentButton">＋ Create Custom Agent</button>
+          <div><h1>Agents</h1><p>Your AI workforce. Create, manage, chat, deploy, version and scale specialist agents.</p></div>
+          <div class="aw-page-actions">
+            <button class="aw-btn primary" id="createAgentButton">＋ Create Agent</button>
+            <button class="aw-btn" id="importAgentButton">⇧ Import Agent</button>
+            <button class="aw-btn" id="marketplaceButton">🛒 Agent Marketplace</button>
+            <button class="aw-btn" id="documentationButton">▣ View Documentation</button>
+          </div>
         </div>
 
         <section class="aw-kpis" id="kpiGrid" aria-label="Workforce summary">
-          <article><small>Total Agents</small><strong data-kpi="total_agents">—</strong></article>
-          <article><small>Active Instances</small><strong data-kpi="active_instances">—</strong></article>
-          <article><small>Working Now</small><strong data-kpi="working_now">—</strong></article>
-          <article><small>Idle</small><strong data-kpi="idle">—</strong></article>
-          <article><small>Projects Using Agents</small><strong data-kpi="projects_using_agents">—</strong></article>
-          <article><small>Running Tasks</small><strong data-kpi="running_tasks">—</strong></article>
-          <article><small>Success Rate</small><strong data-kpi="success_rate">—</strong></article>
+          <article><span class="aw-kpi-icon violet">▱</span><div><small>Total Agents</small><strong data-kpi="total_agents">—</strong><em>registered</em></div></article>
+          <article><span class="aw-kpi-icon blue">▦</span><div><small>Total Instances</small><strong data-kpi="total_instances">—</strong><em>workers</em></div></article>
+          <article><span class="aw-kpi-icon green">⌁</span><div><small>Active Workers</small><strong data-kpi="active_instances">—</strong><em>live now</em></div></article>
+          <article><span class="aw-kpi-icon purple">▣</span><div><small>Projects Using Agents</small><strong data-kpi="projects_using_agents">—</strong><em>isolated</em></div></article>
+          <article><span class="aw-kpi-icon amber">◷</span><div><small>Tasks Running</small><strong data-kpi="running_tasks">—</strong><em>canonical Work</em></div></article>
+          <article><span class="aw-kpi-icon green">✓</span><div><small>Success Rate</small><strong data-kpi="success_rate">—</strong><em>verified evidence</em></div></article>
+        </section>
+
+        <section class="aw-catalog-tabs" id="catalogTabs">
+          <button class="active" data-filter="all">▣ All Agents <b id="allAgentCount">—</b></button>
+          <button data-filter="custom">♧ My Agents <b id="myAgentCount">—</b></button>
+          <button data-filter="system">♙ Core Agents <b id="coreAgentCount">—</b></button>
+          <button data-filter="active">◉ Active</button>
+          <button data-filter="templates">⊞ Templates</button>
         </section>
 
         <section class="aw-toolbar">
-          <div class="aw-tabs" id="catalogTabs">
-            <button class="active" data-filter="all">All Agents</button>
-            <button data-filter="system">System Agents</button>
-            <button data-filter="custom">Custom Agents</button>
-            <button data-filter="active">Active</button>
-          </div>
+          <label class="aw-filter-search"><span>⌕</span><input id="agentSearch" placeholder="Search agents…" /></label>
           <div class="aw-filters">
-            <input id="agentSearch" placeholder="Search agents…" />
+            <select id="typeFilter"><option value="all">All Types</option><option value="coding">Coding</option><option value="research">Research</option><option value="browser">Browser</option><option value="data">Data</option><option value="design">Design</option><option value="qa">QA</option><option value="security">Security</option><option value="project_manager">Project Manager</option></select>
             <select id="statusFilter"><option value="all">All Status</option><option value="active">Active</option><option value="idle">Idle</option></select>
-            <select id="sortFilter"><option value="usage">Sort: Usage</option><option value="name">Name</option><option value="versions">Versions</option></select>
+            <select id="versionFilter"><option value="all">All Versions</option><option value="preferred">Preferred</option><option value="candidate">Candidate</option></select>
+            <select id="sortFilter"><option value="usage">Sort: Most Used</option><option value="name">Name</option><option value="versions">Versions</option></select>
+            <div class="aw-view-toggle" role="group" aria-label="Agent view"><button class="active" data-view="grid" aria-label="Grid view">▦</button><button data-view="list" aria-label="List view">☷</button></div>
           </div>
         </section>
 
-        <section class="aw-directory-layout">
-          <aside class="aw-agent-list" id="agentList" aria-label="Agents"></aside>
+        <section class="aw-agent-list aw-grid-view" id="agentList" aria-label="Agents"></section>
 
-          <section class="aw-detail" id="agentDetail">
-            <div class="aw-empty-state">
-              <div class="aw-empty-orb">V</div>
-              <h2>Select an agent</h2>
-              <p>Open a specialist to inspect its versions, workers, Projects and direct work chat.</p>
-            </div>
-          </section>
+        <section class="aw-detail" id="agentDetail">
+          <div class="aw-empty-state"><div class="aw-empty-orb">V</div><h2>Select an agent</h2><p>Open a specialist to chat, inspect workers, Projects, versions, skills, tools and performance.</p></div>
         </section>
       </section>
     </main>
@@ -92,8 +110,7 @@
   <dialog class="aw-dialog" id="createAgentDialog">
     <form method="dialog" id="createAgentForm">
       <div class="aw-dialog-head"><div><h2>Create Custom Agent</h2><p>Create v1.0 as a governed candidate. It is not automatically promoted.</p></div><button value="cancel" class="aw-icon-btn">×</button></div>
-      <label>Name<input name="name" required maxlength="160" placeholder="Frontend Engineering Agent" /></label>
-      <label>Role<input name="role" required maxlength="100" placeholder="frontend_engineer" /></label>
+      <div class="aw-two"><label>Name<input name="name" required maxlength="160" placeholder="Frontend Engineering Agent" /></label><label>Role<input name="role" required maxlength="100" placeholder="frontend_engineer" /></label></div>
       <label>Description<textarea name="description" maxlength="4000" placeholder="What this agent specializes in"></textarea></label>
       <label>Instructions<textarea name="instructions" maxlength="32000" placeholder="Project-scoped operating instructions"></textarea></label>
       <div class="aw-two"><label>Capabilities<input name="capabilities" placeholder="coding, testing, react" /></label><label>Tools<input name="tools" placeholder="github, files, browser" /></label></div>
@@ -103,6 +120,7 @@
 
   <dialog class="aw-dialog" id="instanceDialog"><form method="dialog" id="instanceForm"></form></dialog>
   <dialog class="aw-dialog" id="versionDialog"><form method="dialog" id="versionForm"></form></dialog>
+  <input id="importAgentFile" type="file" accept="application/json" hidden />
   <div class="aw-toast" id="toast" role="status" aria-live="polite"></div>
   <script src="/iphone/agents-workforce.js" defer></script>
   <script src="/iphone/agents-workforce-work-mode.js" defer></script>
