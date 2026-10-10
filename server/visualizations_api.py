@@ -105,14 +105,56 @@ def visualizations_router(runtime):
             raise HTTPException(403, 'This device cannot access Visualize')
         return 'owner'
 
+    def has_scope(device_id: str | None, scope: str) -> bool:
+        if not device_id:
+            return False
+        if not hasattr(registry, 'authorize'):
+            return True
+        return bool(registry.authorize(device_id, scope))
+
     def require_scope(device_id: str | None, scope: str):
         if not device_id:
             raise HTTPException(401, 'Trusted device is required')
-        if hasattr(registry, 'authorize') and not registry.authorize(device_id, scope):
+        if not has_scope(device_id, scope):
             raise HTTPException(403, f'This device cannot access {scope}')
 
     def not_found(exc: KeyError):
         raise HTTPException(404, 'Visualization not found') from exc
+
+    def graph_metadata(item: dict[str, Any]) -> dict[str, Any]:
+        graph = item.get('graph') or {}
+        metadata = graph.get('metadata') if isinstance(graph, dict) else {}
+        return dict(metadata or {})
+
+    def required_visual_scopes(item: dict[str, Any]) -> list[str]:
+        source_kind = str(item.get('source_kind') or '')
+        metadata = graph_metadata(item)
+        scopes: list[str] = []
+        if source_kind == 'knowledge':
+            scopes.append('knowledge:read')
+            access_classes = {str(value) for value in (metadata.get('access_classes') or [])}
+            if 'private' in access_classes:
+                scopes.append('knowledge:private')
+        elif source_kind == 'memory':
+            scopes.append('memory:read')
+            sensitivities = {str(value) for value in (metadata.get('allowed_sensitivities') or ['normal'])}
+            if sensitivities.intersection({'sensitive', 'secret'}):
+                scopes.append('memory:sensitive')
+        return scopes
+
+    def can_access_visual(item: dict[str, Any], device_id: str | None) -> bool:
+        return all(has_scope(device_id, scope) for scope in required_visual_scopes(item))
+
+    def enforce_visual_access(item: dict[str, Any], device_id: str | None) -> dict[str, Any]:
+        for scope in required_visual_scopes(item):
+            require_scope(device_id, scope)
+        return item
+
+    def get_authorized_visual(owner_id: str, visual_id: str, device_id: str | None) -> dict[str, Any]:
+        item = service.get(owner_id, visual_id)
+        if item is None:
+            raise HTTPException(404, 'Visualization not found')
+        return enforce_visual_access(item, device_id)
 
     def project_visual_context(project_id: str) -> tuple[str, dict[str, Any]]:
         if projects is None:
@@ -153,9 +195,15 @@ def visualizations_router(runtime):
         return str(thread.get('title') or 'Conversation'), '\n'.join(parts)[-20000:]
 
     @router.get('')
-    def list_visuals(project_id: str | None = Query(default=None, max_length=120), limit: int = Query(default=100, ge=1, le=250), pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
+    def list_visuals(
+        project_id: str | None = Query(default=None, max_length=120),
+        limit: int = Query(default=100, ge=1, le=250),
+        pa_device: str | None = Cookie(default=None),
+        pa_token: str | None = Cookie(default=None),
+    ):
         owner_id = require_owner(pa_device, pa_token)
-        return {'visualizations': service.list(owner_id, project_id=project_id, limit=limit)}
+        rows = service.list(owner_id, project_id=project_id, limit=limit)
+        return {'visualizations': [item for item in rows if can_access_visual(item, pa_device)]}
 
     @router.post('')
     def create_visual(body: VisualCreateBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
@@ -182,14 +230,30 @@ def visualizations_router(runtime):
         elif body.source_kind == 'github' and source_ref and graph is None:
             try:
                 depth = str(context.get('analysis_depth') or 'deep').casefold()
-                repository_graph = repository_analyzer.analyze(source_ref, title=None if title.casefold() == 'untitled visual' else title) if depth == 'tree' else deep_repository_analyzer.analyze(source_ref, title=None if title.casefold() == 'untitled visual' else title)
+                repository_graph = (
+                    repository_analyzer.analyze(source_ref, title=None if title.casefold() == 'untitled visual' else title)
+                    if depth == 'tree'
+                    else deep_repository_analyzer.analyze(source_ref, title=None if title.casefold() == 'untitled visual' else title)
+                )
             except ValueError as exc:
                 raise HTTPException(422, str(exc)) from exc
             graph = repository_graph
             visual_type = VisualType.ARCHITECTURE
             title = repository_graph.title
         try:
-            return {'visualization': service.create(owner_id=owner_id, title=title, visual_type=visual_type, mode=body.mode, description=description, context=context, graph=graph, project_id=body.project_id, conversation_id=body.conversation_id, source_kind=body.source_kind, source_ref=source_ref)}
+            return {'visualization': service.create(
+                owner_id=owner_id,
+                title=title,
+                visual_type=visual_type,
+                mode=body.mode,
+                description=description,
+                context=context,
+                graph=graph,
+                project_id=body.project_id,
+                conversation_id=body.conversation_id,
+                source_kind=body.source_kind,
+                source_ref=source_ref,
+            )}
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
 
@@ -207,18 +271,20 @@ def visualizations_router(runtime):
 
     @router.post('/knowledge-map')
     def create_knowledge_map(body: KnowledgeMapBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
-        owner_id = require_owner(pa_device, pa_token); require_scope(pa_device, 'knowledge:read')
+        owner_id = require_owner(pa_device, pa_token)
+        require_scope(pa_device, 'knowledge:read')
         if knowledge is None:
             raise HTTPException(503, 'Knowledge store is unavailable')
         access_classes = {'owner', 'trusted-devices'}
-        if not hasattr(registry, 'authorize') or registry.authorize(pa_device, 'knowledge:private'):
+        if has_scope(pa_device, 'knowledge:private'):
             access_classes.add('private')
         graph = build_knowledge_graph(knowledge, access_classes=access_classes, query=body.query, limit=body.limit, title=body.title)
         return {'visualization': service.create(owner_id=owner_id, title=body.title, visual_type=VisualType.PROJECT_MAP, mode=VisualMode.SNAPSHOT, graph=graph, source_kind='knowledge', source_ref=body.query or 'all-authorized-knowledge')}
 
     @router.post('/memory-map')
     def create_memory_map(body: MemoryMapBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
-        owner_id = require_owner(pa_device, pa_token); require_scope(pa_device, 'memory:read')
+        owner_id = require_owner(pa_device, pa_token)
+        require_scope(pa_device, 'memory:read')
         if life_graph is None:
             raise HTTPException(503, 'Second Brain Life Graph is unavailable')
         allowed = {'normal'}
@@ -244,6 +310,8 @@ def visualizations_router(runtime):
     @router.post('/compare')
     def compare(body: CompareBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
         owner_id = require_owner(pa_device, pa_token)
+        get_authorized_visual(owner_id, body.before_id, pa_device)
+        get_authorized_visual(owner_id, body.after_id, pa_device)
         try:
             return service.compare(owner_id, body.before_id, body.after_id)
         except KeyError as exc:
@@ -252,14 +320,12 @@ def visualizations_router(runtime):
     @router.get('/{visual_id}')
     def get_visual(visual_id: str, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
         owner_id = require_owner(pa_device, pa_token)
-        item = service.get(owner_id, visual_id)
-        if item is None:
-            raise HTTPException(404, 'Visualization not found')
-        return {'visualization': item}
+        return {'visualization': get_authorized_visual(owner_id, visual_id, pa_device)}
 
     @router.patch('/{visual_id}')
     def patch_visual(visual_id: str, body: VisualPatchBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
         owner_id = require_owner(pa_device, pa_token)
+        get_authorized_visual(owner_id, visual_id, pa_device)
         try:
             return {'visualization': service.update(owner_id, visual_id, title=body.title, mode=body.mode, graph=body.graph, reason=body.reason)}
         except KeyError as exc:
@@ -270,6 +336,7 @@ def visualizations_router(runtime):
     @router.delete('/{visual_id}')
     def delete_visual(visual_id: str, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
         owner_id = require_owner(pa_device, pa_token)
+        get_authorized_visual(owner_id, visual_id, pa_device)
         if not service.delete(owner_id, visual_id):
             raise HTTPException(404, 'Visualization not found')
         return {'ok': True}
@@ -277,6 +344,7 @@ def visualizations_router(runtime):
     @router.post('/{visual_id}/edit')
     def edit_visual(visual_id: str, body: EditBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
         owner_id = require_owner(pa_device, pa_token)
+        get_authorized_visual(owner_id, visual_id, pa_device)
         try:
             return service.edit(owner_id, visual_id, body.instruction)
         except KeyError as exc:
@@ -287,6 +355,7 @@ def visualizations_router(runtime):
     @router.post('/{visual_id}/repair')
     def repair_visual(visual_id: str, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
         owner_id = require_owner(pa_device, pa_token)
+        get_authorized_visual(owner_id, visual_id, pa_device)
         try:
             return service.repair(owner_id, visual_id)
         except KeyError as exc:
@@ -297,11 +366,10 @@ def visualizations_router(runtime):
     @router.post('/{visual_id}/refresh')
     def refresh_visual(visual_id: str, body: VisualRefreshBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
         owner_id = require_owner(pa_device, pa_token)
-        current = service.get(owner_id, visual_id)
-        if current is None:
-            raise HTTPException(404, 'Visualization not found')
+        current = get_authorized_visual(owner_id, visual_id, pa_device)
         context = dict(body.context)
         description = body.description
+
         if current.get('source_kind') == 'project' and current.get('project_id'):
             _, native_context = project_visual_context(current['project_id'])
             context = {**native_context, **context}
@@ -321,6 +389,35 @@ def visualizations_router(runtime):
                 raise HTTPException(404, 'Project not found')
             graph = build_live_work_graph(project, title=current['title'])
             return {'visualization': service.update(owner_id, visual_id, graph=graph.to_dict(), reason=body.reason or 'live-work refresh')}
+        elif current.get('source_kind') == 'knowledge':
+            require_scope(pa_device, 'knowledge:read')
+            if knowledge is None:
+                raise HTTPException(503, 'Knowledge store is unavailable')
+            metadata = graph_metadata(current)
+            original_access = {str(value) for value in (metadata.get('access_classes') or ['owner', 'trusted-devices'])}
+            access_classes = {'owner', 'trusted-devices'}
+            if 'private' in original_access:
+                require_scope(pa_device, 'knowledge:private')
+                access_classes.add('private')
+            source_ref = str(current.get('source_ref') or '')
+            query = '' if source_ref == 'all-authorized-knowledge' else source_ref
+            graph = build_knowledge_graph(knowledge, access_classes=access_classes, query=query, limit=250, title=current['title'])
+            return {'visualization': service.update(owner_id, visual_id, graph=graph.to_dict(), reason=body.reason or 'knowledge refresh')}
+        elif current.get('source_kind') == 'memory':
+            require_scope(pa_device, 'memory:read')
+            if life_graph is None:
+                raise HTTPException(503, 'Second Brain Life Graph is unavailable')
+            metadata = graph_metadata(current)
+            allowed = {str(value) for value in (metadata.get('allowed_sensitivities') or ['normal'])}
+            if allowed.intersection({'sensitive', 'secret'}):
+                require_scope(pa_device, 'memory:sensitive')
+            source_ref = str(current.get('source_ref') or '')
+            node_type = None if source_ref in {'', 'life-graph'} else source_ref
+            payload = life_graph.graph(type=node_type, limit=500, allowed_sensitivities=allowed)
+            graph = build_memory_graph(payload, title=current['title'])
+            graph.metadata['allowed_sensitivities'] = sorted(allowed)
+            return {'visualization': service.update(owner_id, visual_id, graph=graph.to_dict(), reason=body.reason or 'memory refresh')}
+
         try:
             return {'visualization': service.refresh(owner_id, visual_id, description=description, context=context, reason=body.reason)}
         except KeyError as exc:
@@ -331,6 +428,7 @@ def visualizations_router(runtime):
     @router.get('/{visual_id}/revisions')
     def revisions(visual_id: str, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
         owner_id = require_owner(pa_device, pa_token)
+        get_authorized_visual(owner_id, visual_id, pa_device)
         try:
             return {'revisions': service.revisions(owner_id, visual_id)}
         except KeyError as exc:
@@ -339,6 +437,7 @@ def visualizations_router(runtime):
     @router.post('/{visual_id}/reach')
     def reach(visual_id: str, body: ReachBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
         owner_id = require_owner(pa_device, pa_token)
+        get_authorized_visual(owner_id, visual_id, pa_device)
         try:
             return service.reach(owner_id, visual_id, body.origin, body.direction)
         except KeyError as exc:
@@ -347,6 +446,7 @@ def visualizations_router(runtime):
     @router.post('/{visual_id}/path')
     def path(visual_id: str, body: PathBody, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
         owner_id = require_owner(pa_device, pa_token)
+        get_authorized_visual(owner_id, visual_id, pa_device)
         try:
             return service.path(owner_id, visual_id, body.source, body.target)
         except KeyError as exc:
@@ -355,6 +455,7 @@ def visualizations_router(runtime):
     @router.get('/{visual_id}/presentation')
     def presentation(visual_id: str, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
         owner_id = require_owner(pa_device, pa_token)
+        get_authorized_visual(owner_id, visual_id, pa_device)
         try:
             return service.presentation(owner_id, visual_id)
         except KeyError as exc:
@@ -363,6 +464,7 @@ def visualizations_router(runtime):
     @router.get('/{visual_id}/scene')
     def scene(visual_id: str, dimension: str = Query(default='3d', pattern='^(2d|3d)$'), pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
         owner_id = require_owner(pa_device, pa_token)
+        get_authorized_visual(owner_id, visual_id, pa_device)
         try:
             return service.scene(owner_id, visual_id, dimension=dimension)
         except KeyError as exc:
@@ -373,6 +475,7 @@ def visualizations_router(runtime):
     @router.get('/{visual_id}/export')
     def export_visual(visual_id: str, format: str = Query(default='html', pattern='^(html|svg|json|png|webp|pdf)$'), pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
         owner_id = require_owner(pa_device, pa_token)
+        get_authorized_visual(owner_id, visual_id, pa_device)
         try:
             data, media_type, filename = service.export(owner_id, visual_id, format)
             return Response(data, media_type=media_type, headers={'Content-Disposition': f'attachment; filename="{filename}"', 'Cache-Control': 'no-store'})
@@ -384,6 +487,7 @@ def visualizations_router(runtime):
     @router.get('/{visual_id}/artifact', response_class=HTMLResponse)
     def artifact(visual_id: str, pa_device: str | None = Cookie(default=None), pa_token: str | None = Cookie(default=None)):
         owner_id = require_owner(pa_device, pa_token)
+        get_authorized_visual(owner_id, visual_id, pa_device)
         try:
             return HTMLResponse(service.artifact(owner_id, visual_id), headers={'Cache-Control': 'no-store'})
         except KeyError as exc:
