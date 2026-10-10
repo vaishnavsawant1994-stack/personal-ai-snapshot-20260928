@@ -41,14 +41,32 @@
       toast('Canonical Project Work created');
     }catch(error){toast(error.message||String(error),true)}finally{button.disabled=false;if(input){input.disabled=false;input.focus()}}
   }
-  function enhance(){
+  function enhanceChat(){
     const form=document.querySelector('#agentChatForm');
     if(!form||form.querySelector('[data-create-work]'))return;
     const send=form.querySelector('button[type="submit"]');if(!send)return;
     const button=document.createElement('button');button.type='button';button.className='aw-btn';button.dataset.createWork='true';button.textContent='Create Work';button.title='Create governed canonical Project Work from this specialist request';button.addEventListener('click',()=>createWork(button));send.insertAdjacentElement('beforebegin',button);
     const controls=document.querySelector('.aw-chat-controls');if(controls&&!controls.querySelector('[data-work-mode-note]')){const note=document.createElement('span');note.dataset.workModeNote='true';note.className='aw-meta';note.textContent='Chat = advice · Create Work = governed execution plan';controls.append(note)}
   }
+
+  let landingRestored=false;
+  function stabilizeReferenceLayout(){
+    const list=document.querySelector('#agentList');
+    if(list){
+      const compact=window.matchMedia('(min-width:1281px)').matches;
+      list.style.maxHeight=compact?'240px':'';
+      list.style.overflowY=compact?'auto':'';
+      list.style.scrollbarWidth=compact?'none':'';
+    }
+    if(!landingRestored&&document.querySelector('#agentDetail .aw-detail-head')){
+      landingRestored=true;
+      requestAnimationFrame(()=>window.scrollTo({top:0,left:0,behavior:'auto'}));
+    }
+  }
+
+  function enhance(){enhanceChat();stabilizeReferenceLayout()}
   let pending=false;const schedule=()=>{if(pending)return;pending=true;requestAnimationFrame(()=>{pending=false;enhance()})};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',schedule,{once:true});else schedule();
   new MutationObserver(schedule).observe(document.documentElement,{childList:true,subtree:true});
+  window.addEventListener('resize',schedule,{passive:true});
 })();
