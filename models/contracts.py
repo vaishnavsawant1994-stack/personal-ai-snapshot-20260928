@@ -66,6 +66,8 @@ class ModelRequest:
     deadline_at: float | None = None
     preferred_provider: str | None = None
     preferred_model: str | None = None
+    allowed_providers: tuple[str, ...] = ()
+    blocked_providers: tuple[str, ...] = ()
     tools_allowed: tuple[str, ...] = ()
     structured_output_schema: dict[str, Any] | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
