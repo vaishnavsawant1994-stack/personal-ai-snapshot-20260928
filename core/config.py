@@ -55,9 +55,6 @@ class Settings:
     allow_external_for_sensitive: bool = env_bool('ALLOW_EXTERNAL_FOR_SENSITIVE', False)
     model_evaluation_on_startup: bool = env_bool('MODEL_EVALUATION_ON_STARTUP', False)
 
-    # Intelligence Fabric rollout. Existing chat remains compatible even when
-    # the typed routing fabric is disabled; risky parallel/deliberation paths
-    # stay independently controllable.
     intelligence_fabric_enabled: bool = env_bool('INTELLIGENCE_FABRIC_ENABLED', True)
     multi_provider_routing_enabled: bool = env_bool('MULTI_PROVIDER_ROUTING_ENABLED', True)
     parallel_agents_enabled: bool = env_bool('PARALLEL_AGENTS_ENABLED', False)
@@ -134,7 +131,7 @@ class Settings:
     cloud_session_ttl_seconds: int = env_int('CLOUD_SESSION_TTL_SECONDS', 900)
     cloud_allowed_origins: tuple[str, ...] = tuple(x.strip().rstrip('/') for x in os.getenv('CLOUD_ALLOWED_ORIGINS', '').split(',') if x.strip())
     iphone_owner_enrollment_code: str = os.getenv('PERSONAL_AI_IPHONE_ENROLLMENT_CODE', '').strip()
-    iphone_pwa_allow_insecure: bool = env_bool('PERSONAL_AI_IPHONE_ALLOW_INSECURE', False)
+    iphone_pwa_allow_insecure:bool=env_bool('PERSONAL_AI_IPHONE_ALLOW_INSECURE',False)
     iphone_device_cookie_days: int = env_int('PERSONAL_AI_DEVICE_COOKIE_DAYS', 365)
     google_signin_client_id: str = os.getenv('GOOGLE_SIGNIN_CLIENT_ID', os.getenv('GOOGLE_CLIENT_ID', '')).strip()
     owner_google_email: str = os.getenv('PERSONAL_AI_OWNER_GOOGLE_EMAIL', '').strip().casefold()
