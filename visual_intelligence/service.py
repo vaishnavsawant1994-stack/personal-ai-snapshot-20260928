@@ -4,9 +4,12 @@ from pathlib import Path
 from typing import Any
 
 from .analyzer import analyze
+from .editing import apply_instruction, repair_graph
+from .exporters import export_graph, supported_export_formats
 from .graph_ops import compare_graphs, reachable, shortest_path
 from .layout import layout_graph
 from .models import VisualGraph, VisualMode, VisualType
+from .projections import presentation_projection, scene_projection
 from .renderer import render_html, render_svg
 from .store import VisualStore
 from .validator import assert_valid_graph, validate_graph
@@ -76,6 +79,14 @@ class VisualIntelligenceService:
         result['edge_count'] = len(graph.edges)
         result['validation'] = {'ok': True, 'issues': [issue.to_dict() for issue in validate_graph(graph)]}
         result['svg'] = render_svg(graph)
+        result['capabilities'] = {
+            'edit': True,
+            'repair': True,
+            'presentation': True,
+            'scene_2d': True,
+            'scene_3d': True,
+            'exports': supported_export_formats(),
+        }
         return result
 
     def list(self, owner_id: str, *, project_id: str | None = None, limit: int = 100):
@@ -96,6 +107,31 @@ class VisualIntelligenceService:
             return self.enrich(self.store.update_graph(owner_id, visual_id, typed, reason=reason, title=title))
         parsed_mode = None if mode is None else (mode if isinstance(mode, VisualMode) else VisualMode(str(mode)))
         return self.enrich(self.store.patch(owner_id, visual_id, title=title, mode=parsed_mode))
+
+    def edit(self, owner_id: str, visual_id: str, instruction: str):
+        current = self.store.get(owner_id, visual_id)
+        if current is None:
+            raise KeyError(visual_id)
+        graph = VisualGraph.from_dict(current['graph'])
+        edited, receipt = apply_instruction(graph, instruction)
+        self._prepare(edited)
+        updated = self.store.update_graph(owner_id, visual_id, edited, reason=f'natural-language edit: {instruction[:80]}')
+        result = self.enrich(updated)
+        self._emit('visualization.edited', visualization_id=visual_id, owner_id=owner_id, operations=receipt.operations)
+        return {'visualization': result, 'receipt': receipt.to_dict()}
+
+    def repair(self, owner_id: str, visual_id: str):
+        current = self.store.get(owner_id, visual_id)
+        if current is None:
+            raise KeyError(visual_id)
+        graph = VisualGraph.from_dict(current['graph'])
+        repaired, receipt = repair_graph(graph)
+        self._prepare(repaired)
+        if receipt['repairs']:
+            current = self.store.update_graph(owner_id, visual_id, repaired, reason='deterministic validation repair')
+        result = self.enrich(current)
+        self._emit('visualization.repaired', visualization_id=visual_id, owner_id=owner_id, repair_count=len(receipt['repairs']))
+        return {'visualization': result, 'receipt': receipt}
 
     def refresh(self, owner_id: str, visual_id: str, *, description: str | None = None, context: dict[str, Any] | None = None, reason: str = 'refresh'):
         current = self.store.get(owner_id, visual_id)
@@ -130,6 +166,24 @@ class VisualIntelligenceService:
         if after is None:
             raise KeyError(after_id)
         return compare_graphs(VisualGraph.from_dict(before['graph']), VisualGraph.from_dict(after['graph']))
+
+    def presentation(self, owner_id: str, visual_id: str):
+        item = self.store.get(owner_id, visual_id)
+        if item is None:
+            raise KeyError(visual_id)
+        return presentation_projection(VisualGraph.from_dict(item['graph']))
+
+    def scene(self, owner_id: str, visual_id: str, *, dimension: str = '3d'):
+        item = self.store.get(owner_id, visual_id)
+        if item is None:
+            raise KeyError(visual_id)
+        return scene_projection(VisualGraph.from_dict(item['graph']), dimension=dimension)
+
+    def export(self, owner_id: str, visual_id: str, fmt: str):
+        item = self.store.get(owner_id, visual_id)
+        if item is None:
+            raise KeyError(visual_id)
+        return export_graph(VisualGraph.from_dict(item['graph']), fmt)
 
     def artifact(self, owner_id: str, visual_id: str) -> str:
         item = self.store.get(owner_id, visual_id)
