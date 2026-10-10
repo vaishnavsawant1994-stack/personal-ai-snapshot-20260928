@@ -177,7 +177,8 @@ class DeepGitHubRepositoryAnalyzer:
                 for item in selected:
                     path = str(item.get('path') or '')
                     encoded = quote(path, safe='/')
-                    response = client.get(f'https://api.github.com/repos/{owner}/{repo}/contents/{encoded}', params={'ref': commit_sha}, headers={**headers, 'Accept': 'application/vnd.github.raw+json'})
+                    raw_url = f'https://raw.githubusercontent.com/{owner}/{repo}/{commit_sha}/{encoded}'
+                    response = client.get(raw_url, headers={'Accept': 'text/plain,*/*', 'User-Agent': 'Vishnu-Visualize/2.0'})
                     if response.status_code != 200:
                         continue
                     text = response.text
