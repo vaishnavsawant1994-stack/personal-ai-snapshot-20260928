@@ -15,10 +15,19 @@ class WorkerProfile:
     requires_tool: bool = False
     allow_any_available_tool: bool = False
     output_kinds: tuple[str, ...] = ()
+    routing_policy: str = "fast_chat"
+    required_model_capabilities: tuple[str, ...] = ("chat",)
+    preferred_model_capabilities: tuple[str, ...] = ()
+    parallelizable: bool = True
+    deliberation_mode: str = "single"
 
     def __post_init__(self) -> None:
         if not self.id.strip() or not self.description.strip():
             raise ValueError("worker id and description are required")
+        if not self.routing_policy.strip():
+            raise ValueError("worker routing_policy is required")
+        if self.deliberation_mode not in {"single", "parallel_compare", "critic", "judge", "synthesize", "consensus"}:
+            raise ValueError("unsupported worker deliberation_mode")
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -29,6 +38,11 @@ class WorkerProfile:
             "requires_tool": self.requires_tool,
             "allow_any_available_tool": self.allow_any_available_tool,
             "output_kinds": list(self.output_kinds),
+            "routing_policy": self.routing_policy,
+            "required_model_capabilities": list(self.required_model_capabilities),
+            "preferred_model_capabilities": list(self.preferred_model_capabilities),
+            "parallelizable": self.parallelizable,
+            "deliberation_mode": self.deliberation_mode,
             "authority": "proposal_only",
         }
 
