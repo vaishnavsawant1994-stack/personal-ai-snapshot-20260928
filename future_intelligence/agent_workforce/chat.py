@@ -15,7 +15,13 @@ def _id(prefix: str) -> str:
 
 
 class AgentConversationStore:
-    """Durable specialist-chat history bound to one Project and one agent version."""
+    """Durable specialist-chat history bound to one Project and one agent version.
+
+    This store may share the workforce SQLite connection, so every access uses
+    the same re-entrant lock as AgentWorkforceStore. That keeps chat traffic from
+    interleaving statements on the shared connection while Project workforce
+    reconciliation or assignment is running on another thread.
+    """
 
     def __init__(self, connection: sqlite3.Connection, *, lock: threading.RLock | None = None):
         self.connection = connection
@@ -84,15 +90,16 @@ class AgentConversationStore:
                     now,
                 ),
             )
-        return self.get(conversation_id)
+            return self.get(conversation_id)
 
     def get(self, conversation_id: str) -> dict:
-        row = self.connection.execute(
-            "SELECT * FROM agent_conversations WHERE id=?", (conversation_id,)
-        ).fetchone()
-        if row is None:
-            raise KeyError(conversation_id)
-        return dict(row)
+        with self.lock:
+            row = self.connection.execute(
+                "SELECT * FROM agent_conversations WHERE id=?", (conversation_id,)
+            ).fetchone()
+            if row is None:
+                raise KeyError(conversation_id)
+            return dict(row)
 
     def list(self, *, template_id: str | None = None, project_id: str | None = None, limit: int = 100) -> list[dict]:
         clauses, args = [], []
@@ -104,11 +111,12 @@ class AgentConversationStore:
             args.append(project_id)
         where = " WHERE " + " AND ".join(clauses) if clauses else ""
         args.append(max(1, min(500, int(limit))))
-        rows = self.connection.execute(
-            "SELECT * FROM agent_conversations" + where + " ORDER BY updated_at DESC,id LIMIT ?",
-            tuple(args),
-        ).fetchall()
-        return [dict(row) for row in rows]
+        with self.lock:
+            rows = self.connection.execute(
+                "SELECT * FROM agent_conversations" + where + " ORDER BY updated_at DESC,id LIMIT ?",
+                tuple(args),
+            ).fetchall()
+            return [dict(row) for row in rows]
 
     def append(
         self,
@@ -125,10 +133,10 @@ class AgentConversationStore:
         content = str(content or "")
         if not content.strip():
             raise ValueError("message content is required")
-        self.get(conversation_id)
         message_id = _id("agentmsg")
         now = _now()
         with self.lock, self.connection:
+            self.get(conversation_id)
             self.connection.execute(
                 """INSERT INTO agent_messages(
                     id,conversation_id,role,content,provider,model_id,request_id,created_at
@@ -138,26 +146,26 @@ class AgentConversationStore:
             self.connection.execute(
                 "UPDATE agent_conversations SET updated_at=? WHERE id=?", (now, conversation_id)
             )
-        return dict(
-            self.connection.execute("SELECT * FROM agent_messages WHERE id=?", (message_id,)).fetchone()
-        )
+            row = self.connection.execute("SELECT * FROM agent_messages WHERE id=?", (message_id,)).fetchone()
+            return dict(row)
 
     def messages(self, conversation_id: str, *, limit: int = 100) -> list[dict]:
-        self.get(conversation_id)
         limit = max(1, min(500, int(limit)))
-        rows = self.connection.execute(
-            """SELECT * FROM (
-                SELECT * FROM agent_messages WHERE conversation_id=? ORDER BY created_at DESC,id DESC LIMIT ?
-            ) ORDER BY created_at,id""",
-            (conversation_id, limit),
-        ).fetchall()
-        return [dict(row) for row in rows]
+        with self.lock:
+            self.get(conversation_id)
+            rows = self.connection.execute(
+                """SELECT * FROM (
+                    SELECT * FROM agent_messages WHERE conversation_id=? ORDER BY created_at DESC,id DESC LIMIT ?
+                ) ORDER BY created_at,id""",
+                (conversation_id, limit),
+            ).fetchall()
+            return [dict(row) for row in rows]
 
     def close(self, conversation_id: str) -> dict:
-        self.get(conversation_id)
         with self.lock, self.connection:
+            self.get(conversation_id)
             self.connection.execute(
                 "UPDATE agent_conversations SET state='closed',updated_at=? WHERE id=?",
                 (_now(), conversation_id),
             )
-        return self.get(conversation_id)
+            return self.get(conversation_id)
