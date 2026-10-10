@@ -25,7 +25,24 @@ class VisualIntelligenceService:
             self.events.emit(name, **payload)
 
     def _prepare(self, graph: VisualGraph) -> VisualGraph:
+        """Compile a graph through layout -> validate -> deterministic repair -> validate.
+
+        A failed candidate never reaches the store, so the last persisted revision remains
+        authoritative. Repairs are recorded in graph metadata as machine-readable receipts.
+        """
         layout_graph(graph)
+        issues = validate_graph(graph)
+        if issues:
+            repaired, receipt = repair_graph(graph)
+            layout_graph(repaired)
+            assert_valid_graph(repaired)
+            repaired.metadata['validation_repair'] = receipt
+            graph.title = repaired.title
+            graph.type = repaired.type
+            graph.nodes = repaired.nodes
+            graph.edges = repaired.edges
+            graph.views = repaired.views
+            graph.metadata = repaired.metadata
         assert_valid_graph(graph)
         return graph
 
@@ -77,15 +94,12 @@ class VisualIntelligenceService:
         result['graph'] = graph.to_dict()
         result['node_count'] = len(graph.nodes)
         result['edge_count'] = len(graph.edges)
-        result['validation'] = {'ok': True, 'issues': [issue.to_dict() for issue in validate_graph(graph)]}
+        issues = [issue.to_dict() for issue in validate_graph(graph)]
+        result['validation'] = {'ok': not issues, 'issues': issues}
         result['svg'] = render_svg(graph)
         result['capabilities'] = {
-            'edit': True,
-            'repair': True,
-            'presentation': True,
-            'scene_2d': True,
-            'scene_3d': True,
-            'exports': supported_export_formats(),
+            'edit': True, 'repair': True, 'presentation': True, 'scene_2d': True, 'scene_3d': True,
+            'exports': supported_export_formats(), 'last_good_persistence': True,
         }
         return result
 
@@ -161,34 +175,28 @@ class VisualIntelligenceService:
 
     def compare(self, owner_id: str, before_id: str, after_id: str):
         before = self.store.get(owner_id, before_id); after = self.store.get(owner_id, after_id)
-        if before is None:
-            raise KeyError(before_id)
-        if after is None:
-            raise KeyError(after_id)
+        if before is None: raise KeyError(before_id)
+        if after is None: raise KeyError(after_id)
         return compare_graphs(VisualGraph.from_dict(before['graph']), VisualGraph.from_dict(after['graph']))
 
     def presentation(self, owner_id: str, visual_id: str):
         item = self.store.get(owner_id, visual_id)
-        if item is None:
-            raise KeyError(visual_id)
+        if item is None: raise KeyError(visual_id)
         return presentation_projection(VisualGraph.from_dict(item['graph']))
 
     def scene(self, owner_id: str, visual_id: str, *, dimension: str = '3d'):
         item = self.store.get(owner_id, visual_id)
-        if item is None:
-            raise KeyError(visual_id)
+        if item is None: raise KeyError(visual_id)
         return scene_projection(VisualGraph.from_dict(item['graph']), dimension=dimension)
 
     def export(self, owner_id: str, visual_id: str, fmt: str):
         item = self.store.get(owner_id, visual_id)
-        if item is None:
-            raise KeyError(visual_id)
+        if item is None: raise KeyError(visual_id)
         return export_graph(VisualGraph.from_dict(item['graph']), fmt)
 
     def artifact(self, owner_id: str, visual_id: str) -> str:
         item = self.store.get(owner_id, visual_id)
-        if item is None:
-            raise KeyError(visual_id)
+        if item is None: raise KeyError(visual_id)
         return render_html(VisualGraph.from_dict(item['graph']))
 
     def delete(self, owner_id: str, visual_id: str) -> bool:
