@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 
 from .models import EvidenceLevel, VisualEdge, VisualGraph, VisualNode, VisualType
@@ -8,6 +9,18 @@ from .models import EvidenceLevel, VisualEdge, VisualGraph, VisualNode, VisualTy
 def _id(prefix: str, value) -> str:
     token = re.sub(r'[^a-z0-9]+', '-', str(value or '').casefold()).strip('-')[:110] or 'item'
     return f'{prefix}-{token}'
+
+
+def _dict_json(value) -> dict:
+    if isinstance(value, dict):
+        return dict(value)
+    if not value:
+        return {}
+    try:
+        decoded = json.loads(str(value))
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return {}
+    return dict(decoded) if isinstance(decoded, dict) else {}
 
 
 def build_knowledge_graph(knowledge, *, access_classes: set[str], query: str = '', limit: int = 120, title: str = 'Knowledge Map') -> VisualGraph:
@@ -81,32 +94,56 @@ def build_memory_graph(payload: dict, *, title: str = 'Memory Map') -> VisualGra
     id_map: dict[str, str] = {}
     for index, item in enumerate(raw_nodes, 1):
         original = str(item.get('id') or item.get('node_id') or index)
+        canonical_memory_id = str(item.get('memory_id') or original)
         node_id = _id('memory', original)
         while node_id in seen:
             node_id += f'-{index}'
         seen.add(node_id); id_map[original] = node_id
         label = str(item.get('label') or item.get('title') or item.get('name') or item.get('type') or f'Memory {index}')[:160]
-        sensitivity = str(item.get('sensitivity') or (item.get('metadata') or {}).get('sensitivity') or 'normal')
+        decoded_metadata = _dict_json(item.get('metadata_json'))
+        explicit_metadata = dict(item.get('metadata') or {})
+        governed_metadata = {**decoded_metadata, **explicit_metadata}
+        sensitivity = str(item.get('sensitivity') or governed_metadata.get('sensitivity') or 'normal').strip().casefold()
+        evidence_payload = governed_metadata.get('evidence') if isinstance(governed_metadata.get('evidence'), list) else []
         nodes.append(VisualNode(
             id=node_id, label=label, category=str(item.get('type') or item.get('category') or 'memory'),
             description=str(item.get('description') or item.get('summary') or '')[:1000], evidence_level=EvidenceLevel.STRONG,
-            evidence=[{'kind': 'canonical_memory_node', 'memory_id': original, 'sensitivity': sensitivity}],
-            metadata={**dict(item.get('metadata') or {}), 'canonical_memory_id': original, 'sensitivity': sensitivity, 'privacy_scoped': True},
+            evidence=[{'kind': 'canonical_memory_node', 'memory_id': canonical_memory_id, 'life_graph_id': original, 'sensitivity': sensitivity, 'origin': item.get('origin'), 'source': item.get('source'), 'evidence': evidence_payload}],
+            metadata={
+                **governed_metadata,
+                'canonical_memory_id': canonical_memory_id,
+                'canonical_life_graph_id': original,
+                'sensitivity': sensitivity,
+                'origin': item.get('origin'),
+                'confidence': item.get('confidence'),
+                'privacy_scoped': True,
+            },
         ))
     edges: list[VisualEdge] = []
     for index, item in enumerate(raw_edges, 1):
-        source = str(item.get('source') or item.get('from') or '')
-        target = str(item.get('target') or item.get('to') or '')
+        source = str(item.get('source') or item.get('src') or item.get('from') or '')
+        target = str(item.get('target') or item.get('dst') or item.get('to') or '')
         if source not in id_map or target not in id_map:
             continue
+        relation = str(item.get('label') or item.get('relationship') or item.get('relation') or item.get('kind') or item.get('type') or 'relationship')
         edges.append(VisualEdge(
             id=_id('memory-edge', item.get('id') or index), source=id_map[source], target=id_map[target],
-            label=str(item.get('label') or item.get('relationship') or ''), kind=str(item.get('kind') or item.get('type') or 'relationship'),
-            metadata={'canonical_edge': dict(item)},
+            label=relation, kind=relation,
+            metadata={
+                'canonical_edge': dict(item),
+                'origin': item.get('origin'),
+                'source': item.get('source'),
+                'confidence': item.get('confidence'),
+                'rationale': item.get('rationale'),
+            },
         ))
     return VisualGraph(
         type=VisualType.PROJECT_MAP, title=title, nodes=nodes, edges=edges,
-        metadata={'analysis': 'vishnu-memory-map', 'privacy_scoped': True, 'source_node_count': len(raw_nodes), 'source_edge_count': len(raw_edges)},
+        metadata={
+            'analysis': 'vishnu-memory-map', 'privacy_scoped': True,
+            'source_node_count': len(raw_nodes), 'source_edge_count': len(raw_edges),
+            'projected_edge_count': len(edges), 'linked_second_brain': bool(payload.get('linked_second_brain')),
+        },
     )
 
 
@@ -121,6 +158,7 @@ def build_live_work_graph(project: dict, *, title: str | None = None) -> VisualG
     edges: list[VisualEdge] = []
     task_ids: dict[str, str] = {}
     agent_ids: dict[str, str] = {}
+    run_ids: set[str] = set()
 
     for index, milestone in enumerate(project.get('milestones') or [], 1):
         mid = str(milestone.get('id') or index); node_id = _id('milestone', mid)
@@ -146,7 +184,9 @@ def build_live_work_graph(project: dict, *, title: str | None = None) -> VisualG
         run_id = str(task.get('execution_run_id') or '').strip()
         if run_id:
             run_node_id = _id('run', run_id)
-            nodes.append(VisualNode(id=run_node_id, label=f'Run {run_id[:10]}', category='execution', status=status, evidence_level=EvidenceLevel.VERIFIED, evidence=[{'kind': 'execution_run', 'run_id': run_id, 'task_id': task_key}], metadata={'execution_run_id': run_id, 'live_work': True}))
+            if run_node_id not in run_ids:
+                run_ids.add(run_node_id)
+                nodes.append(VisualNode(id=run_node_id, label=f'Run {run_id[:10]}', category='execution', status=status, evidence_level=EvidenceLevel.VERIFIED, evidence=[{'kind': 'execution_run', 'run_id': run_id, 'task_id': task_key}], metadata={'execution_run_id': run_id, 'live_work': True}))
             edges.append(VisualEdge(id=f'{node_id}-run', source=node_id, target=run_node_id, kind='execution'))
 
     for task in project.get('tasks') or []:
