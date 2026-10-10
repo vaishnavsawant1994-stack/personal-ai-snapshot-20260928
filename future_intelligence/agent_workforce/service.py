@@ -132,11 +132,28 @@ class AgentWorkforceService:
         self._emit("agent.version.candidate_created", template_id=template_id, version_id=created["id"], parent_version_id=parent_version_id)
         return created
 
+    @staticmethod
+    def _validated_qualification(state: str, qualification: dict | None) -> dict:
+        qualification = dict(qualification or {})
+        if state not in {"stable", "preferred"}:
+            return qualification
+        if qualification.get("passed") is not True:
+            raise ValueError("stable/preferred promotion requires passed qualification")
+        evidence_refs = qualification.get("evidence_refs")
+        if not isinstance(evidence_refs, (list, tuple)) or not any(str(item).strip() for item in evidence_refs):
+            raise ValueError("stable/preferred promotion requires qualification evidence_refs")
+        run_id = str(qualification.get("qualification_run_id") or "").strip()
+        summary = str(qualification.get("test_summary") or "").strip()
+        if not run_id and not summary:
+            raise ValueError("stable/preferred promotion requires a qualification_run_id or test_summary")
+        qualification["evidence_refs"] = [str(item).strip() for item in evidence_refs if str(item).strip()][:100]
+        qualification["authority"] = False
+        return qualification
+
     def promote_version(self, version_id: str, *, state: str, qualification: dict) -> dict:
         if state not in {"experimental", "stable", "preferred", "degraded", "archived"}:
             raise ValueError("unsupported promotion state")
-        if state in {"stable", "preferred"} and not bool((qualification or {}).get("passed")):
-            raise ValueError("stable/preferred promotion requires passed qualification")
+        qualification = self._validated_qualification(state, qualification)
         result = self.store.set_version_state(version_id, state, qualification=qualification)
         self._emit("agent.version.state_changed", template_id=result["template_id"], version_id=version_id, state=state)
         return result
@@ -169,6 +186,18 @@ class AgentWorkforceService:
                 members.append(self.create_instance(template["id"], project_id=project_id))
         self._emit("agent.team.created", project_id=project_id, instance_ids=[row["id"] for row in members])
         return {"project_id": project_id, "members": self.store.list_project_team(project_id)}
+
+    def ensure_project_manager(self, project_id: str) -> dict:
+        """Idempotently make the Project Manager the first workforce member."""
+        if not project_id:
+            raise ValueError("project_id is required")
+        existing = [row for row in self.store.list_project_team(project_id) if bool(row.get("is_manager"))]
+        if existing:
+            return existing[0]
+        template = self.store.get_template_by_slug("project-manager")
+        if template is None:
+            raise RuntimeError("Project Manager template unavailable")
+        return self.create_instance(template["id"], project_id=project_id)
 
     def assign(self, instance_id: str, *, project_id: str, work_order_id: str) -> dict:
         if self.work_store is not None:
