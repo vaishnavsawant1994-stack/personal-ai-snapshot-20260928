@@ -15,7 +15,9 @@ jobs:
           python-version: "3.12"
       - run: pip install -r requirements.txt
       - run: pip check
-      - run: python -m compileall -q app agent automation browser capabilities continuity core dashboard desktop devices evidence evolution future_intelligence identity integrations knowledge memory models proactive qualification security server tools ui updates vision voice
+      - run: python -m compileall -q app agent automation browser capabilities continuity core dashboard desktop devices evidence evolution future_intelligence identity integrations knowledge memory models proactive qualification security server tools ui updates vision voice visual_intelligence
+      - name: Vishnu Visualize qualification gate
+        run: pytest -q tests/test_visual_intelligence.py
       - name: Canonical Work consistency gate
         run: pytest -q tests/test_work_consistency_gate.py
       - name: Canonical Work scale and performance gate
