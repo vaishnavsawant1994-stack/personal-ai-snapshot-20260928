@@ -54,6 +54,8 @@ def visualizations_router(runtime):
     router = APIRouter(prefix='/iphone/api/visualizations', tags=['visualize'])
     service = runtime['visual_intelligence']
     registry = runtime['device_registry']
+    projects = runtime.get('project_store')
+    continuity = runtime.get('continuity')
 
     def require_owner(pa_device: str | None, pa_token: str | None) -> str:
         if not pa_device or not pa_token or not registry.authenticate(pa_device, pa_token):
@@ -66,6 +68,44 @@ def visualizations_router(runtime):
 
     def not_found(exc: KeyError):
         raise HTTPException(404, 'Visualization not found') from exc
+
+    def project_visual_context(project_id: str) -> tuple[str, dict[str, Any]]:
+        if projects is None:
+            raise HTTPException(503, 'Project workspace is unavailable')
+        project = projects.get(project_id)
+        if not project:
+            raise HTTPException(404, 'Project not found')
+        work = [task for task in project.get('tasks', []) if task.get('execution_run_id') or task.get('status') in {'in_progress', 'blocked', 'needs_review'}]
+        agent_names = []
+        for task in project.get('tasks', []):
+            owner = str(task.get('owner') or '').strip()
+            if owner and owner not in agent_names:
+                agent_names.append(owner)
+        context = {
+            'goals': ([{'title': project.get('goal'), 'status': project.get('status', 'active'), 'description': project.get('success_criteria', '')}] if project.get('goal') else []),
+            'tasks': project.get('tasks', []),
+            'milestones': project.get('milestones', []),
+            'agents': [{'name': name.title(), 'status': 'active'} for name in agent_names],
+            'sources': [{'title': item.get('title'), 'status': item.get('indexing_state', 'stored'), 'kind': item.get('kind'), 'id': item.get('id')} for item in project.get('files', [])],
+            'work': work,
+        }
+        return str(project.get('name') or 'Project'), context
+
+    def conversation_description(conversation_id: str) -> tuple[str, str]:
+        if continuity is None:
+            raise HTTPException(503, 'Conversation continuity is unavailable')
+        thread = continuity.thread(conversation_id)
+        if not thread or thread.get('closed_at'):
+            raise HTTPException(404, 'Conversation not found')
+        parts = []
+        for event in continuity.events_for_thread(conversation_id, limit=250):
+            if event.get('kind') not in {'user_message', 'assistant_message'}:
+                continue
+            text = str((event.get('payload') or {}).get('text') or '').strip()
+            if text:
+                role = 'Owner' if event.get('kind') == 'user_message' else 'Vishnu'
+                parts.append(f'{role}: {text}')
+        return str(thread.get('title') or 'Conversation'), '\n'.join(parts)[-20000:]
 
     @router.get('')
     def list_visuals(
@@ -84,10 +124,40 @@ def visualizations_router(runtime):
         pa_token: str | None = Cookie(default=None),
     ):
         owner_id = require_owner(pa_device, pa_token)
+        title = body.title
+        description = body.description
+        context = dict(body.context)
+        visual_type = body.type
+        source_ref = body.source_ref
+        if body.source_kind == 'project' and body.project_id and body.graph is None:
+            project_name, native_context = project_visual_context(body.project_id)
+            context = {**native_context, **context}
+            visual_type = VisualType.PROJECT_MAP
+            source_ref = source_ref or body.project_id
+            if title.casefold() in {'untitled visual', 'project map'}:
+                title = f'{project_name} · Project Map'
+        elif body.source_kind == 'conversation' and body.conversation_id and body.graph is None:
+            conversation_title, native_description = conversation_description(body.conversation_id)
+            description = description.strip() or native_description
+            source_ref = source_ref or body.conversation_id
+            if title.casefold() in {'untitled visual', 'conversation'}:
+                title = conversation_title
         try:
-            return {'visualization': service.create(owner_id=owner_id, title=body.title, visual_type=body.type, mode=body.mode, description=body.description, context=body.context, graph=body.graph, project_id=body.project_id, conversation_id=body.conversation_id, source_kind=body.source_kind, source_ref=body.source_ref)}
+            return {'visualization': service.create(owner_id=owner_id, title=title, visual_type=visual_type, mode=body.mode, description=description, context=context, graph=body.graph, project_id=body.project_id, conversation_id=body.conversation_id, source_kind=body.source_kind, source_ref=source_ref)}
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
+
+    @router.post('/compare')
+    def compare(
+        body: CompareBody,
+        pa_device: str | None = Cookie(default=None),
+        pa_token: str | None = Cookie(default=None),
+    ):
+        owner_id = require_owner(pa_device, pa_token)
+        try:
+            return service.compare(owner_id, body.before_id, body.after_id)
+        except KeyError as exc:
+            not_found(exc)
 
     @router.get('/{visual_id}')
     def get_visual(
@@ -135,8 +205,18 @@ def visualizations_router(runtime):
         pa_token: str | None = Cookie(default=None),
     ):
         owner_id = require_owner(pa_device, pa_token)
+        current = service.get(owner_id, visual_id)
+        if current is None:
+            raise HTTPException(404, 'Visualization not found')
+        context = dict(body.context)
+        description = body.description
+        if current.get('source_kind') == 'project' and current.get('project_id'):
+            _, native_context = project_visual_context(current['project_id'])
+            context = {**native_context, **context}
+        elif current.get('source_kind') == 'conversation' and current.get('conversation_id') and description is None:
+            _, description = conversation_description(current['conversation_id'])
         try:
-            return {'visualization': service.refresh(owner_id, visual_id, description=body.description, context=body.context, reason=body.reason)}
+            return {'visualization': service.refresh(owner_id, visual_id, description=description, context=context, reason=body.reason)}
         except KeyError as exc:
             not_found(exc)
         except ValueError as exc:
@@ -179,18 +259,6 @@ def visualizations_router(runtime):
             return service.path(owner_id, visual_id, body.source, body.target)
         except KeyError as exc:
             raise HTTPException(404, f'Visualization or node not found: {exc.args[0]}') from exc
-
-    @router.post('/compare')
-    def compare(
-        body: CompareBody,
-        pa_device: str | None = Cookie(default=None),
-        pa_token: str | None = Cookie(default=None),
-    ):
-        owner_id = require_owner(pa_device, pa_token)
-        try:
-            return service.compare(owner_id, body.before_id, body.after_id)
-        except KeyError as exc:
-            not_found(exc)
 
     @router.get('/{visual_id}/artifact', response_class=HTMLResponse)
     def artifact(
