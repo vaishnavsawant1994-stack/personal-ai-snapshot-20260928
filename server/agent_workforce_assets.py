@@ -54,6 +54,14 @@ def agent_workforce_assets_router(settings) -> APIRouter:
             headers={"Cache-Control": "no-cache"},
         )
 
+    @router.get("/agents-workforce-work-mode.js", include_in_schema=False)
+    def agents_work_mode_script():
+        return Response(
+            read("agents-workforce-work-mode.js"),
+            media_type="application/javascript",
+            headers={"Cache-Control": "no-cache"},
+        )
+
     @router.get("/agent-workforce-entry.js", include_in_schema=False)
     def agents_entry_script():
         return Response(
