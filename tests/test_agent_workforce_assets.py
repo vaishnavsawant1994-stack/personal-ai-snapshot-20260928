@@ -15,6 +15,7 @@ def test_workforce_assets_are_explicitly_served_and_shell_gets_single_entry_scri
     (pwa / "agents.html").write_text("<html><body>Agents</body></html>", encoding="utf-8")
     (pwa / "agents-workforce.css").write_text(".aw-app{display:grid}", encoding="utf-8")
     (pwa / "agents-workforce.js").write_text("window.AGENTS=true", encoding="utf-8")
+    (pwa / "agents-workforce-work-mode.js").write_text("window.WORK_MODE=true", encoding="utf-8")
     (pwa / "agent-workforce-entry.js").write_text("window.ENTRY=true", encoding="utf-8")
 
     app = FastAPI()
@@ -33,9 +34,11 @@ def test_workforce_assets_are_explicitly_served_and_shell_gets_single_entry_scri
 
     css = client.get("/iphone/agents-workforce.css")
     js = client.get("/iphone/agents-workforce.js")
+    work_mode = client.get("/iphone/agents-workforce-work-mode.js")
     entry = client.get("/iphone/agent-workforce-entry.js")
     assert css.headers["content-type"].startswith("text/css")
     assert js.headers["content-type"].startswith("application/javascript")
+    assert work_mode.headers["content-type"].startswith("application/javascript")
     assert entry.headers["content-type"].startswith("application/javascript")
 
 
@@ -47,6 +50,7 @@ def test_asset_router_does_not_expose_generic_pwa_files(tmp_path):
         "agents.html": "Agents",
         "agents-workforce.css": "x{}",
         "agents-workforce.js": "x=1",
+        "agents-workforce-work-mode.js": "z=1",
         "agent-workforce-entry.js": "y=1",
         "private.txt": "must not be served",
     }.items():
