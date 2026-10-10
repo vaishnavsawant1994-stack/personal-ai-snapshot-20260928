@@ -6,8 +6,14 @@ from fastapi import APIRouter
 from fastapi.responses import Response
 
 
-_VISUALIZE_HEAD = '<link rel="stylesheet" href="/iphone/visualize-workspace.css" />'
-_VISUALIZE_SCRIPT = '<script src="/iphone/visualize-workspace.js" defer></script>'
+_VISUALIZE_HEAD = (
+    '<link rel="stylesheet" href="/iphone/visualize-workspace.css" />'
+    '<link rel="stylesheet" href="/iphone/visualize-sources.css" />'
+)
+_VISUALIZE_SCRIPT = (
+    '<script src="/iphone/visualize-workspace.js" defer></script>'
+    '<script src="/iphone/visualize-sources.js" defer></script>'
+)
 
 
 class VisualizeUiMiddleware:
@@ -41,18 +47,21 @@ class VisualizeUiMiddleware:
                 if not message.get('more_body', False):
                     body = b''.join(chunks)
                     content_type = ''
+                    content_encoding = ''
                     for key, value in headers:
-                        if key.lower() == b'content-type':
+                        lowered = key.lower()
+                        if lowered == b'content-type':
                             content_type = value.decode('latin-1').lower()
-                            break
-                    if status == 200 and 'text/html' in content_type:
+                        elif lowered == b'content-encoding':
+                            content_encoding = value.decode('latin-1').lower()
+                    if status == 200 and 'text/html' in content_type and not content_encoding:
                         text = body.decode('utf-8')
-                        if _VISUALIZE_HEAD not in text:
+                        if '/iphone/visualize-workspace.css' not in text:
                             if '</head>' in text:
                                 text = text.replace('</head>', f'{_VISUALIZE_HEAD}</head>', 1)
                             else:
                                 text = _VISUALIZE_HEAD + text
-                        if _VISUALIZE_SCRIPT not in text:
+                        if '/iphone/visualize-workspace.js' not in text:
                             if '</body>' in text:
                                 text = text.replace('</body>', f'{_VISUALIZE_SCRIPT}</body>', 1)
                             else:
@@ -70,20 +79,27 @@ def visualize_assets_router(settings):
     router = APIRouter(prefix='/iphone', tags=['visualize-ui'])
     web_dir = Path(settings.base_dir) / 'pwa'
 
-    @router.get('/visualize-workspace.js', include_in_schema=False)
-    def visualize_script():
+    def asset(name: str, media_type: str):
         return Response(
-            (web_dir / 'visualize-workspace.js').read_text(encoding='utf-8'),
-            media_type='application/javascript',
+            (web_dir / name).read_text(encoding='utf-8'),
+            media_type=media_type,
             headers={'Cache-Control': 'no-cache'},
         )
 
+    @router.get('/visualize-workspace.js', include_in_schema=False)
+    def visualize_script():
+        return asset('visualize-workspace.js', 'application/javascript')
+
     @router.get('/visualize-workspace.css', include_in_schema=False)
     def visualize_styles():
-        return Response(
-            (web_dir / 'visualize-workspace.css').read_text(encoding='utf-8'),
-            media_type='text/css',
-            headers={'Cache-Control': 'no-cache'},
-        )
+        return asset('visualize-workspace.css', 'text/css')
+
+    @router.get('/visualize-sources.js', include_in_schema=False)
+    def visualize_sources_script():
+        return asset('visualize-sources.js', 'application/javascript')
+
+    @router.get('/visualize-sources.css', include_in_schema=False)
+    def visualize_sources_styles():
+        return asset('visualize-sources.css', 'text/css')
 
     return router
