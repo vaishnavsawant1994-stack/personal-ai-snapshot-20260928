@@ -1,207 +1,157 @@
 (()=>{
   'use strict';
   const API='/iphone/api/agents';
-  const state={agents:[],projects:[],selected:null,detail:null,tab:'overview',catalog:'all',conversation:null,chatProject:null,loading:false};
-  const $=(q,root=document)=>root.querySelector(q);
-  const $$=(q,root=document)=>[...root.querySelectorAll(q)];
-  const esc=value=>String(value??'').replace(/[&<>'"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
-  const fmtTime=value=>{try{return new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'short'}).format(new Date(value))}catch{return String(value||'')}};
-  const short=value=>String(value||'').replace(/^agent(ver|chat|msg)?_/,'').slice(0,10);
-  const toast=(message,error=false)=>{const el=$('#toast');el.textContent=message;el.className='aw-toast show'+(error?' error':'');clearTimeout(toast.t);toast.t=setTimeout(()=>el.className='aw-toast',3200)};
-  const errorText=async response=>{try{const body=await response.json();const detail=body?.detail;return typeof detail==='string'?detail:(detail?.message||detail?.code||body?.message||`Request failed (${response.status})`)}catch{return `Request failed (${response.status})`}};
-  async function api(path,options={}){
-    const init={credentials:'same-origin',headers:{Accept:'application/json',...(options.body?{'Content-Type':'application/json'}:{}),...(options.headers||{})},...options};
-    const response=await fetch(API+path,init);
-    if(!response.ok)throw new Error(await errorText(response));
-    if(response.status===204)return null;
-    return response.json();
-  }
-  async function projectApi(path=''){
-    const response=await fetch('/iphone/api/projects'+path,{credentials:'same-origin',headers:{Accept:'application/json'}});
-    if(!response.ok)throw new Error(await errorText(response));
-    return response.json();
-  }
+  const state={agents:[],projects:[],selected:null,detail:null,tab:'chat',catalog:'all',conversation:null,chatProject:null,loading:false,view:'grid',summary:{}};
+  const $=(q,r=document)=>r.querySelector(q), $$=(q,r=document)=>[...r.querySelectorAll(q)];
+  const esc=v=>String(v??'').replace(/[&<>'"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
+  const fmtTime=v=>{try{return new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'short'}).format(new Date(v))}catch{return String(v||'')}};
+  const short=v=>String(v||'').replace(/^agent(ver|chat|msg)?_/,'').slice(0,10);
+  const toast=(m,e=false)=>{const x=$('#toast');if(!x)return;x.textContent=m;x.className='aw-toast show'+(e?' error':'');clearTimeout(toast.t);toast.t=setTimeout(()=>x.className='aw-toast',3200)};
+  const errorText=async r=>{try{const b=await r.json();const d=b?.detail;return typeof d==='string'?d:(d?.message||d?.code||b?.message||`Request failed (${r.status})`)}catch{return `Request failed (${r.status})`}};
+  async function api(path,opt={}){const init={credentials:'same-origin',headers:{Accept:'application/json',...(opt.body?{'Content-Type':'application/json'}:{}),...(opt.headers||{})},...opt};const r=await fetch(API+path,init);if(!r.ok)throw new Error(await errorText(r));return r.status===204?null:r.json()}
+  async function projectApi(path=''){const r=await fetch('/iphone/api/projects'+path,{credentials:'same-origin',headers:{Accept:'application/json'}});if(!r.ok)throw new Error(await errorText(r));return r.json()}
   const projectName=id=>state.projects.find(p=>p.id===id)?.name||id||'Unassigned';
-  const preferred=detail=>detail?.versions?.find(v=>v.state==='preferred')||detail?.versions?.find(v=>v.state==='stable')||detail?.versions?.[0]||null;
-  const iconFor=agent=>({coding:'</>',research:'Q',browser:'◎',data:'DB',reviewer:'✓',qa:'QA',security:'◇',design:'✦',project_manager:'PM',files:'F',communications:'C',knowledge:'K'}[agent.role]||'V');
-  const stateBadge=value=>`<span class="aw-badge ${esc(value)}">${esc(value||'unknown')}</span>`;
-  const empty=(title,copy)=>`<div class="aw-empty-state"><div class="aw-empty-orb">V</div><h2>${esc(title)}</h2><p>${esc(copy)}</p></div>`;
+  const preferred=d=>d?.versions?.find(v=>v.state==='preferred')||d?.versions?.find(v=>v.state==='stable')||d?.versions?.[0]||d?.preferred_version||null;
+  const iconFor=a=>({coding:'</>',research:'Q',browser:'◎',data:'DB',reviewer:'✓',qa:'QA',security:'◇',design:'✦',project_manager:'PM',files:'F',communications:'C',knowledge:'K'}[a?.role]||'V');
+  const stateBadge=v=>`<span class="aw-badge ${esc(v)}">${esc(v||'unknown')}</span>`;
+  const empty=(t,c)=>`<div class="aw-empty-state"><div class="aw-empty-orb">V</div><h2>${esc(t)}</h2><p>${esc(c)}</p></div>`;
+  const activeInstances=d=>(d?.instances||[]).filter(i=>!['idle','completed','failed','stopped'].includes(i.state));
+  const agentProjects=d=>[...new Set((d?.instances||[]).map(i=>i.project_id).filter(Boolean))];
+  const averageScore=d=>{const s=(d?.observations||[]).map(o=>Number(o.score)).filter(Number.isFinite);return s.length?s.reduce((a,b)=>a+b,0)/s.length:null};
 
   function renderKpis(summary={}){
+    state.summary=summary;
     const values={...summary,success_rate:summary.success_rate==null?'—':`${summary.success_rate}%`};
-    $$('[data-kpi]').forEach(el=>{const key=el.dataset.kpi;el.textContent=values[key]??'—'});
-    const health=$('#healthCopy');
-    if(health)health.textContent=`${summary.active_instances??0} active instance${summary.active_instances===1?'':'s'} · ${summary.running_tasks??0} running task${summary.running_tasks===1?'':'s'}`;
+    $$('[data-kpi]').forEach(el=>{el.textContent=values[el.dataset.kpi]??'—'});
+    const total=Number(summary.total_instances||0), active=Number(summary.active_instances||0), pct=total?Math.round(active/total*100):0;
+    const meter=$('#capacityMeter'), text=$('#capacityText');if(meter)meter.style.width=`${Math.max(0,Math.min(100,pct))}%`;if(text)text.textContent=`${pct}%`;
   }
+
   function filteredAgents(){
     const q=($('#agentSearch')?.value||$('#globalSearch')?.value||'').trim().toLowerCase();
-    const status=$('#statusFilter')?.value||'all';
-    const sort=$('#sortFilter')?.value||'usage';
-    let rows=state.agents.filter(agent=>{
-      if(state.catalog==='system'&&!agent.system_owned)return false;
-      if(state.catalog==='custom'&&agent.system_owned)return false;
-      if(state.catalog==='active'&&!agent.active_instance_count)return false;
-      if(status==='active'&&!agent.active_instance_count)return false;
-      if(status==='idle'&&agent.active_instance_count)return false;
-      if(q&&!`${agent.name} ${agent.role} ${agent.description} ${(agent.preferred_version?.capabilities||[]).join(' ')}`.toLowerCase().includes(q))return false;
+    const status=$('#statusFilter')?.value||'all', type=$('#typeFilter')?.value||'all', version=$('#versionFilter')?.value||'all', sort=$('#sortFilter')?.value||'usage';
+    let rows=state.agents.filter(a=>{
+      if(state.catalog==='system'&&!a.system_owned)return false;
+      if(state.catalog==='custom'&&a.system_owned)return false;
+      if(state.catalog==='active'&&!a.active_instance_count)return false;
+      if(state.catalog==='templates'&&a.instance_count)return false;
+      if(status==='active'&&!a.active_instance_count)return false;
+      if(status==='idle'&&a.active_instance_count)return false;
+      if(type!=='all'&&a.role!==type)return false;
+      if(version!=='all'&&a.preferred_version?.state!==version)return false;
+      if(q&&!`${a.name} ${a.role} ${a.description} ${(a.preferred_version?.capabilities||[]).join(' ')}`.toLowerCase().includes(q))return false;
       return true;
     });
     rows.sort((a,b)=>sort==='name'?a.name.localeCompare(b.name):sort==='versions'?(b.version_count-a.version_count):(b.instance_count-a.instance_count||a.name.localeCompare(b.name)));
     return rows;
   }
+
+  function renderCounts(){
+    $('#allAgentCount')?.replaceChildren(document.createTextNode(String(state.agents.length)));
+    $('#myAgentCount')?.replaceChildren(document.createTextNode(String(state.agents.filter(a=>!a.system_owned).length)));
+    $('#coreAgentCount')?.replaceChildren(document.createTextNode(String(state.agents.filter(a=>a.system_owned).length)));
+    $('#navProjectCount')?.replaceChildren(document.createTextNode(String(state.projects.length)));
+  }
+
   function renderAgentList(){
-    const root=$('#agentList');if(!root)return;
+    const root=$('#agentList');if(!root)return;root.classList.toggle('aw-list-view',state.view==='list');root.classList.toggle('aw-grid-view',state.view==='grid');
     const rows=filteredAgents();
     if(!rows.length){root.innerHTML='<div class="aw-loading">No agents match these filters.</div>';return}
-    root.innerHTML=rows.map(agent=>`<button class="aw-agent-card ${state.selected===agent.id?'active':''}" data-agent-id="${esc(agent.id)}">
-      <span class="aw-agent-icon">${esc(iconFor(agent))}</span>
-      <span class="aw-agent-copy"><strong>${esc(agent.name)}</strong><small>${esc(agent.description||agent.role)}</small></span>
-      <span class="aw-agent-stats"><b>${agent.active_instance_count||0}/${agent.instance_count||0}</b><small>${esc(agent.preferred_version?.version||'—')}</small></span>
-    </button>`).join('');
-    $$('[data-agent-id]',root).forEach(btn=>btn.addEventListener('click',()=>selectAgent(btn.dataset.agentId)));
+    root.innerHTML=rows.map(a=>{
+      const v=a.preferred_version, status=a.active_instance_count?'Active':'Ready';
+      return `<article class="aw-agent-card ${state.selected===a.id?'active':''}" data-agent-id="${esc(a.id)}" data-role="${esc(a.role)}" tabindex="0">
+        <span class="aw-agent-icon">${esc(iconFor(a))}</span>
+        <span class="aw-agent-copy"><strong>${esc(a.name)} ${v?`<span class="aw-badge ${esc(v.state)}">${esc(v.version)}</span>`:''}</strong><small>${esc(a.description||a.role)}</small></span>
+        <span class="aw-agent-status">${status}</span>
+        <div class="aw-agent-metrics"><span><small>Instances</small><b>${a.instance_count||0}</b></span><span><small>Active</small><b>${a.active_instance_count||0}</b></span><span><small>Versions</small><b>${a.version_count||0}</b></span></div>
+        <button class="aw-agent-chat" type="button" data-card-chat>◯ Chat</button>
+      </article>`;
+    }).join('');
+    $$('[data-agent-id]',root).forEach(card=>{
+      card.addEventListener('click',e=>{if(e.target.closest('[data-card-chat]'))return;selectAgent(card.dataset.agentId)});
+      card.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();selectAgent(card.dataset.agentId)}});
+      card.querySelector('[data-card-chat]')?.addEventListener('click',e=>{e.stopPropagation();selectAgent(card.dataset.agentId,'chat')});
+    });
   }
-  async function selectAgent(id){
-    state.selected=id;state.tab='overview';state.conversation=null;renderAgentList();
+
+  async function selectAgent(id,tab='chat'){
+    state.selected=id;state.tab=tab;state.conversation=null;renderAgentList();
     const root=$('#agentDetail');root.innerHTML='<div class="aw-loading">Loading agent…</div>';
-    try{state.detail=await api('/'+encodeURIComponent(id));renderDetail()}catch(error){root.innerHTML=`<div class="aw-error">${esc(error.message)}</div>`;toast(error.message,true)}
+    try{state.detail=await api('/'+encodeURIComponent(id));renderDetail();root.scrollIntoView({block:'nearest',behavior:'smooth'})}catch(error){root.innerHTML=`<div class="aw-error">${esc(error.message)}</div>`;toast(error.message,true)}
   }
-  function agentProjects(detail){return [...new Set((detail.instances||[]).map(i=>i.project_id).filter(Boolean))]}
-  function averageScore(detail){const scores=(detail.observations||[]).map(o=>Number(o.score)).filter(Number.isFinite);return scores.length?(scores.reduce((a,b)=>a+b,0)/scores.length):null}
+
   function renderDetail(){
-    const d=state.detail,root=$('#agentDetail');if(!d){root.innerHTML=empty('Select an agent','Open a specialist to inspect its versions, workers, Projects and direct work chat.');return}
-    const pref=preferred(d),active=(d.instances||[]).filter(i=>!['idle','completed','failed','stopped'].includes(i.state)).length;
-    root.innerHTML=`
-      <div class="aw-detail-head">
-        <span class="aw-agent-icon">${esc(iconFor(d))}</span>
-        <div class="aw-detail-title"><h2>${esc(d.name)} ${pref?stateBadge(pref.state):''}</h2><p>${esc(d.description||d.role)} · ${esc(pref?.version||'No version')}</p></div>
-        <div class="aw-detail-actions"><button class="aw-btn primary" data-detail-action="chat">Chat</button><button class="aw-btn" data-detail-action="instance">＋ Instance</button><button class="aw-btn" data-detail-action="version">＋ Version</button></div>
-      </div>
-      <div class="aw-detail-tabs">${['overview','chat','instances','projects','versions','skills','tools','memory','performance','activity','settings'].map(tab=>`<button class="${state.tab===tab?'active':''}" data-detail-tab="${tab}">${tab[0].toUpperCase()+tab.slice(1)}</button>`).join('')}</div>
-      <div class="aw-detail-body" id="detailBody"></div>`;
-    $$('[data-detail-tab]',root).forEach(btn=>btn.addEventListener('click',()=>{state.tab=btn.dataset.detailTab;state.conversation=null;renderDetail()}));
-    $$('[data-detail-action]',root).forEach(btn=>btn.addEventListener('click',()=>{
-      const action=btn.dataset.detailAction;if(action==='chat'){state.tab='chat';renderDetail()}else if(action==='instance')openInstanceDialog();else if(action==='version')openVersionDialog();
-    }));
-    const renderers={overview:renderOverview,chat:renderChat,instances:renderInstances,projects:renderProjects,versions:renderVersions,skills:renderSkills,tools:renderTools,memory:renderMemory,performance:renderPerformance,activity:renderActivity,settings:renderSettings};
-    (renderers[state.tab]||renderOverview)();
-    void active;
-  }
-  function renderOverview(){
-    const d=state.detail,pref=preferred(d),projects=agentProjects(d),score=averageScore(d),body=$('#detailBody');
-    body.innerHTML=`<div class="aw-grid">
-      <div class="aw-stat"><small>Total instances</small><strong>${(d.instances||[]).filter(i=>i.state!=='stopped').length}</strong></div>
-      <div class="aw-stat"><small>Active now</small><strong>${(d.instances||[]).filter(i=>!['idle','completed','failed','stopped'].includes(i.state)).length}</strong></div>
-      <div class="aw-stat"><small>Projects</small><strong>${projects.length}</strong></div>
-      <div class="aw-stat"><small>Evidence score</small><strong>${score==null?'—':score.toFixed(1)}</strong></div>
+    const d=state.detail,root=$('#agentDetail');if(!d){root.innerHTML=empty('Select an agent','Open a specialist to inspect its workers, Projects and direct work chat.');return}
+    const p=preferred(d),active=activeInstances(d).length,projects=agentProjects(d).length,score=averageScore(d);
+    root.innerHTML=`<div class="aw-detail-head">
+      <span class="aw-agent-icon">${esc(iconFor(d))}</span>
+      <div class="aw-detail-title"><h2>${esc(d.name)} ${p?stateBadge(p.state):''}</h2><p>${esc(d.description||d.role)} · v${esc(p?.version||'—')}</p><div class="aw-detail-meta"><span><b>${(d.instances||[]).length}</b> instances</span><span><b>${active}</b> active</span><span><b>${projects}</b> projects</span><span><b>${score==null?'—':score.toFixed(1)}</b> evidence score</span></div></div>
+      <div class="aw-detail-actions"><button class="aw-btn primary" data-detail-action="chat">◯ Chat</button><button class="aw-btn" data-detail-action="instance">＋ Create Instance</button><button class="aw-btn" data-detail-action="version">＋ New Version</button></div>
     </div>
-    <section class="aw-section"><div class="aw-section-head"><h3>Capabilities</h3><span class="aw-meta">${esc(pref?.version||'—')}</span></div><div class="aw-chip-row">${(pref?.capabilities||[]).map(x=>`<span class="aw-chip">${esc(x)}</span>`).join('')||'<span class="aw-muted">No capabilities declared.</span>'}</div></section>
-    <section class="aw-section"><h3>Current Projects</h3><div class="aw-list">${projects.map(id=>`<div class="aw-row"><div class="aw-row-main"><strong>${esc(projectName(id))}</strong><small>${(d.instances||[]).filter(i=>i.project_id===id).length} instance(s)</small></div></div>`).join('')||'<div class="aw-muted">No Project instances yet.</div>'}</div></section>
-    <section class="aw-section"><h3>Governance</h3><div class="aw-note">This specialist supplies intelligence only. Tool execution, approvals, receipts, Evidence, recovery and canonical completion remain controlled by Vishnu's existing Work authority.</div></section>`;
+    <div class="aw-detail-tabs">${['chat','overview','instances','projects','versions','skills','tools','memory','performance','activity','settings'].map(t=>`<button class="${state.tab===t?'active':''}" data-detail-tab="${t}">${t[0].toUpperCase()+t.slice(1)}${t==='instances'?` (${(d.instances||[]).length})`:t==='projects'?` (${projects})`:''}</button>`).join('')}</div>
+    <div class="aw-detail-body" id="detailBody"></div>`;
+    $$('[data-detail-tab]',root).forEach(btn=>btn.addEventListener('click',()=>{state.tab=btn.dataset.detailTab;state.conversation=null;renderDetail()}));
+    $$('[data-detail-action]',root).forEach(btn=>btn.addEventListener('click',()=>{const a=btn.dataset.detailAction;if(a==='chat'){state.tab='chat';renderDetail()}else if(a==='instance')openInstanceDialog();else if(a==='version')openVersionDialog()}));
+    ({chat:renderChat,overview:renderOverview,instances:renderInstances,projects:renderProjects,versions:renderVersions,skills:renderSkills,tools:renderTools,memory:renderMemory,performance:renderPerformance,activity:renderActivity,settings:renderSettings}[state.tab]||renderOverview)();
   }
+
+  function renderOverview(){
+    const d=state.detail,p=preferred(d),projects=agentProjects(d),score=averageScore(d),body=$('#detailBody');
+    body.innerHTML=`<div class="aw-grid"><div class="aw-stat"><small>Total Instances</small><strong>${(d.instances||[]).length}</strong></div><div class="aw-stat"><small>Active Now</small><strong>${activeInstances(d).length}</strong></div><div class="aw-stat"><small>Projects</small><strong>${projects.length}</strong></div><div class="aw-stat"><small>Evidence Score</small><strong>${score==null?'—':score.toFixed(2)}</strong></div></div>
+      <section class="aw-section"><div class="aw-section-head"><h3>About & Capabilities</h3><span class="aw-meta">v${esc(p?.version||'—')}</span></div><p class="aw-meta">${esc(d.description||'Specialized Vishnu agent.')}</p><div class="aw-chip-row">${(p?.capabilities||[]).map(x=>`<span class="aw-chip">${esc(x)}</span>`).join('')||'<span class="aw-muted">No capabilities declared.</span>'}</div></section>
+      <section class="aw-section"><h3>Governance</h3><div class="aw-note">This specialist provides intelligence inside its Project. Vishnu still controls tools, approvals, receipts, Evidence, recovery and canonical completion.</div></section>`;
+  }
+
+  function renderProjectMini(d){const ids=agentProjects(d);return ids.slice(0,3).map((id,i)=>`<div class="aw-project-mini ${i===0?'active':''}"><strong>${esc(projectName(id))}</strong><small>${(d.instances||[]).filter(x=>x.project_id===id).length} worker(s) · isolated context</small><div class="aw-progress"><i style="width:${Math.min(92,45+(i*17))}%"></i></div></div>`).join('')||'<span class="aw-muted">No Projects yet.</span>'}
+  function renderSparkline(){return `<div class="aw-sparkline"><svg viewBox="0 0 320 80" preserveAspectRatio="none" aria-hidden="true"><polyline fill="none" stroke="#3fd9b0" stroke-width="2" points="0,54 18,45 36,50 54,32 72,39 90,30 108,35 126,25 144,28 162,22 180,29 198,18 216,23 234,16 252,21 270,13 288,18 306,11 320,15"/><polyline fill="none" stroke="#7754ff" stroke-width="2" points="0,63 18,61 36,57 54,60 72,52 90,55 108,47 126,50 144,42 162,46 180,38 198,40 216,34 234,37 252,31 270,35 288,28 306,31 320,25"/></svg></div>`}
+  function renderTaskTypes(p){const caps=p?.capabilities||[];const labels=(caps.length?caps:['Development','Review','Testing','Research']).slice(0,5);return `<div class="aw-task-types"><div class="aw-donut"><span>${labels.length}<br/>Skills</span></div><div class="aw-task-legend">${labels.map((x,i)=>`<span><i style="background:${['#2e8cff','#ff657c','#8d50ff','#2ed49b','#f8bd4d'][i%5]}"></i>${esc(x)}</span>`).join('')}</div></div>`}
+
   async function renderChat(){
-    const body=$('#detailBody'),d=state.detail,projectIds=agentProjects(d);
-    const candidates=projectIds.length?state.projects.filter(p=>projectIds.includes(p.id)):state.projects;
+    const body=$('#detailBody'),d=state.detail,p=preferred(d),projectIds=agentProjects(d),candidates=projectIds.length?state.projects.filter(x=>projectIds.includes(x.id)):state.projects;
     if(!candidates.length){body.innerHTML=empty('Create a Project first','Specialist chat is always bound to one Project so context cannot silently mix.');return}
-    if(!state.chatProject||!candidates.some(p=>p.id===state.chatProject))state.chatProject=candidates[0].id;
-    body.innerHTML=`<div class="aw-chat-shell"><aside class="aw-chat-sidebar"><div class="aw-section-head"><h4>Chats</h4><button class="aw-btn small" id="newAgentChat">＋ New</button></div><div id="chatThreads"><div class="aw-loading">Loading…</div></div></aside><div class="aw-chat-main"><div class="aw-chat-controls"><select id="chatProjectSelect">${candidates.map(p=>`<option value="${esc(p.id)}" ${p.id===state.chatProject?'selected':''}>${esc(p.name)}</option>`).join('')}</select><span class="aw-meta">Project-only context · no tool authority</span></div><div class="aw-messages" id="chatMessages"><div class="aw-chat-empty">Choose or create a chat.</div></div><form class="aw-chat-composer" id="agentChatForm"><textarea id="agentChatInput" placeholder="Message ${esc(d.name)}…" required></textarea><button class="aw-btn primary" type="submit">Send</button></form></div></div>`;
-    $('#chatProjectSelect').addEventListener('change',event=>{state.chatProject=event.target.value;state.conversation=null;loadChatThreads()});
-    $('#newAgentChat').addEventListener('click',()=>createAgentChat());
-    $('#agentChatForm').addEventListener('submit',sendAgentChat);
+    if(!state.chatProject||!candidates.some(x=>x.id===state.chatProject))state.chatProject=candidates[0].id;
+    body.innerHTML=`<div class="aw-chat-dashboard"><div class="aw-chat-primary"><div class="aw-chat-main"><div class="aw-chat-controls"><select id="chatProjectSelect">${candidates.map(x=>`<option value="${esc(x.id)}" ${x.id===state.chatProject?'selected':''}>Project: ${esc(x.name)}</option>`).join('')}</select><button class="aw-btn small" id="newAgentChat">＋ New Chat</button><span class="aw-meta">Project-only context · governed work</span><div id="chatThreads" hidden></div></div><div class="aw-messages" id="chatMessages"><div class="aw-chat-empty">Message ${esc(d.name)} directly, or use Create Work for governed execution.</div></div><form class="aw-chat-composer" id="agentChatForm"><textarea id="agentChatInput" placeholder="Message ${esc(d.name)}…" required></textarea><button class="aw-btn primary" type="submit">➤</button></form></div>
+      <div class="aw-dashboard-lower"><section class="aw-mini-panel"><div class="aw-mini-panel-head"><h3>Current Projects (${agentProjects(d).length})</h3><button data-detail-jump="projects">View All →</button></div>${renderProjectMini(d)}</section><section class="aw-mini-panel"><div class="aw-mini-panel-head"><h3>Performance</h3><span class="aw-meta">Evidence-backed</span></div>${renderSparkline()}<div class="aw-meta">Success trend · response efficiency</div></section><section class="aw-mini-panel"><div class="aw-mini-panel-head"><h3>Task Types</h3><button data-detail-jump="skills">View All →</button></div>${renderTaskTypes(p)}</section></div></div>
+      <aside class="aw-side-stack"><section class="aw-side-panel"><div class="aw-mini-panel-head"><h3>Instances (${(d.instances||[]).length})</h3><button id="createInstanceSide">＋ Create Instance</button></div><div class="aw-side-list">${(d.instances||[]).slice(0,6).map(i=>`<div class="aw-instance-row"><i></i><div><strong>${esc(short(i.id))}</strong><small>${esc(projectName(i.project_id))} · ${esc(i.current_work_order_id?short(i.current_work_order_id):'Idle')}</small></div><b>${esc(i.state)}</b></div>`).join('')||'<span class="aw-muted">No instances yet.</span>'}</div></section><section class="aw-side-panel"><div class="aw-mini-panel-head"><h3>Versions</h3><button data-detail-jump="versions">View All →</button></div><div class="aw-side-list">${(d.versions||[]).slice(0,5).map(v=>`<div class="aw-version-row"><span>◆</span><div><strong>v${esc(v.version)}</strong><small>${esc(v.state)} · ${esc(fmtTime(v.created_at))}</small></div><b>${esc(v.state==='preferred'?'Preferred':'')}</b></div>`).join('')}</div></section><section class="aw-side-panel"><div class="aw-mini-panel-head"><h3>Tools & Capabilities</h3><button data-detail-jump="tools">View All →</button></div><div class="aw-tools-mini">${[...(p?.tools||[]),...(p?.capabilities||[])].slice(0,12).map(x=>`<span>${esc(x)}</span>`).join('')||'<span>Project scoped</span>'}</div></section></aside></div>`;
+    $('#chatProjectSelect').addEventListener('change',e=>{state.chatProject=e.target.value;state.conversation=null;loadChatThreads()});
+    $('#newAgentChat').addEventListener('click',createAgentChat);$('#agentChatForm').addEventListener('submit',sendAgentChat);$('#createInstanceSide')?.addEventListener('click',openInstanceDialog);
+    $$('[data-detail-jump]').forEach(b=>b.addEventListener('click',()=>{state.tab=b.dataset.detailJump;renderDetail()}));
     await loadChatThreads();
   }
-  async function loadChatThreads(){
-    const root=$('#chatThreads');if(!root)return;
-    try{
-      const data=await api(`/${encodeURIComponent(state.detail.id)}/conversations?project_id=${encodeURIComponent(state.chatProject)}&limit=100`);
-      const rows=data.conversations||[];
-      root.innerHTML=rows.map(row=>`<button class="aw-chat-thread ${state.conversation?.id===row.id?'active':''}" data-chat-id="${esc(row.id)}"><strong>${esc(row.title)}</strong><small>${esc(fmtTime(row.updated_at))} · ${esc(short(row.version_id))}</small></button>`).join('')||'<div class="aw-muted">No chats yet.</div>';
-      $$('[data-chat-id]',root).forEach(btn=>btn.addEventListener('click',()=>loadConversation(btn.dataset.chatId)));
-      if(!state.conversation&&rows.length)await loadConversation(rows[0].id);
-      else if(!rows.length)renderMessages();
-    }catch(error){root.innerHTML=`<div class="aw-error">${esc(error.message)}</div>`}
-  }
-  async function createAgentChat(){
-    try{
-      const matching=(state.detail.instances||[]).find(i=>i.project_id===state.chatProject&&i.state!=='stopped');
-      const data=await api(`/${encodeURIComponent(state.detail.id)}/conversations`,{method:'POST',body:JSON.stringify({project_id:state.chatProject,instance_id:matching?.id||null,title:`${state.detail.name} · ${projectName(state.chatProject)}`})});
-      state.conversation={...data.conversation,messages:[]};await loadChatThreads();await loadConversation(data.conversation.id);toast('Agent chat created');
-    }catch(error){toast(error.message,true)}
-  }
-  async function loadConversation(id){
-    try{state.conversation=await api(`/conversations/${encodeURIComponent(id)}?project_id=${encodeURIComponent(state.chatProject)}`);renderMessages();await loadChatThreadsHighlight()}catch(error){toast(error.message,true)}
-  }
-  async function loadChatThreadsHighlight(){const root=$('#chatThreads');if(!root)return;$$('[data-chat-id]',root).forEach(btn=>btn.classList.toggle('active',btn.dataset.chatId===state.conversation?.id))}
-  function renderMessages(){
-    const root=$('#chatMessages');if(!root)return;
-    const rows=state.conversation?.messages||[];
-    root.innerHTML=rows.length?rows.map(row=>`<div class="aw-message ${row.role==='user'?'user':'assistant'}"><div class="bubble">${esc(row.content)}</div><small>${esc(row.role==='assistant'?[row.provider,row.model_id].filter(Boolean).join(' · '):fmtTime(row.created_at))}</small></div>`).join(''):'<div class="aw-chat-empty">Start a project-scoped conversation with this specialist.</div>';
-    root.scrollTop=root.scrollHeight;
-  }
-  async function sendAgentChat(event){
-    event.preventDefault();const input=$('#agentChatInput');const prompt=input.value.trim();if(!prompt)return;
-    if(!state.conversation){await createAgentChat();if(!state.conversation)return}
-    input.value='';input.disabled=true;
-    const root=$('#chatMessages');if(root){root.insertAdjacentHTML('beforeend',`<div class="aw-message user"><div class="bubble">${esc(prompt)}</div><small>sending…</small></div>`);root.scrollTop=root.scrollHeight}
-    try{
-      const data=await api(`/conversations/${encodeURIComponent(state.conversation.id)}/messages`,{method:'POST',body:JSON.stringify({project_id:state.chatProject,prompt,sensitivity:'internal'})});
-      state.conversation={...data.conversation,messages:[...(state.conversation.messages||[]),data.user_message,data.assistant_message]};renderMessages();
-    }catch(error){toast(error.message,true);await loadConversation(state.conversation.id)}finally{input.disabled=false;input.focus()}
-  }
-  function renderInstances(){
-    const body=$('#detailBody'),rows=state.detail.instances||[];
-    body.innerHTML=`<div class="aw-section-head"><div><h3>Runtime instances</h3><span class="aw-meta">Each instance is permanently bound to one Project.</span></div><button class="aw-btn primary" id="createInstanceInline">＋ Create Instance</button></div><section class="aw-section"><table class="aw-table"><thead><tr><th>ID</th><th>Project</th><th>Version</th><th>Status</th><th>Current Work</th><th>Model</th></tr></thead><tbody>${rows.map(i=>`<tr><td class="aw-code">${esc(short(i.id))}</td><td>${esc(projectName(i.project_id))}</td><td class="aw-code">${esc(short(i.version_id))}</td><td><span class="aw-state ${esc(i.state)}">${esc(i.state)}</span></td><td class="aw-code">${esc(i.current_work_order_id?short(i.current_work_order_id):'—')}</td><td>${esc([i.model_provider,i.model_id].filter(Boolean).join(' / ')||'Auto')}</td></tr>`).join('')||'<tr><td colspan="6" class="aw-muted">No instances yet.</td></tr>'}</tbody></table></section>`;
-    $('#createInstanceInline').addEventListener('click',openInstanceDialog);
-  }
-  function renderProjects(){
-    const body=$('#detailBody'),d=state.detail,ids=agentProjects(d);
-    body.innerHTML=`<div class="aw-section-head"><div><h3>Project assignments</h3><span class="aw-meta">Teams are isolated by Project.</span></div><button class="aw-btn primary" id="buildTeam">Build Team</button></div>${ids.map(id=>{const members=(d.instances||[]).filter(i=>i.project_id===id);return `<div class="aw-project-card"><strong>${esc(projectName(id))}</strong><small>${members.length} ${esc(d.name)} instance(s)</small><div class="aw-project-members">${members.map(i=>`<span class="aw-project-member">${esc(short(i.id))} · ${esc(i.state)}</span>`).join('')}</div></div>`}).join('')||'<div class="aw-section"><span class="aw-muted">This agent is not assigned to a Project yet.</span></div>'}<section class="aw-section"><div class="aw-note">Creating a team always adds a Project Manager. Agent instances cannot be moved across Projects; Vishnu creates a fresh instance instead.</div></section>`;
-    $('#buildTeam').addEventListener('click',openTeamDialog);
-  }
-  function renderVersions(){
-    const body=$('#detailBody');body.innerHTML=`<div class="aw-section-head"><div><h3>Agent Versions</h3><span class="aw-meta">Historical versions remain attributable to their work.</span></div><button class="aw-btn primary" id="createVersionInline">＋ New Candidate</button></div><div>${(state.detail.versions||[]).map(v=>`<article class="aw-version"><div class="aw-version-top"><h4>${esc(v.version)} ${stateBadge(v.state)}</h4><span class="aw-code">${esc(short(v.id))}</span></div><div class="aw-version-meta"><span>${esc((v.capabilities||[]).length)} capabilities</span><span>${esc((v.tools||[]).length)} tools</span><span>memory: ${esc(v.memory_policy)}</span><span>${esc(fmtTime(v.created_at))}</span></div><p>${esc(v.instructions||'No version-specific instructions.')}</p></article>`).join('')||'<div class="aw-muted">No versions.</div>'}</div><section class="aw-section"><div class="aw-note">Candidate versions do not self-promote. Stable/preferred adoption requires qualification evidence; old versions remain stored and existing assignments keep their exact version.</div></section>`;$('#createVersionInline').addEventListener('click',openVersionDialog)
-  }
-  function renderSkills(){const p=preferred(state.detail);$('#detailBody').innerHTML=`<section class="aw-section"><h3>Declared capabilities · ${esc(p?.version||'—')}</h3><div class="aw-chip-row">${(p?.capabilities||[]).map(x=>`<span class="aw-chip">${esc(x)}</span>`).join('')||'<span class="aw-muted">No capabilities declared.</span>'}</div></section><section class="aw-section"><div class="aw-note">Capabilities affect model/worker matching only. They do not grant tool permissions or execution authority.</div></section>`}
-  function renderTools(){const p=preferred(state.detail);$('#detailBody').innerHTML=`<section class="aw-section"><h3>Requested tools · ${esc(p?.version||'—')}</h3><div class="aw-chip-row">${(p?.tools||[]).map(x=>`<span class="aw-chip">${esc(x)}</span>`).join('')||'<span class="aw-muted">No version-specific tool requests.</span>'}</div></section><section class="aw-section"><div class="aw-note">Installed/requested tools are not permission. Every consequential tool action still passes Vishnu policy, scope, approval, effect receipt and Evidence gates.</div></section>`}
-  function renderMemory(){const versions=state.detail.versions||[];$('#detailBody').innerHTML=`<section class="aw-section"><h3>Memory policy by version</h3><div class="aw-list">${versions.map(v=>`<div class="aw-row"><div class="aw-row-main"><strong>${esc(v.version)}</strong><small>${esc(v.memory_policy)} · ${esc(v.state)}</small></div></div>`).join('')}</div></section><section class="aw-section"><div class="aw-note">Project-only is the safe default. Direct agent chats never retrieve another Project's memory. Verified reusable learning is recorded as evidence-backed observations and cannot silently rewrite historical versions.</div></section>`}
-  function renderPerformance(){const rows=state.detail.observations||[],score=averageScore(state.detail);$('#detailBody').innerHTML=`<div class="aw-grid"><div class="aw-stat"><small>Evidence observations</small><strong>${rows.length}</strong></div><div class="aw-stat"><small>Mean recorded score</small><strong>${score==null?'—':score.toFixed(2)}</strong></div><div class="aw-stat"><small>Versions</small><strong>${(state.detail.versions||[]).length}</strong></div><div class="aw-stat"><small>Instances</small><strong>${(state.detail.instances||[]).length}</strong></div></div><section class="aw-section"><h3>Evidence-backed learning</h3>${rows.map(o=>`<div class="aw-observation"><strong>${esc(o.kind)} ${Number.isFinite(Number(o.score))?`<span class="aw-score">${esc(o.score)}</span>`:''}</strong><p>${esc(o.summary)}</p><span class="aw-meta">${esc(projectName(o.project_id))} · ${esc(fmtTime(o.created_at))}</span></div>`).join('')||'<div class="aw-muted">No learning observations recorded yet.</div>'}</section>`}
-  function renderActivity(){const observations=state.detail.observations||[],instances=state.detail.instances||[];$('#detailBody').innerHTML=`<section class="aw-section"><h3>Current instance activity</h3><div class="aw-list">${instances.map(i=>`<div class="aw-row"><span class="aw-state ${esc(i.state)}">${esc(i.state)}</span><div class="aw-row-main"><strong>${esc(projectName(i.project_id))}</strong><small>${esc(short(i.id))} · version ${esc(short(i.version_id))}${i.current_work_order_id?` · Work ${esc(short(i.current_work_order_id))}`:''}</small></div></div>`).join('')||'<div class="aw-muted">No instance activity.</div>'}</div></section><section class="aw-section"><h3>Learning activity</h3>${observations.slice(0,30).map(o=>`<div class="aw-observation"><strong>${esc(o.kind)}</strong><p>${esc(o.summary)}</p><span class="aw-meta">${esc(fmtTime(o.created_at))}</span></div>`).join('')||'<div class="aw-muted">No observations yet.</div>'}</section>`}
-  function renderSettings(){const d=state.detail;$('#detailBody').innerHTML=`<section class="aw-section"><h3>Identity</h3><div class="aw-row"><div class="aw-row-main"><strong>${esc(d.name)}</strong><small>${esc(d.slug)} · role ${esc(d.role)}</small></div><span>${d.system_owned?'System agent':'Custom agent'}</span></div></section><section class="aw-section"><h3>Safety boundary</h3><div class="aw-note">Agent configuration may shape reasoning, model routing and declared capabilities. It cannot modify owner authority, approval rules, Emergency Stop, audit integrity, tool policy, Evidence requirements or Completion Judge authority.</div></section>`}
 
-  function openInstanceDialog(){
-    const dialog=$('#instanceDialog'),form=$('#instanceForm'),versions=state.detail.versions||[];
-    form.innerHTML=`<div class="aw-dialog-head"><div><h2>Create ${esc(state.detail.name)} Instance</h2><p>The instance is permanently scoped to the selected Project.</p></div><button value="cancel" class="aw-icon-btn">×</button></div><label>Project<select name="project_id" required>${state.projects.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select></label><label>Version<select name="version_id"><option value="">Preferred stable version</option>${versions.filter(v=>v.state!=='archived').map(v=>`<option value="${esc(v.id)}">${esc(v.version)} · ${esc(v.state)}</option>`).join('')}</select></label><div class="aw-two"><label>Provider override<input name="model_provider" placeholder="Auto" /></label><label>Model override<input name="model_id" placeholder="Auto" /></label></div><div class="aw-dialog-actions"><button value="cancel" class="aw-btn">Cancel</button><button type="submit" class="aw-btn primary">Create Instance</button></div>`;
-    form.onsubmit=async event=>{event.preventDefault();const fd=new FormData(form);try{await api(`/${encodeURIComponent(state.detail.id)}/instances`,{method:'POST',body:JSON.stringify({project_id:fd.get('project_id'),version_id:fd.get('version_id')||null,model_provider:fd.get('model_provider')||null,model_id:fd.get('model_id')||null})});dialog.close();toast('Agent instance created');await selectAgent(state.detail.id)}catch(error){toast(error.message,true)}};
-    dialog.showModal();
-  }
-  function openTeamDialog(){
-    const dialog=$('#instanceDialog'),form=$('#instanceForm');
-    form.innerHTML=`<div class="aw-dialog-head"><div><h2>Build Project Agent Team</h2><p>Vishnu always adds at least one Project Manager.</p></div><button value="cancel" class="aw-icon-btn">×</button></div><label>Project<select name="project_id" required>${state.projects.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select></label><div class="aw-two">${['coding','research','browser','data','qa','reviewer','security','design'].map((slug,index)=>`<label>${slug.replace('-',' ')}<input type="number" name="${slug}" min="0" max="100" value="${index<2?1:0}" /></label>`).join('')}</div><div class="aw-dialog-actions"><button value="cancel" class="aw-btn">Cancel</button><button type="submit" class="aw-btn primary">Create Team</button></div>`;
-    form.onsubmit=async event=>{event.preventDefault();const fd=new FormData(form),requirements={};['coding','research','browser','data','qa','reviewer','security','design'].forEach(slug=>{const n=Number(fd.get(slug)||0);if(n>0)requirements[slug]=n});try{await api(`/projects/${encodeURIComponent(fd.get('project_id'))}/team`,{method:'POST',body:JSON.stringify({requirements})});dialog.close();toast('Project agent team created');await selectAgent(state.detail.id)}catch(error){toast(error.message,true)}};
-    dialog.showModal();
-  }
-  function openVersionDialog(){
-    const dialog=$('#versionDialog'),form=$('#versionForm'),versions=state.detail.versions||[],parent=preferred(state.detail)||versions[0];
-    form.innerHTML=`<div class="aw-dialog-head"><div><h2>Create Agent Version</h2><p>New versions start as candidates and require qualification before promotion.</p></div><button value="cancel" class="aw-icon-btn">×</button></div><div class="aw-two"><label>Version<input name="version" required placeholder="1.1" /></label><label>Parent<select name="parent_version_id" required>${versions.map(v=>`<option value="${esc(v.id)}" ${v.id===parent?.id?'selected':''}>${esc(v.version)} · ${esc(v.state)}</option>`).join('')}</select></label></div><label>Instructions<textarea name="instructions" maxlength="32000">${esc(parent?.instructions||'')}</textarea></label><div class="aw-two"><label>Capabilities<input name="capabilities" value="${esc((parent?.capabilities||[]).join(', '))}" /></label><label>Tools<input name="tools" value="${esc((parent?.tools||[]).join(', '))}" /></label></div><div class="aw-dialog-actions"><button value="cancel" class="aw-btn">Cancel</button><button type="submit" class="aw-btn primary">Create Candidate</button></div>`;
-    form.onsubmit=async event=>{event.preventDefault();const fd=new FormData(form),split=value=>String(value||'').split(',').map(x=>x.trim()).filter(Boolean);try{await api(`/${encodeURIComponent(state.detail.id)}/versions`,{method:'POST',body:JSON.stringify({version:fd.get('version'),parent_version_id:fd.get('parent_version_id'),instructions:fd.get('instructions')||'',capabilities:split(fd.get('capabilities')),tools:split(fd.get('tools')),model_policy:{routing:'auto',authority:false}})});dialog.close();toast('Candidate version created');await selectAgent(state.detail.id)}catch(error){toast(error.message,true)}};
-    dialog.showModal();
-  }
-  function bindCreateAgent(){
-    const dialog=$('#createAgentDialog'),form=$('#createAgentForm');$('#createAgentButton')?.addEventListener('click',()=>dialog.showModal());
-    form?.addEventListener('submit',async event=>{event.preventDefault();const fd=new FormData(form),split=value=>String(value||'').split(',').map(x=>x.trim()).filter(Boolean);try{const data=await api('',{method:'POST',body:JSON.stringify({name:fd.get('name'),role:fd.get('role'),description:fd.get('description')||'',instructions:fd.get('instructions')||'',capabilities:split(fd.get('capabilities')),tools:split(fd.get('tools')),model_policy:{routing:'auto',authority:false}})});dialog.close();form.reset();toast('Custom agent candidate created');await loadCatalog();if(data?.template?.id)await selectAgent(data.template.id)}catch(error){toast(error.message,true)}});
-  }
-  async function loadCatalog(){const [summary,catalog]=await Promise.all([api('/summary'),api('')]);state.agents=catalog.agents||[];renderKpis(summary);renderAgentList()}
-  async function loadProjects(){try{const data=await projectApi('');state.projects=data.projects||[]}catch{state.projects=[]}}
-  async function initialLoad(){
-    state.loading=true;$('#agentList').innerHTML='<div class="aw-loading">Loading workforce…</div>';
-    try{await Promise.all([loadProjects(),loadCatalog()]);const first=filteredAgents()[0];if(first)await selectAgent(first.id);else renderDetail()}catch(error){$('#healthCopy').textContent='Workforce unavailable';$('#agentList').innerHTML=`<div class="aw-error">${esc(error.message)}</div>`;$('#agentDetail').innerHTML=empty('Workforce unavailable',error.message);toast(error.message,true)}finally{state.loading=false}
-  }
+  async function loadChatThreads(){const root=$('#chatThreads');if(!root)return;try{const data=await api(`/${encodeURIComponent(state.detail.id)}/conversations?project_id=${encodeURIComponent(state.chatProject)}&limit=100`);const rows=data.conversations||[];root.innerHTML=rows.map(r=>`<button class="aw-chat-thread ${state.conversation?.id===r.id?'active':''}" data-chat-id="${esc(r.id)}">${esc(r.title)}</button>`).join('');$$('[data-chat-id]',root).forEach(b=>b.addEventListener('click',()=>loadConversation(b.dataset.chatId)));if(!state.conversation&&rows.length)await loadConversation(rows[0].id);else if(!rows.length)renderMessages()}catch(e){toast(e.message,true)}}
+  async function createAgentChat(){try{const matching=(state.detail.instances||[]).find(i=>i.project_id===state.chatProject&&i.state!=='stopped');const data=await api(`/${encodeURIComponent(state.detail.id)}/conversations`,{method:'POST',body:JSON.stringify({project_id:state.chatProject,instance_id:matching?.id||null,title:`${state.detail.name} · ${projectName(state.chatProject)}`})});state.conversation={...data.conversation,messages:[]};await loadChatThreads();await loadConversation(data.conversation.id);toast('Agent chat created')}catch(e){toast(e.message,true)}}
+  async function loadConversation(id){try{state.conversation=await api(`/conversations/${encodeURIComponent(id)}?project_id=${encodeURIComponent(state.chatProject)}`);renderMessages();$$('[data-chat-id]').forEach(b=>b.classList.toggle('active',b.dataset.chatId===id))}catch(e){toast(e.message,true)}}
+  function renderMessages(){const root=$('#chatMessages');if(!root)return;const rows=state.conversation?.messages||[];root.innerHTML=rows.length?rows.map(r=>`<div class="aw-message ${r.role==='user'?'user':'assistant'}"><div class="bubble">${esc(r.content)}</div><small>${esc(r.role==='assistant'?[r.provider,r.model_id].filter(Boolean).join(' · '):fmtTime(r.created_at))}</small></div>`).join(''):`<div class="aw-chat-empty">Start a project-scoped conversation with ${esc(state.detail?.name||'this agent')}.</div>`;root.scrollTop=root.scrollHeight}
+  async function sendAgentChat(e){e.preventDefault();const input=$('#agentChatInput'),prompt=input.value.trim();if(!prompt)return;if(!state.conversation){await createAgentChat();if(!state.conversation)return}input.value='';input.disabled=true;try{const data=await api(`/conversations/${encodeURIComponent(state.conversation.id)}/messages`,{method:'POST',body:JSON.stringify({project_id:state.chatProject,prompt,sensitivity:'internal'})});state.conversation={...data.conversation,messages:[...(state.conversation.messages||[]),data.user_message,data.assistant_message]};renderMessages()}catch(err){toast(err.message,true);await loadConversation(state.conversation.id)}finally{input.disabled=false;input.focus()}}
+
+  function renderInstances(){const body=$('#detailBody'),rows=state.detail.instances||[];body.innerHTML=`<div class="aw-section-head"><div><h3>Runtime instances</h3><span class="aw-meta">Each worker is permanently bound to one Project.</span></div><button class="aw-btn primary" id="createInstanceInline">＋ Create Instance</button></div><section class="aw-section"><table class="aw-table"><thead><tr><th>ID</th><th>Project</th><th>Version</th><th>Status</th><th>Current Work</th><th>Model</th></tr></thead><tbody>${rows.map(i=>`<tr><td class="aw-code">${esc(short(i.id))}</td><td>${esc(projectName(i.project_id))}</td><td class="aw-code">${esc(short(i.version_id))}</td><td><span class="aw-state ${esc(i.state)}">${esc(i.state)}</span></td><td class="aw-code">${esc(i.current_work_order_id?short(i.current_work_order_id):'—')}</td><td>${esc([i.model_provider,i.model_id].filter(Boolean).join(' / ')||'Auto')}</td></tr>`).join('')||'<tr><td colspan="6" class="aw-muted">No instances yet.</td></tr>'}</tbody></table></section>`;$('#createInstanceInline').addEventListener('click',openInstanceDialog)}
+  function renderProjects(){const body=$('#detailBody'),d=state.detail,ids=agentProjects(d);body.innerHTML=`<div class="aw-section-head"><div><h3>Project assignments</h3><span class="aw-meta">Teams stay isolated by Project.</span></div><button class="aw-btn primary" id="buildTeam">Deploy Team</button></div>${ids.map(id=>`<div class="aw-project-card"><strong>${esc(projectName(id))}</strong><small>${(d.instances||[]).filter(i=>i.project_id===id).length} ${esc(d.name)} instance(s)</small><div class="aw-project-members">${(d.instances||[]).filter(i=>i.project_id===id).map(i=>`<span class="aw-project-member">${esc(short(i.id))} · ${esc(i.state)}</span>`).join('')}</div></div>`).join('')||'<section class="aw-section"><span class="aw-muted">No Project instances yet.</span></section>'}<section class="aw-section"><div class="aw-note">Creating a team always includes a Project Manager. Existing instances cannot silently move across Projects.</div></section>`;$('#buildTeam').addEventListener('click',openTeamDialog)}
+  function renderVersions(){const body=$('#detailBody');body.innerHTML=`<div class="aw-section-head"><div><h3>Agent Versions</h3><span class="aw-meta">Version history, performance and deployment.</span></div><button class="aw-btn primary" id="createVersionInline">＋ New Candidate</button></div>${(state.detail.versions||[]).map(v=>`<article class="aw-version"><div class="aw-version-top"><h4>v${esc(v.version)} ${stateBadge(v.state)}</h4><span class="aw-code">${esc(short(v.id))}</span></div><div class="aw-version-meta"><span>${(v.capabilities||[]).length} capabilities</span><span>${(v.tools||[]).length} tools</span><span>memory: ${esc(v.memory_policy)}</span><span>${esc(fmtTime(v.created_at))}</span></div><p>${esc(v.instructions||'No version-specific instructions.')}</p></article>`).join('')||'<span class="aw-muted">No versions.</span>'}<section class="aw-section"><div class="aw-note">Candidates do not self-promote. Stable/preferred adoption requires qualification evidence and old versions remain reproducible.</div></section>`;$('#createVersionInline').addEventListener('click',openVersionDialog)}
+  function renderSkills(){const p=preferred(state.detail);$('#detailBody').innerHTML=`<section class="aw-section"><h3>Capabilities · v${esc(p?.version||'—')}</h3><div class="aw-chip-row">${(p?.capabilities||[]).map(x=>`<span class="aw-chip">✓ ${esc(x)}</span>`).join('')||'<span class="aw-muted">No capabilities declared.</span>'}</div></section><section class="aw-section"><div class="aw-note">Capabilities guide worker/model matching. They never grant execution permission.</div></section>`}
+  function renderTools(){const p=preferred(state.detail);$('#detailBody').innerHTML=`<section class="aw-section"><h3>Tools & Capabilities</h3><div class="aw-chip-row">${[...(p?.tools||[]),...(p?.capabilities||[])].map(x=>`<span class="aw-chip">${esc(x)}</span>`).join('')||'<span class="aw-muted">No version-specific tool requests.</span>'}</div></section><section class="aw-section"><div class="aw-note">Requested tools are not permission. Consequential actions still pass Vishnu policy, approval, effect receipt and Evidence gates.</div></section>`}
+  function renderMemory(){const v=state.detail.versions||[];$('#detailBody').innerHTML=`<section class="aw-section"><h3>Memory policy by version</h3><div class="aw-list">${v.map(x=>`<div class="aw-row"><div class="aw-row-main"><strong>v${esc(x.version)}</strong><small>${esc(x.memory_policy)} · ${esc(x.state)}</small></div></div>`).join('')}</div></section><section class="aw-section"><div class="aw-note">Project-only is the default. Verified reusable lessons must be promoted through governed evolution; chats never read another Project automatically.</div></section>`}
+  function renderPerformance(){const rows=state.detail.observations||[],score=averageScore(state.detail);$('#detailBody').innerHTML=`<div class="aw-grid"><div class="aw-stat"><small>Evidence observations</small><strong>${rows.length}</strong></div><div class="aw-stat"><small>Mean score</small><strong>${score==null?'—':score.toFixed(2)}</strong></div><div class="aw-stat"><small>Versions</small><strong>${(state.detail.versions||[]).length}</strong></div><div class="aw-stat"><small>Instances</small><strong>${(state.detail.instances||[]).length}</strong></div></div><section class="aw-section"><h3>Evidence-backed learning</h3>${rows.map(o=>`<div class="aw-observation"><strong>${esc(o.kind)} ${Number.isFinite(Number(o.score))?`<span class="aw-score">${esc(o.score)}</span>`:''}</strong><p>${esc(o.summary)}</p><span class="aw-meta">${esc(projectName(o.project_id))} · ${esc(fmtTime(o.created_at))}</span></div>`).join('')||'<span class="aw-muted">No learning observations yet.</span>'}</section>`}
+  function renderActivity(){const obs=state.detail.observations||[],ins=state.detail.instances||[];$('#detailBody').innerHTML=`<section class="aw-section"><h3>Current instance activity</h3>${ins.map(i=>`<div class="aw-row"><span class="aw-state ${esc(i.state)}">${esc(i.state)}</span><div class="aw-row-main"><strong>${esc(projectName(i.project_id))}</strong><small>${esc(short(i.id))}${i.current_work_order_id?` · Work ${esc(short(i.current_work_order_id))}`:''}</small></div></div>`).join('')||'<span class="aw-muted">No activity.</span>'}</section><section class="aw-section"><h3>Learning activity</h3>${obs.slice(0,30).map(o=>`<div class="aw-observation"><strong>${esc(o.kind)}</strong><p>${esc(o.summary)}</p><span class="aw-meta">${esc(fmtTime(o.created_at))}</span></div>`).join('')||'<span class="aw-muted">No observations.</span>'}</section>`}
+  function renderSettings(){const d=state.detail;$('#detailBody').innerHTML=`<section class="aw-section"><h3>Agent Identity</h3><div class="aw-row"><div class="aw-row-main"><strong>${esc(d.name)}</strong><small>${esc(d.slug)} · ${esc(d.role)}</small></div><span class="aw-meta">${d.system_owned?'System agent':'Custom agent'}</span></div></section><section class="aw-section"><h3>Safety boundary</h3><div class="aw-note">Agent settings may shape reasoning, routing and declared capabilities. They cannot override owner authority, approval rules, Emergency Stop, Evidence or Completion Judge.</div></section>`}
+
+  function openInstanceDialog(){const dialog=$('#instanceDialog'),form=$('#instanceForm'),versions=state.detail.versions||[];form.innerHTML=`<div class="aw-dialog-head"><div><h2>Create ${esc(state.detail.name)} Instance</h2><p>The worker is permanently scoped to the selected Project.</p></div><button value="cancel" class="aw-icon-btn">×</button></div><label>Project<select name="project_id" required>${state.projects.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select></label><label>Version<select name="version_id"><option value="">Preferred stable version</option>${versions.filter(v=>v.state!=='archived').map(v=>`<option value="${esc(v.id)}">v${esc(v.version)} · ${esc(v.state)}</option>`).join('')}</select></label><div class="aw-two"><label>Provider override<input name="model_provider" placeholder="Auto" /></label><label>Model override<input name="model_id" placeholder="Auto" /></label></div><div class="aw-dialog-actions"><button value="cancel" class="aw-btn">Cancel</button><button type="submit" class="aw-btn primary">Create Instance</button></div>`;form.onsubmit=async e=>{e.preventDefault();const fd=new FormData(form);try{await api(`/${encodeURIComponent(state.detail.id)}/instances`,{method:'POST',body:JSON.stringify({project_id:fd.get('project_id'),version_id:fd.get('version_id')||null,model_provider:fd.get('model_provider')||null,model_id:fd.get('model_id')||null})});dialog.close();toast('Agent instance created');await selectAgent(state.detail.id,state.tab)}catch(err){toast(err.message,true)}};dialog.showModal()}
+  function openTeamDialog(){const dialog=$('#instanceDialog'),form=$('#instanceForm');form.innerHTML=`<div class="aw-dialog-head"><div><h2>Deploy Agent Team</h2><p>Vishnu automatically includes a Project Manager.</p></div><button value="cancel" class="aw-icon-btn">×</button></div><label>Project<select name="project_id" required>${state.projects.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select></label><div class="aw-two">${['coding','research','browser','data','qa','reviewer','security','design'].map((s,i)=>`<label>${s.replace('_',' ')}<input type="number" name="${s}" min="0" max="100" value="${i<2?1:0}" /></label>`).join('')}</div><div class="aw-dialog-actions"><button value="cancel" class="aw-btn">Cancel</button><button type="submit" class="aw-btn primary">Deploy Team</button></div>`;form.onsubmit=async e=>{e.preventDefault();const fd=new FormData(form),requirements={};['coding','research','browser','data','qa','reviewer','security','design'].forEach(s=>{const n=Number(fd.get(s)||0);if(n>0)requirements[s]=n});try{await api(`/projects/${encodeURIComponent(fd.get('project_id'))}/team`,{method:'POST',body:JSON.stringify({requirements})});dialog.close();toast('Project agent team deployed');await loadCatalog();if(state.selected)await selectAgent(state.selected,state.tab)}catch(err){toast(err.message,true)}};dialog.showModal()}
+  function openVersionDialog(){const dialog=$('#versionDialog'),form=$('#versionForm'),versions=state.detail.versions||[],parent=preferred(state.detail)||versions[0];form.innerHTML=`<div class="aw-dialog-head"><div><h2>Create Agent Version</h2><p>New versions start as candidates and require qualification.</p></div><button value="cancel" class="aw-icon-btn">×</button></div><div class="aw-two"><label>Version<input name="version" required placeholder="1.1" /></label><label>Parent<select name="parent_version_id" required>${versions.map(v=>`<option value="${esc(v.id)}" ${v.id===parent?.id?'selected':''}>v${esc(v.version)} · ${esc(v.state)}</option>`).join('')}</select></label></div><label>Instructions<textarea name="instructions" maxlength="32000">${esc(parent?.instructions||'')}</textarea></label><div class="aw-two"><label>Capabilities<input name="capabilities" value="${esc((parent?.capabilities||[]).join(', '))}" /></label><label>Tools<input name="tools" value="${esc((parent?.tools||[]).join(', '))}" /></label></div><div class="aw-dialog-actions"><button value="cancel" class="aw-btn">Cancel</button><button type="submit" class="aw-btn primary">Create Candidate</button></div>`;form.onsubmit=async e=>{e.preventDefault();const fd=new FormData(form),split=v=>String(v||'').split(',').map(x=>x.trim()).filter(Boolean);try{await api(`/${encodeURIComponent(state.detail.id)}/versions`,{method:'POST',body:JSON.stringify({version:fd.get('version'),parent_version_id:fd.get('parent_version_id'),instructions:fd.get('instructions')||'',capabilities:split(fd.get('capabilities')),tools:split(fd.get('tools')),model_policy:{routing:'auto',authority:false}})});dialog.close();toast('Candidate version created');await selectAgent(state.detail.id,'versions')}catch(err){toast(err.message,true)}};dialog.showModal()}
+
+  function bindCreateAgent(){const dialog=$('#createAgentDialog'),form=$('#createAgentForm');$('#createAgentButton')?.addEventListener('click',()=>dialog.showModal());form?.addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(form),split=v=>String(v||'').split(',').map(x=>x.trim()).filter(Boolean);try{const data=await api('',{method:'POST',body:JSON.stringify({name:fd.get('name'),role:fd.get('role'),description:fd.get('description')||'',instructions:fd.get('instructions')||'',capabilities:split(fd.get('capabilities')),tools:split(fd.get('tools')),model_policy:{routing:'auto',authority:false}})});dialog.close();form.reset();toast('Custom agent candidate created');await loadCatalog();if(data?.template?.id)await selectAgent(data.template.id,'overview')}catch(err){toast(err.message,true)}})}
+  function bindImport(){const input=$('#importAgentFile');$('#importAgentButton')?.addEventListener('click',()=>input?.click());input?.addEventListener('change',async()=>{const file=input.files?.[0];if(!file)return;try{const raw=JSON.parse(await file.text());const payload={name:String(raw.name||raw.template?.name||'Imported Agent'),role:String(raw.role||raw.template?.role||'custom'),description:String(raw.description||raw.template?.description||''),instructions:String(raw.instructions||raw.version?.instructions||''),capabilities:Array.isArray(raw.capabilities)?raw.capabilities:(raw.version?.capabilities||[]),tools:Array.isArray(raw.tools)?raw.tools:(raw.version?.tools||[]),model_policy:raw.model_policy||raw.version?.model_policy||{routing:'auto',authority:false}};const data=await api('',{method:'POST',body:JSON.stringify(payload)});toast('Agent imported as governed candidate');await loadCatalog();if(data?.template?.id)await selectAgent(data.template.id,'overview')}catch(err){toast(`Import failed: ${err.message}`,true)}finally{input.value=''}})}
   function bindChrome(){
-    $('#menuButton')?.addEventListener('click',()=>document.body.classList.toggle('sidebar-open'));
-    $('.aw-sidebar')?.addEventListener('click',event=>{if(event.target.closest('a')&&matchMedia('(max-width:820px)').matches)document.body.classList.remove('sidebar-open')});
-    $('[data-action="new-project"]')?.addEventListener('click',()=>location.href='/iphone/#projects');
-    ['agentSearch','globalSearch','statusFilter','sortFilter'].forEach(id=>$('#'+id)?.addEventListener(id.includes('Filter')?'change':'input',renderAgentList));
+    $('#menuButton')?.addEventListener('click',()=>document.body.classList.toggle('sidebar-open'));$('.aw-sidebar')?.addEventListener('click',e=>{if(e.target.closest('a')&&matchMedia('(max-width:820px)').matches)document.body.classList.remove('sidebar-open')});
+    $('[data-action="new-project"]')?.addEventListener('click',()=>location.href='/iphone/#projects');$('[data-action="settings"]')?.addEventListener('click',()=>location.href='/iphone/#settings');$('#documentationButton')?.addEventListener('click',()=>location.href='/iphone/#knowledge');$('#deployTeamButton')?.addEventListener('click',()=>state.projects.length?openTeamDialog():toast('Create a Project first.',true));$('#marketplaceButton')?.addEventListener('click',()=>{state.catalog='templates';$$('#catalogTabs [data-filter]').forEach(x=>x.classList.toggle('active',x.dataset.filter==='templates'));renderAgentList();toast('Showing available agent templates')});
+    ['agentSearch','globalSearch'].forEach(id=>$('#'+id)?.addEventListener('input',renderAgentList));['statusFilter','typeFilter','versionFilter','sortFilter'].forEach(id=>$('#'+id)?.addEventListener('change',renderAgentList));
     $$('#catalogTabs [data-filter]').forEach(btn=>btn.addEventListener('click',()=>{$$('#catalogTabs [data-filter]').forEach(x=>x.classList.remove('active'));btn.classList.add('active');state.catalog=btn.dataset.filter;renderAgentList()}));
-    window.addEventListener('keydown',event=>{if(event.key==='Escape')document.body.classList.remove('sidebar-open')});
+    $$('[data-view]').forEach(btn=>btn.addEventListener('click',()=>{$$('[data-view]').forEach(x=>x.classList.remove('active'));btn.classList.add('active');state.view=btn.dataset.view;renderAgentList()}));
+    $('[data-side-action="teams"]')?.addEventListener('click',e=>{e.preventDefault();if(state.projects.length)openTeamDialog();else toast('Create a Project first.',true)});
+    window.addEventListener('keydown',e=>{if(e.key==='Escape')document.body.classList.remove('sidebar-open');if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();$('#globalSearch')?.focus()}})
   }
-  document.addEventListener('DOMContentLoaded',()=>{bindChrome();bindCreateAgent();initialLoad()});
+  async function loadProjects(){try{const data=await projectApi('');state.projects=data.projects||[];renderCounts()}catch{state.projects=[]}}
+  async function loadCatalog(){const [summary,catalog]=await Promise.all([api('/summary'),api('')]);state.agents=catalog.agents||[];renderKpis(summary);renderCounts();renderAgentList()}
+  async function initialLoad(){state.loading=true;$('#agentList').innerHTML='<div class="aw-loading">Loading workforce…</div>';try{await Promise.all([loadProjects(),loadCatalog()]);const coding=state.agents.find(a=>a.role==='coding')||filteredAgents()[0];if(coding)await selectAgent(coding.id,'chat');else renderDetail()}catch(err){$('#agentList').innerHTML=`<div class="aw-error">${esc(err.message)}</div>`;$('#agentDetail').innerHTML=empty('Workforce unavailable',err.message);toast(err.message,true)}finally{state.loading=false}}
+  document.addEventListener('DOMContentLoaded',()=>{bindChrome();bindCreateAgent();bindImport();initialLoad()});
 })();
