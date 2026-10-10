@@ -47,7 +47,6 @@ def _python_facts(text: str) -> tuple[list[dict], list[dict]]:
         tree = ast.parse(text)
     except SyntaxError:
         return symbols, imports
-    lines = text.splitlines()
     for node in tree.body:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             decorators = []
@@ -110,13 +109,12 @@ def _resolve_import(source_path: str, module: str, known_paths: set[str]) -> str
         if clean:
             base = base / clean
         candidates.extend([str(base.with_suffix('.py')), str(base / '__init__.py')])
-    else:
-        if module.startswith('.'):
-            base = source.parent / module
-            for suffix in ('.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'):
-                candidates.append(str(base) + suffix)
-            for suffix in ('/index.ts', '/index.tsx', '/index.js', '/index.jsx'):
-                candidates.append(str(base) + suffix)
+    elif module.startswith('.'):
+        base = source.parent / module
+        for suffix in ('.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'):
+            candidates.append(str(base) + suffix)
+        for suffix in ('/index.ts', '/index.tsx', '/index.js', '/index.jsx'):
+            candidates.append(str(base) + suffix)
     normalized = {str(PurePosixPath(item)) for item in candidates}
     return next((item for item in normalized if item in known_paths), None)
 
@@ -132,49 +130,64 @@ class DeepGitHubRepositoryAnalyzer:
         owner, repo = parse_github_repository_url(url)
         headers = {'Accept': 'application/vnd.github+json', 'User-Agent': 'Vishnu-Visualize/2.0'}
         repository_url = f'https://github.com/{owner}/{repo}'
-        with httpx.Client(timeout=self.timeout_seconds, follow_redirects=False, headers=headers) as client:
-            meta = client.get(f'https://api.github.com/repos/{owner}/{repo}')
-            if meta.status_code == 404:
-                raise ValueError('GitHub repository was not found or is not public')
-            if meta.status_code == 403:
-                raise ValueError('GitHub API rate limit reached; try again after the limit resets')
-            try:
+        try:
+            with httpx.Client(timeout=self.timeout_seconds, follow_redirects=False, headers=headers) as client:
+                meta = client.get(f'https://api.github.com/repos/{owner}/{repo}')
+                if meta.status_code == 404:
+                    raise ValueError('GitHub repository was not found or is not public')
+                if meta.status_code == 403:
+                    raise ValueError('GitHub API rate limit reached; try again after the limit resets')
                 meta.raise_for_status()
-            except httpx.HTTPError as exc:
-                raise ValueError('GitHub repository could not be reached safely') from exc
-            metadata = meta.json()
-            branch = str(metadata.get('default_branch') or 'main')
-            tree_response = client.get(f'https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}', params={'recursive': '1'})
-            if tree_response.status_code in {403, 404}:
-                raise ValueError('GitHub repository source tree could not be read')
-            try:
+                metadata = meta.json()
+                branch = str(metadata.get('default_branch') or 'main')
+
+                branch_response = client.get(f'https://api.github.com/repos/{owner}/{repo}/branches/{quote(branch, safe="")}')
+                if branch_response.status_code in {403, 404}:
+                    raise ValueError('GitHub default branch could not be resolved')
+                branch_response.raise_for_status()
+                branch_payload = branch_response.json()
+                commit_sha = str((branch_payload.get('commit') or {}).get('sha') or '').strip()
+                if not re.fullmatch(r'[0-9a-fA-F]{40}', commit_sha):
+                    raise ValueError('GitHub default branch did not resolve to an immutable commit')
+
+                tree_response = client.get(f'https://api.github.com/repos/{owner}/{repo}/git/trees/{commit_sha}', params={'recursive': '1'})
+                if tree_response.status_code in {403, 404}:
+                    raise ValueError('GitHub repository source tree could not be read')
                 tree_response.raise_for_status()
-            except httpx.HTTPError as exc:
-                raise ValueError('GitHub repository source tree could not be read safely') from exc
-            tree_payload = tree_response.json()
-            all_items = list(tree_payload.get('tree') or [])[: self.max_paths]
-            source_items = [item for item in all_items if item.get('type') == 'blob' and PurePosixPath(str(item.get('path') or '')).suffix.lower() in _SOURCE_EXTENSIONS and not any(part in _SKIP_PARTS for part in PurePosixPath(str(item.get('path') or '')).parts) and int(item.get('size') or 0) <= self.max_file_bytes]
-            source_items.sort(key=lambda item: (str(item.get('path') or '').count('/'), int(item.get('size') or 0), str(item.get('path') or '').casefold()))
-            selected = source_items[: self.max_source_files]
-            files: dict[str, dict] = {}
-            for item in selected:
-                path = str(item.get('path') or '')
-                encoded = quote(path, safe='/')
-                response = client.get(f'https://api.github.com/repos/{owner}/{repo}/contents/{encoded}', params={'ref': branch}, headers={**headers, 'Accept': 'application/vnd.github.raw+json'})
-                if response.status_code != 200:
-                    continue
-                text = response.text
-                if len(text.encode('utf-8', errors='ignore')) > self.max_file_bytes:
-                    continue
-                suffix = PurePosixPath(path).suffix.lower()
-                symbols, imports = _python_facts(text) if suffix == '.py' else _script_facts(text)
-                files[path] = {'text': text, 'symbols': symbols, 'imports': imports, 'sha': str(item.get('sha') or ''), 'size': int(item.get('size') or len(text))}
+                tree_payload = tree_response.json()
+                all_items = list(tree_payload.get('tree') or [])[: self.max_paths]
+                source_items = [
+                    item for item in all_items
+                    if item.get('type') == 'blob'
+                    and PurePosixPath(str(item.get('path') or '')).suffix.lower() in _SOURCE_EXTENSIONS
+                    and not any(part in _SKIP_PARTS for part in PurePosixPath(str(item.get('path') or '')).parts)
+                    and int(item.get('size') or 0) <= self.max_file_bytes
+                ]
+                source_items.sort(key=lambda item: (str(item.get('path') or '').count('/'), int(item.get('size') or 0), str(item.get('path') or '').casefold()))
+                selected = source_items[: self.max_source_files]
+                files: dict[str, dict] = {}
+                for item in selected:
+                    path = str(item.get('path') or '')
+                    encoded = quote(path, safe='/')
+                    response = client.get(f'https://api.github.com/repos/{owner}/{repo}/contents/{encoded}', params={'ref': commit_sha}, headers={**headers, 'Accept': 'application/vnd.github.raw+json'})
+                    if response.status_code != 200:
+                        continue
+                    text = response.text
+                    if len(text.encode('utf-8', errors='ignore')) > self.max_file_bytes:
+                        continue
+                    suffix = PurePosixPath(path).suffix.lower()
+                    symbols, imports = _python_facts(text) if suffix == '.py' else _script_facts(text)
+                    files[path] = {'text': text, 'symbols': symbols, 'imports': imports, 'sha': str(item.get('sha') or ''), 'size': int(item.get('size') or len(text))}
+        except ValueError:
+            raise
+        except httpx.HTTPError as exc:
+            raise ValueError('GitHub repository could not be analyzed safely') from exc
 
         root = VisualNode(
             id='repository', label=title or str(metadata.get('name') or repo), category='project',
-            description=f'Public GitHub repository {owner}/{repo} on {branch}', evidence_level=EvidenceLevel.STRONG,
-            evidence=[{'kind': 'repository', 'url': repository_url, 'ref': branch, 'tree_sha': tree_payload.get('sha')}],
-            metadata={'repository': f'{owner}/{repo}', 'branch': branch, 'tree_sha': tree_payload.get('sha')},
+            description=f'Public GitHub repository {owner}/{repo} at {commit_sha[:12]}', evidence_level=EvidenceLevel.STRONG,
+            evidence=[{'kind': 'repository', 'url': repository_url, 'branch': branch, 'ref': commit_sha, 'tree_sha': tree_payload.get('sha')}],
+            metadata={'repository': f'{owner}/{repo}', 'branch': branch, 'commit_sha': commit_sha, 'tree_sha': tree_payload.get('sha')},
         )
         nodes = [root]
         edges: list[VisualEdge] = []
@@ -185,22 +198,22 @@ class DeepGitHubRepositoryAnalyzer:
                 node_id = f'{node_id}-{index}'
             file_ids[path] = node_id
             line_count = max(1, facts['text'].count('\n') + 1)
-            evidence = {'kind': 'source_lines', 'repository': f'{owner}/{repo}', 'ref': branch, 'path': path, 'line_start': 1, 'line_end': line_count, 'blob_sha': facts['sha'], 'url': f'{repository_url}/blob/{branch}/{path}'}
+            evidence = {'kind': 'source_lines', 'repository': f'{owner}/{repo}', 'branch': branch, 'ref': commit_sha, 'path': path, 'line_start': 1, 'line_end': line_count, 'blob_sha': facts['sha'], 'url': f'{repository_url}/blob/{commit_sha}/{path}'}
             node = VisualNode(
                 id=node_id, label=_label(path), category=_source_category(path), description=path,
                 evidence_level=EvidenceLevel.VERIFIED, evidence=[evidence],
-                metadata={'path': path, 'blob_sha': facts['sha'], 'size': facts['size'], 'symbols': facts['symbols'][:16]},
+                metadata={'path': path, 'blob_sha': facts['sha'], 'commit_sha': commit_sha, 'size': facts['size'], 'symbols': facts['symbols'][:16]},
             )
             nodes.append(node)
             edges.append(VisualEdge(id=f'contains-{index}', source='repository', target=node_id, kind='contains', metadata={'evidence': [evidence]}))
 
             for sym_index, symbol in enumerate(facts['symbols'][:4], 1):
                 symbol_id = _safe_id('symbol', f'{path}-{symbol["name"]}')
-                symbol_evidence = {'kind': 'source_lines', 'repository': f'{owner}/{repo}', 'ref': branch, 'path': path, 'line_start': symbol['line_start'], 'line_end': symbol['line_end'], 'blob_sha': facts['sha'], 'url': f'{repository_url}/blob/{branch}/{path}#L{symbol["line_start"]}-L{symbol["line_end"]}'}
+                symbol_evidence = {'kind': 'source_lines', 'repository': f'{owner}/{repo}', 'branch': branch, 'ref': commit_sha, 'path': path, 'line_start': symbol['line_start'], 'line_end': symbol['line_end'], 'blob_sha': facts['sha'], 'url': f'{repository_url}/blob/{commit_sha}/{path}#L{symbol["line_start"]}-L{symbol["line_end"]}'}
                 nodes.append(VisualNode(
                     id=symbol_id, label=symbol['name'], category='api' if symbol.get('routes') or symbol['kind'] == 'route' else 'symbol',
                     description=f"{symbol['kind'].title()} in {path}", evidence_level=EvidenceLevel.VERIFIED,
-                    evidence=[symbol_evidence], metadata={'path': path, 'symbol_kind': symbol['kind'], 'routes': symbol.get('routes') or []},
+                    evidence=[symbol_evidence], metadata={'path': path, 'commit_sha': commit_sha, 'symbol_kind': symbol['kind'], 'routes': symbol.get('routes') or []},
                 ))
                 edges.append(VisualEdge(id=f'defines-{index}-{sym_index}', source=node_id, target=symbol_id, kind='defines', metadata={'evidence': [symbol_evidence]}))
 
@@ -216,7 +229,7 @@ class DeepGitHubRepositoryAnalyzer:
                 seen_targets.add(target_path)
                 edge_index += 1
                 line = int(imported.get('line') or 1)
-                evidence = {'kind': 'source_lines', 'repository': f'{owner}/{repo}', 'ref': branch, 'path': source_path, 'line_start': line, 'line_end': line, 'blob_sha': files[source_path]['sha'], 'url': f'{repository_url}/blob/{branch}/{source_path}#L{line}'}
+                evidence = {'kind': 'source_lines', 'repository': f'{owner}/{repo}', 'branch': branch, 'ref': commit_sha, 'path': source_path, 'line_start': line, 'line_end': line, 'blob_sha': files[source_path]['sha'], 'url': f'{repository_url}/blob/{commit_sha}/{source_path}#L{line}'}
                 edges.append(VisualEdge(id=f'import-{edge_index}', source=source_id, target=file_ids[target_path], label='imports', kind='imports', metadata={'evidence_level': EvidenceLevel.VERIFIED.value, 'evidence': [evidence]}))
 
         return VisualGraph(
@@ -226,8 +239,8 @@ class DeepGitHubRepositoryAnalyzer:
             edges=edges,
             metadata={
                 'analysis': 'github-source-code', 'repository': f'{owner}/{repo}', 'repository_url': repository_url,
-                'branch': branch, 'tree_sha': tree_payload.get('sha'), 'tree_truncated': bool(tree_payload.get('truncated')),
+                'branch': branch, 'commit_sha': commit_sha, 'tree_sha': tree_payload.get('sha'), 'tree_truncated': bool(tree_payload.get('truncated')),
                 'path_count': len(all_items), 'source_candidates': len(source_items), 'source_files_analyzed': len(files),
-                'evidence_policy': 'verified means exact fetched source lines on the recorded blob/ref',
+                'evidence_policy': 'verified means exact fetched source lines pinned to the recorded immutable commit SHA',
             },
         )
