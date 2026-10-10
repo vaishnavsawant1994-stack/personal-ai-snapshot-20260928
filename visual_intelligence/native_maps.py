@@ -121,8 +121,11 @@ def build_memory_graph(payload: dict, *, title: str = 'Memory Map') -> VisualGra
         ))
     edges: list[VisualEdge] = []
     for index, item in enumerate(raw_edges, 1):
-        source = str(item.get('source') or item.get('src') or item.get('from') or '')
-        target = str(item.get('target') or item.get('dst') or item.get('to') or '')
+        # Canonical Second Brain edges use src/dst while "source" is provenance.
+        # Prefer endpoint fields first so provenance such as "second_brain" cannot
+        # shadow the actual node identifier.
+        source = str(item.get('src') or item.get('source_id') or item.get('from') or item.get('source') or '')
+        target = str(item.get('dst') or item.get('target_id') or item.get('to') or item.get('target') or '')
         if source not in id_map or target not in id_map:
             continue
         relation = str(item.get('label') or item.get('relationship') or item.get('relation') or item.get('kind') or item.get('type') or 'relationship')
