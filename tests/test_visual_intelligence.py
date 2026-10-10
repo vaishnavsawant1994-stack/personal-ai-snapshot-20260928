@@ -4,7 +4,7 @@ import pytest
 
 from visual_intelligence import VisualIntelligenceService
 from visual_intelligence.deep_repository import _python_facts, _resolve_import, _script_facts
-from visual_intelligence.models import VisualEdge, VisualGraph, VisualNode, VisualType
+from visual_intelligence.models import EvidenceLevel, VisualEdge, VisualGraph, VisualNode, VisualType
 from visual_intelligence.native_maps import build_knowledge_graph, build_live_work_graph, build_memory_graph
 from visual_intelligence.validator import VisualValidationError, assert_valid_graph
 
@@ -123,6 +123,11 @@ def test_natural_language_edit_exports_presentation_and_shared_3d(tmp_path):
     renamed = service.edit('owner', item['id'], 'Rename API to Request Gateway')
     assert any(node['label'] == 'Request Gateway' for node in renamed['visualization']['graph']['nodes'])
 
+    highlighted = service.edit('owner', item['id'], 'Highlight Request Gateway')
+    highlighted_node = next(node for node in highlighted['visualization']['graph']['nodes'] if node['label'] == 'Request Gateway')
+    assert highlighted_node['metadata']['highlight'] is True
+    assert 'vv-authored-highlight' in highlighted['visualization']['svg']
+
     presentation = service.presentation('owner', item['id'])
     assert presentation['schema'] == 'vishnu.visual.presentation.v1'
     assert presentation['slides'][0]['id'] == 'overview'
@@ -140,6 +145,31 @@ def test_natural_language_edit_exports_presentation_and_shared_3d(tmp_path):
         assert payload
         assert mime.startswith(mime_prefix)
         assert filename.endswith('.' + fmt)
+    service.close()
+
+
+def test_show_only_accepts_semantic_categories_and_changes_svg(tmp_path):
+    service = VisualIntelligenceService(tmp_path / 'visuals.sqlite3')
+    graph = VisualGraph(
+        type=VisualType.ARCHITECTURE,
+        title='Agent system',
+        nodes=[
+            VisualNode(id='agent-a', label='Research Agent', category='agent', evidence_level=EvidenceLevel.VERIFIED),
+            VisualNode(id='agent-b', label='Coding Agent', category='agent', evidence_level=EvidenceLevel.STRONG),
+            VisualNode(id='tool-a', label='GitHub Tool', category='tool', evidence_level=EvidenceLevel.VERIFIED),
+            VisualNode(id='db', label='Database', category='database', evidence_level=EvidenceLevel.STRONG),
+        ],
+        edges=[
+            VisualEdge(id='e1', source='agent-a', target='tool-a'),
+            VisualEdge(id='e2', source='agent-b', target='db'),
+        ],
+    )
+    item = service.create(owner_id='owner', title='Agent system', visual_type='architecture', graph=graph)
+    focused = service.edit('owner', item['id'], 'Show only Agents and Tools')
+    focus_ids = set(focused['visualization']['graph']['metadata']['preferred_focus'])
+    assert focus_ids == {'agent-a', 'agent-b', 'tool-a'}
+    database_group = next(fragment for fragment in focused['visualization']['svg'].split('<g class="vv-node"') if 'data-node-id="db"' in fragment)
+    assert 'opacity="0.12"' in database_group
     service.close()
 
 
