@@ -66,6 +66,7 @@ def attach_e9_runtime(runtime: dict) -> dict:
         worker_registry=getattr(runtime.get("advanced_autonomy"), "_worker_registry", None),
         work_store=runtime.get("canonical_work_store"),
         worker_intelligence=runtime.get("worker_intelligence"),
+        models=runtime.get("models"),
         events=events,
     )
     runtime["agent_workforce_store"] = workforce_store
