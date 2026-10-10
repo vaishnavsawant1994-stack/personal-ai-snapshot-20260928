@@ -24,7 +24,7 @@ jobs:
           node --check tests/visualize_workspace_browser.mjs
           node --check tests/visualize_workspace_browser_runner.mjs
       - name: Vishnu Visualize qualification gate
-        run: pytest -q tests/test_visual_intelligence.py tests/test_visualize_sources.py
+        run: pytest -q tests/test_visual_intelligence.py tests/test_visualize_sources.py tests/test_visualize_native_maps_runtime.py
       - name: Canonical Work consistency gate
         run: pytest -q tests/test_work_consistency_gate.py
       - name: Canonical Work scale and performance gate
