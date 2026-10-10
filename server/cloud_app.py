@@ -17,6 +17,7 @@ from server.automation_visibility_api import automation_visibility_router
 from server.recovery_visibility_api import recovery_visibility_router
 from server.cloud_security import cloud_security_router
 from server.agent_continuity_api import agent_continuity_router
+from server.agent_workforce_assets import agent_workforce_assets_router
 from server.agent_workforce_pwa_api import agent_workforce_pwa_router
 from server.evidence_api import evidence_router
 from server.evolution_api import evolution_router
@@ -95,6 +96,10 @@ pwa_runtime=dict(runtime);pwa_runtime['executor']=SessionBoundExecutor(runtime['
 app.include_router(approval_router(runtime,pwa_runtime['executor']))
 app.include_router(approvals_center_router(runtime))
 app.include_router(conversation_voice_router(runtime,pwa_runtime['executor']))
+# The workforce shell router is intentionally mounted before iphone_pwa_router
+# only for /iphone and /iphone/. It injects the isolated Agents navigation
+# entry while every existing API/asset route remains owned by the canonical PWA.
+app.include_router(agent_workforce_assets_router(settings))
 _original_pwa_state=iphone_pwa_module.IphonePwaState
 iphone_pwa_module.IphonePwaState=lambda:RequestAwareIphonePwaState(cancel_turn=pwa_runtime['executor'].cancel_turn)
 try:app.include_router(iphone_pwa_module.iphone_pwa_router(pwa_runtime,settings,include_legacy_runtime_routes=False))
