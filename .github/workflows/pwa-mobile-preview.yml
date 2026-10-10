@@ -21,6 +21,7 @@ on:
       - 'tests/chat_experience_browser.mjs'
       - 'tests/agent_workforce_browser.mjs'
       - 'tests/visualize_workspace_browser.mjs'
+      - 'tests/visualize_workspace_browser_runner.mjs'
       - 'personal-ai/pwa/**'
       - '.github/workflows/pwa-mobile-preview.yml'
   pull_request:
@@ -39,6 +40,7 @@ on:
       - 'tests/chat_experience_browser.mjs'
       - 'tests/agent_workforce_browser.mjs'
       - 'tests/visualize_workspace_browser.mjs'
+      - 'tests/visualize_workspace_browser_runner.mjs'
       - 'personal-ai/pwa/**'
       - '.github/workflows/pwa-mobile-preview.yml'
 
@@ -83,7 +85,7 @@ jobs:
           node tests/work_attention_center_browser.mjs
           node tests/chat_experience_browser.mjs
           AGENT_WORKFORCE_SCREENSHOT_DIR=artifacts/agent-workforce node tests/agent_workforce_browser.mjs
-          VISUALIZE_SCREENSHOT_DIR=artifacts/visualize node tests/visualize_workspace_browser.mjs
+          VISUALIZE_SCREENSHOT_DIR=artifacts/visualize node tests/visualize_workspace_browser_runner.mjs
           node tests/pwa_mobile_preview_runner.mjs
           node tests/standalone_pwa_responsive.mjs
       - uses: actions/upload-artifact@v4
