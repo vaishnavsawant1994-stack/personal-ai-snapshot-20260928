@@ -65,6 +65,7 @@ class HybridPolicy:
     """P9 policy layer. It filters intelligence resources; it never grants action authority."""
 
     LOCAL_PROVIDER = 'self_hosted'
+    LOCAL_ONLY_SENSITIVITY = {'sensitive', 'secret', 'private_local'}
 
     @staticmethod
     def validate_request(request: HybridRequest) -> None:
@@ -91,7 +92,7 @@ class HybridPolicy:
             is_local = provider.id == cls.LOCAL_PROVIDER or provider.private
             if request.privacy == PrivacyMode.LOCAL_ONLY and not is_local:
                 continue
-            if request.sensitivity in {'sensitive', 'secret'} and not is_local:
+            if request.sensitivity in cls.LOCAL_ONLY_SENSITIVITY and not is_local:
                 continue
             result.append(provider)
         if request.privacy == PrivacyMode.LOCAL_PREFERRED:
