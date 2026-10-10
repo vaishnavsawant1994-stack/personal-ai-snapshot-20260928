@@ -29,6 +29,13 @@ class AgentWorkforceStore:
     Agent definitions are reusable, but runtime instances are project scoped.
     A live instance can never be reassigned across projects; it must be stopped
     and a fresh instance created so project context cannot silently leak.
+
+    The store intentionally uses one SQLite connection because workforce state is
+    owner-local and small. Every access to that shared connection is serialized
+    through ``self.lock``. ``check_same_thread=False`` only permits cross-thread
+    use; it does not make a single connection safe for concurrent operations.
+    ``RLock`` keeps compound operations atomic while allowing their validation
+    steps to reuse the normal read helpers.
     """
 
     SCHEMA_VERSION = 1
@@ -149,21 +156,24 @@ class AgentWorkforceStore:
                 "INSERT INTO agent_templates(id,slug,name,role,description,system_owned,created_at) VALUES(?,?,?,?,?,?,?)",
                 (template_id, slug, str(name)[:160], str(role)[:100], str(description)[:4000], int(bool(system_owned)), created_at),
             )
-        return self.get_template(template_id)
+            return self.get_template(template_id)
 
     def get_template(self, template_id: str) -> dict:
-        row = self.connection.execute("SELECT * FROM agent_templates WHERE id=?", (template_id,)).fetchone()
-        if row is None:
-            raise KeyError(template_id)
-        return self._template(row)
+        with self.lock:
+            row = self.connection.execute("SELECT * FROM agent_templates WHERE id=?", (template_id,)).fetchone()
+            if row is None:
+                raise KeyError(template_id)
+            return self._template(row)
 
     def get_template_by_slug(self, slug: str) -> dict | None:
-        row = self.connection.execute("SELECT * FROM agent_templates WHERE slug=?", (slug,)).fetchone()
-        return self._template(row) if row else None
+        with self.lock:
+            row = self.connection.execute("SELECT * FROM agent_templates WHERE slug=?", (slug,)).fetchone()
+            return self._template(row) if row else None
 
     def list_templates(self) -> list[dict]:
-        rows = self.connection.execute("SELECT * FROM agent_templates ORDER BY system_owned DESC,name,id").fetchall()
-        return [self._template(row) for row in rows]
+        with self.lock:
+            rows = self.connection.execute("SELECT * FROM agent_templates ORDER BY system_owned DESC,name,id").fetchall()
+            return [self._template(row) for row in rows]
 
     def create_version(
         self,
@@ -179,13 +189,13 @@ class AgentWorkforceStore:
         parent_version_id: str | None = None,
         qualification: dict | None = None,
     ) -> dict:
-        self.get_template(template_id)
         if state not in {item.value for item in AgentVersionState}:
             raise ValueError("invalid agent version state")
         if memory_policy not in {"project_only", "project_plus_agent", "ephemeral"}:
             raise ValueError("invalid memory policy")
         version_id = _id("agentver")
         with self.lock, self.connection:
+            self.get_template(template_id)
             self.connection.execute(
                 """INSERT INTO agent_versions(
                     id,template_id,version,state,instructions,capabilities_json,tools_json,memory_policy,
@@ -197,35 +207,38 @@ class AgentWorkforceStore:
                     _json(model_policy or {}), parent_version_id, _json(qualification or {}), _now(),
                 ),
             )
-        return self.get_version(version_id)
+            return self.get_version(version_id)
 
     def get_version(self, version_id: str) -> dict:
-        row = self.connection.execute("SELECT * FROM agent_versions WHERE id=?", (version_id,)).fetchone()
-        if row is None:
-            raise KeyError(version_id)
-        return self._version(row)
+        with self.lock:
+            row = self.connection.execute("SELECT * FROM agent_versions WHERE id=?", (version_id,)).fetchone()
+            if row is None:
+                raise KeyError(version_id)
+            return self._version(row)
 
     def list_versions(self, template_id: str) -> list[dict]:
-        rows = self.connection.execute("SELECT * FROM agent_versions WHERE template_id=? ORDER BY created_at DESC,id", (template_id,)).fetchall()
-        return [self._version(row) for row in rows]
+        with self.lock:
+            rows = self.connection.execute("SELECT * FROM agent_versions WHERE template_id=? ORDER BY created_at DESC,id", (template_id,)).fetchall()
+            return [self._version(row) for row in rows]
 
     def preferred_version(self, template_id: str) -> dict:
-        row = self.connection.execute(
-            """SELECT * FROM agent_versions WHERE template_id=? AND state IN ('preferred','stable')
-               ORDER BY CASE state WHEN 'preferred' THEN 0 ELSE 1 END, promoted_at DESC, created_at DESC LIMIT 1""",
-            (template_id,),
-        ).fetchone()
-        if row is None:
-            row = self.connection.execute("SELECT * FROM agent_versions WHERE template_id=? ORDER BY created_at DESC LIMIT 1", (template_id,)).fetchone()
-        if row is None:
-            raise KeyError(f"no versions for {template_id}")
-        return self._version(row)
+        with self.lock:
+            row = self.connection.execute(
+                """SELECT * FROM agent_versions WHERE template_id=? AND state IN ('preferred','stable')
+                   ORDER BY CASE state WHEN 'preferred' THEN 0 ELSE 1 END, promoted_at DESC, created_at DESC LIMIT 1""",
+                (template_id,),
+            ).fetchone()
+            if row is None:
+                row = self.connection.execute("SELECT * FROM agent_versions WHERE template_id=? ORDER BY created_at DESC LIMIT 1", (template_id,)).fetchone()
+            if row is None:
+                raise KeyError(f"no versions for {template_id}")
+            return self._version(row)
 
     def set_version_state(self, version_id: str, state: str, *, qualification: dict | None = None) -> dict:
         if state not in {item.value for item in AgentVersionState}:
             raise ValueError("invalid agent version state")
-        version = self.get_version(version_id)
         with self.lock, self.connection:
+            version = self.get_version(version_id)
             if state == AgentVersionState.PREFERRED.value:
                 self.connection.execute(
                     "UPDATE agent_versions SET state='stable' WHERE template_id=? AND state='preferred' AND id<>?",
@@ -235,15 +248,15 @@ class AgentWorkforceStore:
                 "UPDATE agent_versions SET state=?, qualification_json=COALESCE(?,qualification_json), promoted_at=? WHERE id=?",
                 (state, _json(qualification) if qualification is not None else None, _now() if state in {'stable','preferred'} else version.get('promoted_at'), version_id),
             )
-        return self.get_version(version_id)
+            return self.get_version(version_id)
 
     def create_instance(self, template_id: str, *, project_id: str | None, version_id: str | None = None, model_provider: str | None = None, model_id: str | None = None) -> dict:
-        version = self.get_version(version_id) if version_id else self.preferred_version(template_id)
-        if version["template_id"] != template_id:
-            raise ValueError("version does not belong to template")
         instance_id = _id("worker")
         now = _now()
         with self.lock, self.connection:
+            version = self.get_version(version_id) if version_id else self.preferred_version(template_id)
+            if version["template_id"] != template_id:
+                raise ValueError("version does not belong to template")
             self.connection.execute(
                 """INSERT INTO agent_instances(id,template_id,version_id,project_id,state,current_work_order_id,model_provider,model_id,created_at,updated_at)
                    VALUES(?,?,?,?,?,?,?,?,?,?)""",
@@ -255,13 +268,14 @@ class AgentWorkforceStore:
                     "INSERT OR IGNORE INTO agent_project_team(project_id,instance_id,role,is_manager,joined_at) VALUES(?,?,?,?,?)",
                     (project_id, instance_id, role, int(role in {'project','project_manager'}), now),
                 )
-        return self.get_instance(instance_id)
+            return self.get_instance(instance_id)
 
     def get_instance(self, instance_id: str) -> dict:
-        row = self.connection.execute("SELECT * FROM agent_instances WHERE id=?", (instance_id,)).fetchone()
-        if row is None:
-            raise KeyError(instance_id)
-        return self._instance(row)
+        with self.lock:
+            row = self.connection.execute("SELECT * FROM agent_instances WHERE id=?", (instance_id,)).fetchone()
+            if row is None:
+                raise KeyError(instance_id)
+            return self._instance(row)
 
     def list_instances(self, *, template_id: str | None = None, project_id: str | None = None) -> list[dict]:
         clauses, args = [], []
@@ -270,28 +284,29 @@ class AgentWorkforceStore:
         if project_id:
             clauses.append("project_id=?"); args.append(project_id)
         where = " WHERE " + " AND ".join(clauses) if clauses else ""
-        rows = self.connection.execute("SELECT * FROM agent_instances" + where + " ORDER BY updated_at DESC,id", tuple(args)).fetchall()
-        return [self._instance(row) for row in rows]
+        with self.lock:
+            rows = self.connection.execute("SELECT * FROM agent_instances" + where + " ORDER BY updated_at DESC,id", tuple(args)).fetchall()
+            return [self._instance(row) for row in rows]
 
     def set_instance_state(self, instance_id: str, state: str) -> dict:
         if state not in {item.value for item in AgentInstanceState}:
             raise ValueError("invalid instance state")
-        self.get_instance(instance_id)
         with self.lock, self.connection:
+            self.get_instance(instance_id)
             self.connection.execute("UPDATE agent_instances SET state=?,updated_at=? WHERE id=?", (state, _now(), instance_id))
-        return self.get_instance(instance_id)
+            return self.get_instance(instance_id)
 
     def assign(self, instance_id: str, *, project_id: str, work_order_id: str) -> dict:
-        instance = self.get_instance(instance_id)
         if not project_id or not work_order_id:
             raise ValueError("project_id and work_order_id are required")
-        if instance["project_id"] != project_id:
-            raise PermissionError("agent instance is bound to a different project")
-        if instance["state"] not in {AgentInstanceState.IDLE.value, AgentInstanceState.COMPLETED.value}:
-            raise RuntimeError("agent instance is not available")
         assignment_id = _id("assign")
         now = _now()
         with self.lock, self.connection:
+            instance = self.get_instance(instance_id)
+            if instance["project_id"] != project_id:
+                raise PermissionError("agent instance is bound to a different project")
+            if instance["state"] not in {AgentInstanceState.IDLE.value, AgentInstanceState.COMPLETED.value}:
+                raise RuntimeError("agent instance is not available")
             self.connection.execute(
                 "INSERT INTO agent_assignments(id,instance_id,project_id,work_order_id,version_id,status,assigned_at,completed_at) VALUES(?,?,?,?,?,'assigned',?,NULL)",
                 (assignment_id, instance_id, project_id, work_order_id, instance["version_id"], now),
@@ -300,80 +315,85 @@ class AgentWorkforceStore:
                 "UPDATE agent_instances SET state=?,current_work_order_id=?,updated_at=? WHERE id=?",
                 (AgentInstanceState.ASSIGNED.value, work_order_id, now, instance_id),
             )
-        return self.get_assignment(assignment_id)
+            return self.get_assignment(assignment_id)
 
     def get_assignment(self, assignment_id: str) -> dict:
-        row = self.connection.execute("SELECT * FROM agent_assignments WHERE id=?", (assignment_id,)).fetchone()
-        if row is None:
-            raise KeyError(assignment_id)
-        return dict(row)
+        with self.lock:
+            row = self.connection.execute("SELECT * FROM agent_assignments WHERE id=?", (assignment_id,)).fetchone()
+            if row is None:
+                raise KeyError(assignment_id)
+            return dict(row)
 
     def finish_assignment(self, assignment_id: str, *, status: str = "completed") -> dict:
-        assignment = self.get_assignment(assignment_id)
         now = _now()
         with self.lock, self.connection:
+            assignment = self.get_assignment(assignment_id)
             self.connection.execute("UPDATE agent_assignments SET status=?,completed_at=? WHERE id=?", (status, now, assignment_id))
             self.connection.execute(
                 "UPDATE agent_instances SET state=?,current_work_order_id=NULL,updated_at=? WHERE id=?",
                 (AgentInstanceState.IDLE.value, now, assignment["instance_id"]),
             )
-        return self.get_assignment(assignment_id)
+            return self.get_assignment(assignment_id)
 
     def list_project_team(self, project_id: str) -> list[dict]:
-        rows = self.connection.execute(
-            """SELECT t.project_id,t.instance_id,t.role,t.is_manager,t.joined_at,i.template_id,i.version_id,i.state,i.current_work_order_id
-               FROM agent_project_team t JOIN agent_instances i ON i.id=t.instance_id WHERE t.project_id=? ORDER BY t.is_manager DESC,t.joined_at,t.instance_id""",
-            (project_id,),
-        ).fetchall()
-        return [dict(row) for row in rows]
+        with self.lock:
+            rows = self.connection.execute(
+                """SELECT t.project_id,t.instance_id,t.role,t.is_manager,t.joined_at,i.template_id,i.version_id,i.state,i.current_work_order_id
+                   FROM agent_project_team t JOIN agent_instances i ON i.id=t.instance_id WHERE t.project_id=? ORDER BY t.is_manager DESC,t.joined_at,t.instance_id""",
+                (project_id,),
+            ).fetchall()
+            return [dict(row) for row in rows]
 
     def record_observation(self, template_id: str, version_id: str, *, kind: str, summary: str, project_id: str | None = None, work_order_id: str | None = None, score: float | None = None, evidence_ref: str | None = None) -> dict:
-        version = self.get_version(version_id)
-        if version["template_id"] != template_id:
-            raise ValueError("version does not belong to template")
         observation_id = _id("obs")
         with self.lock, self.connection:
+            version = self.get_version(version_id)
+            if version["template_id"] != template_id:
+                raise ValueError("version does not belong to template")
             self.connection.execute(
                 """INSERT INTO agent_evolution_observations(id,template_id,version_id,project_id,work_order_id,kind,score,summary,evidence_ref,created_at)
                    VALUES(?,?,?,?,?,?,?,?,?,?)""",
                 (observation_id, template_id, version_id, project_id, work_order_id, str(kind)[:100], score, str(summary)[:8000], evidence_ref, _now()),
             )
-        return dict(self.connection.execute("SELECT * FROM agent_evolution_observations WHERE id=?", (observation_id,)).fetchone())
+            row = self.connection.execute("SELECT * FROM agent_evolution_observations WHERE id=?", (observation_id,)).fetchone()
+            return dict(row)
 
     def list_observations(self, template_id: str, *, version_id: str | None = None, limit: int = 200) -> list[dict]:
-        if version_id:
-            rows = self.connection.execute(
-                "SELECT * FROM agent_evolution_observations WHERE template_id=? AND version_id=? ORDER BY created_at DESC LIMIT ?",
-                (template_id, version_id, max(1, min(1000, int(limit)))),
-            ).fetchall()
-        else:
-            rows = self.connection.execute(
-                "SELECT * FROM agent_evolution_observations WHERE template_id=? ORDER BY created_at DESC LIMIT ?",
-                (template_id, max(1, min(1000, int(limit)))),
-            ).fetchall()
-        return [dict(row) for row in rows]
+        with self.lock:
+            if version_id:
+                rows = self.connection.execute(
+                    "SELECT * FROM agent_evolution_observations WHERE template_id=? AND version_id=? ORDER BY created_at DESC LIMIT ?",
+                    (template_id, version_id, max(1, min(1000, int(limit)))),
+                ).fetchall()
+            else:
+                rows = self.connection.execute(
+                    "SELECT * FROM agent_evolution_observations WHERE template_id=? ORDER BY created_at DESC LIMIT ?",
+                    (template_id, max(1, min(1000, int(limit)))),
+                ).fetchall()
+            return [dict(row) for row in rows]
 
     def summary(self) -> dict:
-        total_agents = self.connection.execute("SELECT COUNT(*) FROM agent_templates").fetchone()[0]
-        total_instances = self.connection.execute("SELECT COUNT(*) FROM agent_instances WHERE state<>'stopped'").fetchone()[0]
-        active_instances = self.connection.execute(
-            "SELECT COUNT(*) FROM agent_instances WHERE state IN (%s)" % ",".join("?" for _ in ACTIVE_INSTANCE_STATES),
-            tuple(sorted(ACTIVE_INSTANCE_STATES)),
-        ).fetchone()[0]
-        working = self.connection.execute("SELECT COUNT(*) FROM agent_instances WHERE state='working'").fetchone()[0]
-        idle = self.connection.execute("SELECT COUNT(*) FROM agent_instances WHERE state='idle'").fetchone()[0]
-        projects = self.connection.execute("SELECT COUNT(DISTINCT project_id) FROM agent_instances WHERE project_id IS NOT NULL").fetchone()[0]
-        running_tasks = self.connection.execute("SELECT COUNT(*) FROM agent_assignments WHERE completed_at IS NULL").fetchone()[0]
-        completed = self.connection.execute("SELECT COUNT(*) FROM agent_assignments WHERE status='completed'").fetchone()[0]
-        failed = self.connection.execute("SELECT COUNT(*) FROM agent_assignments WHERE status='failed'").fetchone()[0]
-        denominator = completed + failed
-        return {
-            "total_agents": total_agents,
-            "total_instances": total_instances,
-            "active_instances": active_instances,
-            "working_now": working,
-            "idle": idle,
-            "projects_using_agents": projects,
-            "running_tasks": running_tasks,
-            "success_rate": round(completed * 100.0 / denominator, 1) if denominator else None,
-        }
+        with self.lock:
+            total_agents = self.connection.execute("SELECT COUNT(*) FROM agent_templates").fetchone()[0]
+            total_instances = self.connection.execute("SELECT COUNT(*) FROM agent_instances WHERE state<>'stopped'").fetchone()[0]
+            active_instances = self.connection.execute(
+                "SELECT COUNT(*) FROM agent_instances WHERE state IN (%s)" % ",".join("?" for _ in ACTIVE_INSTANCE_STATES),
+                tuple(sorted(ACTIVE_INSTANCE_STATES)),
+            ).fetchone()[0]
+            working = self.connection.execute("SELECT COUNT(*) FROM agent_instances WHERE state='working'").fetchone()[0]
+            idle = self.connection.execute("SELECT COUNT(*) FROM agent_instances WHERE state='idle'").fetchone()[0]
+            projects = self.connection.execute("SELECT COUNT(DISTINCT project_id) FROM agent_instances WHERE project_id IS NOT NULL").fetchone()[0]
+            running_tasks = self.connection.execute("SELECT COUNT(*) FROM agent_assignments WHERE completed_at IS NULL").fetchone()[0]
+            completed = self.connection.execute("SELECT COUNT(*) FROM agent_assignments WHERE status='completed'").fetchone()[0]
+            failed = self.connection.execute("SELECT COUNT(*) FROM agent_assignments WHERE status='failed'").fetchone()[0]
+            denominator = completed + failed
+            return {
+                "total_agents": total_agents,
+                "total_instances": total_instances,
+                "active_instances": active_instances,
+                "working_now": working,
+                "idle": idle,
+                "projects_using_agents": projects,
+                "running_tasks": running_tasks,
+                "success_rate": round(completed * 100.0 / denominator, 1) if denominator else None,
+            }
