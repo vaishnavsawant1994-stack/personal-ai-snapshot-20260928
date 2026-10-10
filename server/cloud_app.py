@@ -45,6 +45,8 @@ from server.workflow_budget_ui import WorkflowBudgetUiMiddleware, workflow_budge
 from server.connector_api import connector_router
 from server.connector_ui import ConnectorUiMiddleware, connector_ui_router
 from server.connector_oauth_callback import connector_oauth_callback_router
+from server.visualizations_api import visualizations_router
+from server.visualize_ui import VisualizeUiMiddleware, visualize_assets_router
 from projects.store import ProjectStore
 from projects.workforce_adapter import ProjectWorkforceStoreAdapter
 from server.projects_api import projects_router
@@ -53,6 +55,7 @@ from server.project_autonomy_api import project_autonomy_router
 from server.work_order_detail_api import work_order_detail_router
 from server.global_work_api import global_work_router
 from server.work_attention_api import work_attention_router
+from visual_intelligence import VisualIntelligenceService
 
 class CanonicalConversationProjection:
     """Compatibility view for legacy PWA conversation helpers."""
@@ -65,6 +68,7 @@ class CanonicalConversationProjection:
 
 storage_status=validate_runtime_storage(settings)
 runtime=build_runtime();runtime['storage_status']=storage_status;runtime['pwa_sessions']=PwaSessionStore(settings.data_dir/'pwa-sessions.sqlite3')
+runtime['visual_intelligence']=VisualIntelligenceService(settings.data_dir/'visual-intelligence.sqlite3',events=runtime.get('events'))
 base_project_store=ProjectStore(settings.data_dir/'projects.sqlite3')
 project_store=ProjectWorkforceStoreAdapter(base_project_store,runtime['agent_workforce'],events=runtime.get('events'));runtime['project_store']=project_store;runtime['base_project_store']=base_project_store
 print(json.dumps({'event':'storage.ready',**storage_status}),flush=True)
@@ -89,12 +93,12 @@ async def lifespan(app):
         try: await retention_task
         except asyncio.CancelledError: pass
         if evaluation_task and not evaluation_task.done():evaluation_task.cancel()
-        runtime['voice'].stop();stop_e9_services(runtime);runtime['automations'].stop();runtime['telemetry'].persist();runtime['apns'].close()
+        runtime['voice'].stop();stop_e9_services(runtime);runtime['automations'].stop();runtime['telemetry'].persist();runtime['apns'].close();runtime['visual_intelligence'].close()
 
 app=create_app(runtime['executor'],settings,device_registry=runtime['device_registry'],device_gateway=runtime['device_gateway'],second_brain=runtime['second_brain'],automations=runtime['automations'],runtime=runtime)
 app.add_middleware(LogicalRequestMiddleware)
 app.add_middleware(PwaSessionMiddleware,sessions=runtime['pwa_sessions'],device_registry=runtime['device_registry'],cookie_max_age=60*60*24*max(1,min(int(getattr(settings,'iphone_device_cookie_days',365)),3650)))
-app.add_middleware(WorkflowBudgetUiMiddleware);app.add_middleware(ConnectorUiMiddleware)
+app.add_middleware(WorkflowBudgetUiMiddleware);app.add_middleware(ConnectorUiMiddleware);app.add_middleware(VisualizeUiMiddleware)
 pwa_runtime=dict(runtime);pwa_runtime['executor']=SessionBoundExecutor(runtime['executor'],continuity=runtime['continuity'],surface='iphone-pwa');pwa_runtime['continuity']=CanonicalConversationProjection(runtime['continuity'])
 app.include_router(approval_router(runtime,pwa_runtime['executor']))
 app.include_router(approvals_center_router(runtime))
@@ -103,8 +107,9 @@ app.include_router(conversation_voice_router(runtime,pwa_runtime['executor']))
 # only for /iphone and /iphone/. It injects the isolated Agents navigation
 # entry while every existing API/asset route remains owned by the canonical PWA.
 app.include_router(agent_workforce_assets_router(settings))
+app.include_router(visualize_assets_router(settings))
 _original_pwa_state=iphone_pwa_module.IphonePwaState
 iphone_pwa_module.IphonePwaState=lambda:RequestAwareIphonePwaState(cancel_turn=pwa_runtime['executor'].cancel_turn)
 try:app.include_router(iphone_pwa_module.iphone_pwa_router(pwa_runtime,settings,include_legacy_runtime_routes=False))
 finally:iphone_pwa_module.IphonePwaState=_original_pwa_state
-app.include_router(pwa_security_router(runtime));app.include_router(cloud_security_router(runtime));app.include_router(agent_continuity_router(runtime));app.include_router(identity_router(runtime));app.include_router(evidence_router(runtime));app.include_router(evolution_router(runtime));app.include_router(activities_router(runtime));app.include_router(apps_tools_router(runtime));app.include_router(devices_presence_router(runtime));app.include_router(automation_visibility_router(runtime));app.include_router(recovery_visibility_router(runtime));app.include_router(runtime_state_router(runtime));app.include_router(memory_knowledge_inspection_router(runtime));app.include_router(memory_governance_router(runtime));app.include_router(memory_ambient_router(runtime));app.include_router(everyday_intelligence_router(runtime));app.include_router(personal_operations_router(runtime));app.include_router(projects_router(runtime,project_store));app.include_router(project_work_router(runtime,project_store));app.include_router(project_autonomy_router(runtime,project_store));app.include_router(work_order_detail_router(runtime,project_store));app.include_router(global_work_router(runtime,project_store));app.include_router(work_attention_router(runtime,project_store));app.include_router(agent_workforce_pwa_router(runtime));app.include_router(agent_work_requests_router(runtime));app.include_router(multimodal_world_router(runtime));app.include_router(continuity_sync_router(runtime));app.include_router(owner_product_router(runtime));app.include_router(workflow_budget_router(runtime));app.include_router(workflow_budget_ui_router());app.include_router(connector_router(runtime));app.include_router(connector_oauth_callback_router());app.include_router(connector_ui_router());app.include_router(capability_console_router(runtime));app.router.lifespan_context=lifespan
+app.include_router(visualizations_router(runtime));app.include_router(pwa_security_router(runtime));app.include_router(cloud_security_router(runtime));app.include_router(agent_continuity_router(runtime));app.include_router(identity_router(runtime));app.include_router(evidence_router(runtime));app.include_router(evolution_router(runtime));app.include_router(activities_router(runtime));app.include_router(apps_tools_router(runtime));app.include_router(devices_presence_router(runtime));app.include_router(automation_visibility_router(runtime));app.include_router(recovery_visibility_router(runtime));app.include_router(runtime_state_router(runtime));app.include_router(memory_knowledge_inspection_router(runtime));app.include_router(memory_governance_router(runtime));app.include_router(memory_ambient_router(runtime));app.include_router(everyday_intelligence_router(runtime));app.include_router(personal_operations_router(runtime));app.include_router(projects_router(runtime,project_store));app.include_router(project_work_router(runtime,project_store));app.include_router(project_autonomy_router(runtime,project_store));app.include_router(work_order_detail_router(runtime,project_store));app.include_router(global_work_router(runtime,project_store));app.include_router(work_attention_router(runtime,project_store));app.include_router(agent_workforce_pwa_router(runtime));app.include_router(agent_work_requests_router(runtime));app.include_router(multimodal_world_router(runtime));app.include_router(continuity_sync_router(runtime));app.include_router(owner_product_router(runtime));app.include_router(workflow_budget_router(runtime));app.include_router(workflow_budget_ui_router());app.include_router(connector_router(runtime));app.include_router(connector_oauth_callback_router());app.include_router(connector_ui_router());app.include_router(capability_console_router(runtime));app.router.lifespan_context=lifespan
