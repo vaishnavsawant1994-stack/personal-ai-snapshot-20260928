@@ -35,6 +35,11 @@ const viewerAfter=`  await page.screenshot({path:\`${'${outputDir}'}/visualize-v
 if(!source.includes(viewerBefore))throw new Error('Visualize desktop viewer screenshot contract changed; update runner explicitly.');
 source=source.replace(viewerBefore,viewerAfter);
 
+const contextualBefore=`  await page.evaluate(()=>window.__VISHNU_VISUALIZE__.openContextual());`;
+const contextualAfter=`  await page.evaluate(()=>{window.__VISHNU_VISUALIZE__.selectNode('memory');window.__VISHNU_VISUALIZE__.openContextual();});`;
+if(!source.includes(contextualBefore))throw new Error('Visualize contextual open contract changed; update runner explicitly.');
+source=source.replace(contextualBefore,contextualAfter);
+
 const pathBefore=`  await page.getByRole('button',{name:'Sources'}).click();\n  assert.ok(await page.locator('.vz-source-ref').count()>=3,'Sources tab renders authored node evidence');\n  await page.getByRole('button',{name:'Paths'}).click();\n  await page.getByRole('button',{name:'Show upstream'}).click();\n  await page.waitForSelector('.vz-reach-result');\n  await page.getByRole('button',{name:'Chat'}).click();`;
 const pathAfter=`  await page.locator('#vzContextPanel [data-vz-context-tab="sources"]').click();\n  assert.ok(await page.locator('#vzContextPanel .vz-source-ref').count()>=3,'Sources tab renders authored node evidence');\n  await page.locator('#vzContextPanel [data-vz-context-tab="paths"]').click();\n  await page.locator('#vzContextPanel [data-vz-context-reach="upstream"]').click();\n  await page.waitForSelector('#vzContextPanel .vz-reach-result');\n  await page.waitForSelector('#vzContextPanel [data-vz-path-form]');\n  await page.locator('#vzContextPanel [data-vz-path-target]').selectOption('database');\n  await page.locator('#vzContextPanel [data-vz-path-form] button[type="submit"]').click();\n  await page.waitForSelector('#vzContextPanel .vz-path-result');\n  assert.match(await page.locator('#vzContextPanel .vz-path-result').innerText(),/Memory Engine.*Knowledge.*Database/s,'Paths tab renders the authored path returned by the API');\n  await page.locator('#vzContextPanel [data-vz-context-tab="chat"]').click();`;
 if(!source.includes(pathBefore))throw new Error('Visualize contextual assertion contract changed; update runner explicitly.');
