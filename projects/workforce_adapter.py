@@ -6,9 +6,10 @@ class ProjectWorkforceStoreAdapter:
 
     Projects and workforce live in separate durable SQLite stores, so pretending
     their writes are one transaction would be unsafe. Instead Project creation
-    remains authoritative and this adapter idempotently ensures a Project Manager
-    after creation/restore and whenever an active Project is read again. A crash
-    between writes is therefore repaired on the next normal access.
+    remains authoritative and this adapter idempotently reconciles Project
+    Manager + canonical Work specialist projections after creation/restore and
+    whenever an active Project is read again. A crash between writes is therefore
+    repaired on the next normal access.
     """
 
     def __init__(self, store, workforce, *, events=None):
@@ -31,17 +32,20 @@ class ProjectWorkforceStoreAdapter:
         if not project_id or status == "archived":
             return project
         try:
-            member = self._workforce.ensure_project_manager(project_id)
+            result = self._workforce.reconcile_project_work(project_id)
+            manager = result.get("manager") if isinstance(result, dict) else None
             self._emit(
-                "agent.team.manager_reconciled",
+                "agent.team.reconciled",
                 project_id=project_id,
-                instance_id=member.get("id") or member.get("instance_id"),
+                manager_instance_id=(manager or {}).get("id") or (manager or {}).get("instance_id"),
+                assignments=len((result or {}).get("assignments", [])) if isinstance(result, dict) else 0,
+                unmapped=len((result or {}).get("unmapped", [])) if isinstance(result, dict) else 0,
             )
         except Exception as exc:
-            # Project durability wins. The missing workforce member is safe to
-            # retry because ensure_project_manager is idempotent.
+            # Project durability wins. Reconciliation is idempotent and safe to
+            # retry on the next Project read; workforce never owns Project state.
             self._emit(
-                "agent.team.manager_reconcile_failed",
+                "agent.team.reconcile_failed",
                 project_id=project_id,
                 error_type=type(exc).__name__,
             )
