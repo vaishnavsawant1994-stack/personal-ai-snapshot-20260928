@@ -34,10 +34,16 @@ class Workforce:
         self.calls = []
         self.instances = {}
 
-    def ensure_project_manager(self, project_id):
+    def reconcile_project_work(self, project_id):
         self.calls.append(project_id)
         self.instances.setdefault(project_id, {"id": f"pm-{project_id}"})
-        return self.instances[project_id]
+        return {
+            "project_id": project_id,
+            "manager": self.instances[project_id],
+            "assignments": [],
+            "unmapped": [],
+            "execution_authority": False,
+        }
 
 
 class Events:
@@ -55,6 +61,7 @@ def test_new_and_walkthrough_projects_reconcile_project_manager():
     two = store.create_walkthrough()
     assert workforce.instances[one["id"]]["id"] == f"pm-{one['id']}"
     assert workforce.instances[two["id"]]["id"] == f"pm-{two['id']}"
+    assert all(name == "agent.team.reconciled" for name, _ in events.rows)
 
 
 def test_project_read_repairs_manager_missing_after_interrupted_write():
@@ -66,22 +73,33 @@ def test_project_read_repairs_manager_missing_after_interrupted_write():
     assert raw["id"] in workforce.instances
 
 
-def test_archived_projects_do_not_spawn_new_runtime_manager():
+def test_active_project_read_reconciles_canonical_work_every_time_idempotently():
+    projects, workforce = Projects(), Workforce()
+    raw = projects.create(name="Active")
+    store = ProjectWorkforceStoreAdapter(projects, workforce)
+    store.get(raw["id"])
+    store.get(raw["id"])
+    assert workforce.calls == [raw["id"], raw["id"]]
+    assert len(workforce.instances) == 1
+
+
+def test_archived_projects_do_not_spawn_new_runtime_manager_or_reconcile_work():
     projects, workforce = Projects(), Workforce()
     raw = projects.create(name="Archived")
     raw["status"] = "archived"
     store = ProjectWorkforceStoreAdapter(projects, workforce)
     store.get(raw["id"])
     assert raw["id"] not in workforce.instances
+    assert workforce.calls == []
 
 
 def test_workforce_failure_never_rolls_back_or_hides_durable_project():
     class FailingWorkforce:
-        def ensure_project_manager(self, project_id):
+        def reconcile_project_work(self, project_id):
             raise RuntimeError("workforce unavailable")
 
     projects, events = Projects(), Events()
     store = ProjectWorkforceStoreAdapter(projects, FailingWorkforce(), events=events)
     created = store.create(name="Still durable")
     assert projects.get(created["id"])["name"] == "Still durable"
-    assert events.rows[-1][0] == "agent.team.manager_reconcile_failed"
+    assert events.rows[-1][0] == "agent.team.reconcile_failed"
