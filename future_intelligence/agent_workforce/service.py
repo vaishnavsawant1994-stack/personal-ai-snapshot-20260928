@@ -3,6 +3,9 @@ from __future__ import annotations
 import re
 from collections import Counter
 
+from models.contracts import ModelRequest
+
+from .chat import AgentConversationStore
 from .models import AgentVersionState
 from .store import AgentWorkforceStore
 
@@ -28,15 +31,27 @@ class AgentWorkforceService:
 
     It allocates intelligence workers, not execution authority. Tool permission,
     approvals, durable effect execution, evidence and Completion Judge remain in
-    the existing Work/P10/P6 stack.
+    the existing Work/P10/P6 stack. Direct specialist chat is model-only and is
+    durably bound to one Project plus one immutable agent version.
     """
 
-    def __init__(self, store: AgentWorkforceStore, *, worker_registry=None, work_store=None, worker_intelligence=None, events=None):
+    def __init__(
+        self,
+        store: AgentWorkforceStore,
+        *,
+        worker_registry=None,
+        work_store=None,
+        worker_intelligence=None,
+        models=None,
+        events=None,
+    ):
         self.store = store
         self.worker_registry = worker_registry
         self.work_store = work_store
         self.worker_intelligence = worker_intelligence
+        self.models = models
         self.events = events
+        self.chat_store = AgentConversationStore(store.connection, lock=store.lock)
         self.seed_core_agents()
 
     def _emit(self, event: str, **payload):
@@ -87,6 +102,7 @@ class AgentWorkforceService:
             "versions": self.store.list_versions(template_id),
             "instances": self.store.list_instances(template_id=template_id),
             "observations": self.store.list_observations(template_id, limit=100),
+            "conversations": self.chat_store.list(template_id=template_id, limit=100),
         }
 
     def create_custom_agent(self, *, name: str, role: str, description: str, instructions: str, capabilities=(), tools=(), model_policy=None) -> dict:
@@ -168,6 +184,134 @@ class AgentWorkforceService:
 
     def project_team(self, project_id: str) -> list[dict]:
         return self.store.list_project_team(project_id)
+
+    def create_conversation(
+        self,
+        template_id: str,
+        *,
+        project_id: str,
+        instance_id: str | None = None,
+        title: str = "New agent chat",
+    ) -> dict:
+        self.store.get_template(template_id)
+        if not project_id:
+            raise ValueError("project_id is required")
+        if instance_id:
+            instance = self.store.get_instance(instance_id)
+            if instance["template_id"] != template_id:
+                raise PermissionError("instance belongs to another agent")
+            if instance["project_id"] != project_id:
+                raise PermissionError("agent instance is bound to another project")
+            version_id = instance["version_id"]
+        else:
+            version_id = self.store.preferred_version(template_id)["id"]
+        conversation = self.chat_store.create(
+            template_id=template_id,
+            version_id=version_id,
+            instance_id=instance_id,
+            project_id=project_id,
+            title=title,
+        )
+        self._emit(
+            "agent.chat.created",
+            conversation_id=conversation["id"],
+            template_id=template_id,
+            version_id=version_id,
+            project_id=project_id,
+            instance_id=instance_id,
+        )
+        return conversation
+
+    def list_conversations(self, *, template_id: str, project_id: str, limit: int = 100) -> list[dict]:
+        self.store.get_template(template_id)
+        return self.chat_store.list(template_id=template_id, project_id=project_id, limit=limit)
+
+    def conversation(self, conversation_id: str, *, project_id: str) -> dict:
+        conversation = self.chat_store.get(conversation_id)
+        if conversation["project_id"] != project_id:
+            raise PermissionError("agent conversation belongs to another project")
+        return {**conversation, "messages": self.chat_store.messages(conversation_id, limit=200)}
+
+    def direct_chat(
+        self,
+        conversation_id: str,
+        *,
+        project_id: str,
+        prompt: str,
+        project_context: str = "",
+        sensitivity: str = "internal",
+    ) -> dict:
+        conversation = self.chat_store.get(conversation_id)
+        if conversation["project_id"] != project_id:
+            raise PermissionError("agent conversation belongs to another project")
+        if conversation["state"] != "active":
+            raise RuntimeError("agent conversation is closed")
+        if self.models is None:
+            raise RuntimeError("model router unavailable")
+        version = self.store.get_version(conversation["version_id"])
+        template = self.store.get_template(conversation["template_id"])
+        instance = self.store.get_instance(conversation["instance_id"]) if conversation.get("instance_id") else None
+        if instance is not None and instance["project_id"] != project_id:
+            raise PermissionError("agent instance is bound to another project")
+
+        prior = self.chat_store.messages(conversation_id, limit=24)
+        history = tuple(
+            {"role": row["role"], "content": row["content"]}
+            for row in prior
+            if row["role"] in {"user", "assistant"}
+        )
+        user_message = self.chat_store.append(conversation_id, role="user", content=prompt)
+        system = (
+            f"You are Vishnu's {template['name']} ({template['role']}), agent version {version['version']}.\n"
+            "You are an intelligence specialist, not execution authority. Never claim a tool action, deployment, send, merge, "
+            "external change, verification or completion unless canonical Vishnu evidence supplied in this chat proves it. "
+            "Never use memory, files, decisions or context from any Project other than the Project explicitly bound to this conversation.\n"
+            f"Agent instructions:\n{version['instructions'][:16000]}\n"
+            f"Authorized Project context only:\n{str(project_context or '')[:16000]}"
+        )
+        policy = dict(version.get("model_policy") or {})
+        request = ModelRequest(
+            prompt=str(prompt)[:16000],
+            system=system,
+            history=history,
+            agent_id=conversation.get("instance_id") or conversation["template_id"],
+            project_id=project_id,
+            capability="chat",
+            routing_policy=str(policy.get("routing_policy") or "fast_chat"),
+            sensitivity=str(sensitivity or "internal"),
+            preferred_provider=(instance or {}).get("model_provider") or policy.get("provider"),
+            preferred_model=(instance or {}).get("model_id") or policy.get("model"),
+            tools_allowed=(),
+            metadata={"agent_version_id": version["id"], "agent_chat": True, "authority": False},
+        )
+        response = self.models.request(request)
+        assistant_message = self.chat_store.append(
+            conversation_id,
+            role="assistant",
+            content=response.content,
+            provider=response.provider_id,
+            model_id=response.model_id,
+            request_id=response.request_id,
+        )
+        self._emit(
+            "agent.chat.reply",
+            conversation_id=conversation_id,
+            template_id=conversation["template_id"],
+            version_id=version["id"],
+            project_id=project_id,
+            request_id=response.request_id,
+        )
+        return {
+            "conversation": self.chat_store.get(conversation_id),
+            "user_message": user_message,
+            "assistant_message": assistant_message,
+            "usage": response.usage.__dict__,
+            "provider": response.provider_id,
+            "model": response.model_id,
+            "model_output_authority": False,
+            "tool_execution_authority": False,
+            "completion_authority": False,
+        }
 
     def record_learning(self, template_id: str, version_id: str, *, kind: str, summary: str, project_id: str | None = None, work_order_id: str | None = None, score: float | None = None, evidence_ref: str | None = None) -> dict:
         observation = self.store.record_observation(
