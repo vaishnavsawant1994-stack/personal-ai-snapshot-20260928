@@ -38,6 +38,32 @@ def _split_names(value: str) -> list[str]:
     return [item.strip() for item in re.split(r'\s*,\s*|\s+and\s+', value, flags=re.I) if item.strip()]
 
 
+def _category_token(token: str) -> str:
+    value = str(token or '').strip().casefold().replace(' ', '_')
+    aliases = {
+        'agents': 'agent', 'agent': 'agent', 'tools': 'tool', 'tool': 'tool',
+        'databases': 'database', 'database': 'database', 'data': 'database',
+        'services': 'component', 'service': 'component', 'components': 'component', 'component': 'component',
+        'apis': 'api', 'api': 'api', 'security': 'security', 'external': 'external',
+        'infrastructure': 'cloud', 'cloud': 'cloud', 'knowledge': 'knowledge', 'memory': 'memory',
+        'tasks': 'task', 'task': 'task', 'milestones': 'milestone', 'milestone': 'milestone',
+    }
+    return aliases.get(value, value.rstrip('s'))
+
+
+def _nodes_for_focus_token(graph: VisualGraph, token: str) -> list[VisualNode]:
+    direct = _find_node(graph, token)
+    if direct is not None:
+        return [direct]
+    category = _category_token(token)
+    category_nodes = [node for node in graph.nodes if node.category.casefold() == category]
+    if category_nodes:
+        return category_nodes
+    needle = str(token or '').strip().casefold().rstrip('s')
+    matches = [node for node in graph.nodes if needle and (needle in node.label.casefold() or needle in node.category.casefold())]
+    return matches
+
+
 def apply_instruction(graph: VisualGraph, instruction: str) -> tuple[VisualGraph, EditReceipt]:
     """Apply a conservative, auditable natural-language visual edit.
 
@@ -104,16 +130,21 @@ def apply_instruction(graph: VisualGraph, instruction: str) -> tuple[VisualGraph
     match = re.match(r'^show\s+only\s+(.+)$', text, re.I)
     if match:
         requested = _split_names(match.group(1))
-        ids = []
-        missing = []
+        ids: list[str] = []
+        missing: list[str] = []
+        resolved: list[dict] = []
         for name in requested:
-            node = _find_node(result, name)
-            if node is None: missing.append(name)
-            else: ids.append(node.id)
+            nodes = _nodes_for_focus_token(result, name)
+            if not nodes:
+                missing.append(name)
+                continue
+            resolved.append({'token': name, 'node_ids': [node.id for node in nodes]})
+            ids.extend(node.id for node in nodes)
         if missing:
-            raise ValueError('Nodes not found or ambiguous: ' + ', '.join(missing))
+            raise ValueError('Nodes or categories not found: ' + ', '.join(missing))
+        ids = list(dict.fromkeys(ids))
         result.metadata['preferred_focus'] = ids
-        operations.append({'op': 'preferred_focus', 'node_ids': ids})
+        operations.append({'op': 'preferred_focus', 'node_ids': ids, 'resolved': resolved})
         return result, EditReceipt(text, operations, True)
 
     match = re.match(r'^group\s+(.+?)\s+as\s+(.+)$', text, re.I)
@@ -142,6 +173,7 @@ def apply_instruction(graph: VisualGraph, instruction: str) -> tuple[VisualGraph
     if lowered in {'reset layout', 'relayout', 're-layout', 'auto layout'}:
         for node in result.nodes:
             node.x = None; node.y = None
+        result.metadata.pop('preferred_focus', None)
         operations.append({'op': 'reset_layout', 'node_count': len(result.nodes)})
         return result, EditReceipt(text, operations, True)
 
@@ -150,7 +182,7 @@ def apply_instruction(graph: VisualGraph, instruction: str) -> tuple[VisualGraph
         operations.append({'op': 'presentation_filter', 'value': result.metadata['presentation_filter']})
         return result, EditReceipt(text, operations, True)
 
-    raise ValueError('Unsupported edit. Try: move <node> left/right/up/down, move <node> to x,y, rename <node> to <name>, highlight <node>, show only <nodes>, group <nodes> as <name>, simplify, or reset layout.')
+    raise ValueError('Unsupported edit. Try: move <node> left/right/up/down, move <node> to x,y, rename <node> to <name>, highlight <node>, show only <nodes/categories>, group <nodes> as <name>, simplify, or reset layout.')
 
 
 def repair_graph(graph: VisualGraph) -> tuple[VisualGraph, dict]:
