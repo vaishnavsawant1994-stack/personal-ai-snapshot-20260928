@@ -146,11 +146,19 @@ class DeepGitHubRepositoryAnalyzer:
                     raise ValueError('GitHub default branch could not be resolved')
                 branch_response.raise_for_status()
                 branch_payload = branch_response.json()
-                commit_sha = str((branch_payload.get('commit') or {}).get('sha') or '').strip()
+                commit_payload = branch_payload.get('commit') or {}
+                commit_sha = str(commit_payload.get('sha') or '').strip()
                 if not re.fullmatch(r'[0-9a-fA-F]{40}', commit_sha):
                     raise ValueError('GitHub default branch did not resolve to an immutable commit')
+                tree_sha = str((((commit_payload.get('commit') or {}).get('tree') or {}).get('sha')) or '').strip()
+                if not re.fullmatch(r'[0-9a-fA-F]{40}', tree_sha):
+                    commit_response = client.get(f'https://api.github.com/repos/{owner}/{repo}/git/commits/{commit_sha}')
+                    commit_response.raise_for_status()
+                    tree_sha = str(((commit_response.json().get('tree') or {}).get('sha')) or '').strip()
+                if not re.fullmatch(r'[0-9a-fA-F]{40}', tree_sha):
+                    raise ValueError('GitHub commit did not resolve to an immutable source tree')
 
-                tree_response = client.get(f'https://api.github.com/repos/{owner}/{repo}/git/trees/{commit_sha}', params={'recursive': '1'})
+                tree_response = client.get(f'https://api.github.com/repos/{owner}/{repo}/git/trees/{tree_sha}', params={'recursive': '1'})
                 if tree_response.status_code in {403, 404}:
                     raise ValueError('GitHub repository source tree could not be read')
                 tree_response.raise_for_status()
@@ -186,8 +194,8 @@ class DeepGitHubRepositoryAnalyzer:
         root = VisualNode(
             id='repository', label=title or str(metadata.get('name') or repo), category='project',
             description=f'Public GitHub repository {owner}/{repo} at {commit_sha[:12]}', evidence_level=EvidenceLevel.STRONG,
-            evidence=[{'kind': 'repository', 'url': repository_url, 'branch': branch, 'ref': commit_sha, 'tree_sha': tree_payload.get('sha')}],
-            metadata={'repository': f'{owner}/{repo}', 'branch': branch, 'commit_sha': commit_sha, 'tree_sha': tree_payload.get('sha')},
+            evidence=[{'kind': 'repository', 'url': repository_url, 'branch': branch, 'ref': commit_sha, 'tree_sha': tree_sha}],
+            metadata={'repository': f'{owner}/{repo}', 'branch': branch, 'commit_sha': commit_sha, 'tree_sha': tree_sha},
         )
         nodes = [root]
         edges: list[VisualEdge] = []
@@ -239,7 +247,7 @@ class DeepGitHubRepositoryAnalyzer:
             edges=edges,
             metadata={
                 'analysis': 'github-source-code', 'repository': f'{owner}/{repo}', 'repository_url': repository_url,
-                'branch': branch, 'commit_sha': commit_sha, 'tree_sha': tree_payload.get('sha'), 'tree_truncated': bool(tree_payload.get('truncated')),
+                'branch': branch, 'commit_sha': commit_sha, 'tree_sha': tree_sha, 'tree_truncated': bool(tree_payload.get('truncated')),
                 'path_count': len(all_items), 'source_candidates': len(source_items), 'source_files_analyzed': len(files),
                 'evidence_policy': 'verified means exact fetched source lines pinned to the recorded immutable commit SHA',
             },
