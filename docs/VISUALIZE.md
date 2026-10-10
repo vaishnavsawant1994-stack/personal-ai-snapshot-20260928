@@ -1,10 +1,10 @@
 # Vishnu Visualize
 
-Visualize is Vishnu's native visual-intelligence workspace. It turns owner-provided descriptions and Vishnu-owned context into typed, validated, explorable visual artifacts without exposing private model chain-of-thought.
+Visualize is Vishnu's native visual-intelligence workspace. It turns owner-provided descriptions and authorized Vishnu context into typed, validated, explorable visual artifacts without exposing private model chain-of-thought.
 
 ## Product surface
 
-The PWA receives a first-class **Visualize** menu item between Activities and Tools. The workspace supports six visual models:
+The PWA exposes **Visualize** between Activities and Tools and supports six canonical models:
 
 - Architecture
 - Workflow
@@ -13,11 +13,11 @@ The PWA receives a first-class **Visualize** menu item between Activities and To
 - Lifecycle
 - Project Map
 
-The initial production implementation includes creation, real Project/Conversation/GitHub/File source pickers, recent visuals, search, node inspection, evidence levels, upstream/downstream reachability, authored path finding, version history, visual-to-visual comparison, SVG rendering, standalone HTML export, and an Ask Vishnu handoff.
+The production surface supports creation from descriptions, Vishnu Projects, Conversations, public GitHub repositories and supported files; native Knowledge Maps, privacy-scoped Memory Maps and Live Work maps; recent visuals and Gallery; node intelligence; evidence; reachability and path finding; revisions and comparison; natural-language visual editing; presentation mode; a shared 2D/3D projection; and HTML/SVG/PNG/WebP/PDF/JSON export.
 
 ## Trust boundary
 
-Visualize distinguishes visual structure from evidence. A relationship in the visual IR is an authored relationship; reachability does not claim runtime impact, blast radius, breakage, or causality. Nodes carry one of these evidence levels:
+Visual structure and evidence are separate. A relationship in the visual IR is an authored relationship; graph reachability does **not** claim runtime impact, blast radius, breakage or causality. Nodes use these evidence levels:
 
 - `verified`
 - `strong`
@@ -25,9 +25,9 @@ Visualize distinguishes visual structure from evidence. A relationship in the vi
 - `user_supplied`
 - `unverified`
 
-The UI preserves those labels instead of presenting every AI-authored claim as verified fact. Public repository tree evidence is currently `strong`; deeper source-line analyzers may promote facts only after deterministic verification.
+`verified` source-code evidence is reserved for exact fetched source lines pinned to an immutable GitHub commit SHA. Repository-level or heuristic interpretation is not promoted to verified merely because it came from a repository.
 
-## Pipeline
+## Compiler-style pipeline
 
 ```text
 Input / Vishnu context
@@ -36,27 +36,31 @@ Analysis adapter
         ↓
 Typed VisualGraph IR
         ↓
-Semantic validation
+Deterministic layout
         ↓
-Deterministic layered layout
+Validation
         ↓
-SVG renderer
+Deterministic structural repair when safe
         ↓
-Interactive Vishnu viewer
+Re-validation
         ↓
-Versioned persistence + export
+Renderer / viewer / projections
+        ↓
+Versioned persistence + exports
 ```
 
-Authored coordinates are preserved. The deterministic layout only fills missing coordinates, so repository-specific analyzers and later higher-quality layout agents can own composition without changing the viewer contract.
+A candidate graph is validated before persistence. Structurally repairable defects receive a machine-readable repair receipt; an unrecoverable candidate does not replace the last persisted good revision.
+
+Authored coordinates are preserved. Layout only fills missing coordinates. Presentation and 3D are projections of the same canonical IDs rather than independent data models.
 
 ## Persistence
 
-`visual_intelligence.store.VisualStore` owns `visual-intelligence.sqlite3` and creates:
+`visual_intelligence.store.VisualStore` owns `visual-intelligence.sqlite3` and persists:
 
 - `visualizations`
 - `visualization_revisions`
 
-Every graph mutation creates a revision. Visual records can be scoped to `project_id` and `conversation_id` and record their source kind/reference.
+Every canonical graph mutation creates a revision. Visual records may be scoped to project/conversation IDs and retain source kind/reference.
 
 ## API
 
@@ -65,66 +69,120 @@ Owner-authenticated routes live under `/iphone/api/visualizations`:
 - `GET /iphone/api/visualizations`
 - `POST /iphone/api/visualizations`
 - `POST /iphone/api/visualizations/from-file`
+- `POST /iphone/api/visualizations/knowledge-map`
+- `POST /iphone/api/visualizations/memory-map`
+- `POST /iphone/api/visualizations/live-work-map`
 - `POST /iphone/api/visualizations/compare`
 - `GET /iphone/api/visualizations/{id}`
 - `PATCH /iphone/api/visualizations/{id}`
 - `DELETE /iphone/api/visualizations/{id}`
+- `POST /iphone/api/visualizations/{id}/edit`
+- `POST /iphone/api/visualizations/{id}/repair`
 - `POST /iphone/api/visualizations/{id}/refresh`
 - `GET /iphone/api/visualizations/{id}/revisions`
 - `POST /iphone/api/visualizations/{id}/reach`
 - `POST /iphone/api/visualizations/{id}/path`
+- `GET /iphone/api/visualizations/{id}/presentation`
+- `GET /iphone/api/visualizations/{id}/scene?dimension=2d|3d`
+- `GET /iphone/api/visualizations/{id}/export?format=html|svg|json|png|webp|pdf`
 - `GET /iphone/api/visualizations/{id}/artifact`
-
-The routes use the same durable owner-device authentication used by the rest of the Vishnu PWA.
 
 ## Native context adapters
 
-### Projects
+### Projects and Live Work
 
-The UI opens the canonical project list. When `source_kind=project` and `project_id` are supplied, the API reads the canonical project store and builds a Project Map from the real goal, tasks, milestones, source files, active/blocked/review work, and task ownership. A refresh re-reads current project state.
+Project Map reads the canonical ProjectStore. Live Work projects goal/milestones/tasks, dependencies, assigned agents, execution-run IDs and project files from current project state. A live-work refresh re-reads the canonical project.
 
 ### Conversations
 
-The UI opens the canonical conversation list. When `source_kind=conversation` and `conversation_id` are supplied, the API reads the canonical continuity store and composes the visual source from persisted owner/Vishnu messages. A refresh re-reads the conversation.
+Conversation visuals read persisted canonical continuity events and refresh from that same source.
 
-### GitHub
+### GitHub deep source analysis
 
-The public GitHub adapter accepts only canonical HTTPS repository URLs on `github.com`, resolves the repository metadata/default branch through the fixed GitHub API host, reads the repository tree, and produces an Architecture graph whose nodes include repository-path evidence. It does not perform arbitrary URL fetching and does not label repository-tree inference as verified source-code proof.
+The GitHub adapter is bounded to canonical HTTPS `github.com/<owner>/<repo>` repositories and the fixed GitHub API host. Deep analysis resolves the default branch to an immutable commit SHA, reads the commit-pinned source tree, fetches a bounded set of source files and extracts supported source facts including:
+
+- files/modules
+- Python imports
+- JavaScript/TypeScript relative imports
+- classes/functions
+- supported route declarations
+- exact source-line ranges
+
+Verified nodes/relationships retain repository, branch, commit SHA, path, exact line range and blob SHA. The earlier tree-level analyzer remains an explicit lower-depth mode and keeps `strong` evidence semantics.
 
 ### Files
 
-`POST /from-file` accepts an owner-authenticated base64 file payload up to 6 MB. The extractor supports PDF, DOCX, CSV, JSON/JSONL/YAML, Markdown/text, and common source-code formats. Extracted content becomes the visual source; unsupported binaries fail closed. The current implementation keeps the extracted text owner-scoped inside Vishnu visual persistence.
+Owner-authenticated file ingestion supports PDF, DOCX, CSV, JSON/JSONL/YAML, Markdown/text and common source-code formats with explicit size/type limits.
 
-### Knowledge
+### Knowledge Maps
 
-The graph/evidence contracts are ready for a direct Knowledge adapter, but private Knowledge is not automatically exposed or made shareable by this implementation.
+Knowledge Map reads the existing governed KnowledgeStore. It respects the trusted-device knowledge scope and includes private documents only when `knowledge:private` is authorized. It projects collections, current documents and canonical knowledge-memory links without changing the underlying knowledge store.
+
+### Memory Maps
+
+Memory Map reads the existing Second Brain Life Graph. Normal-sensitivity memories are the default. Sensitive/secret memory requires both an explicit `include_sensitive` request and the device's `memory:sensitive` authorization. Maps are snapshot visuals and remain owner-scoped.
+
+## Natural-language visual editing
+
+The governed edit endpoint supports explicit presentation edits such as:
+
+- `Move Memory Engine right 180`
+- `Move API to 500,300`
+- `Rename API to Request Gateway`
+- `Highlight Authentication Service`
+- `Show only Agents and Tools`
+- `Group Database and File Storage as Persistence`
+- `Simplify`
+- `Reset layout`
+
+These edits are deliberately conservative: they may change presentation/grouping/labels but do not invent architectural facts. Every persisted edit creates a revision and returns an operation receipt.
+
+## Presentation and shared 2D/3D model
+
+Presentation mode creates guided semantic views such as Overview, Agents, Memory & Data, Security, Interfaces & APIs, Tools & Integrations and Infrastructure. Authored views may also become slides.
+
+`scene?dimension=2d|3d` projects the same canonical nodes/edges into scene coordinates. The 3D view is therefore a projection of the VisualGraph, not a separate architecture model that can drift.
+
+## Exports
+
+Authenticated export supports:
+
+- interactive HTML
+- SVG
+- PNG
+- WebP
+- PDF
+- canonical JSON
+
+Raster/PDF outputs are rendered from canonical graph coordinates. JSON exports the typed canonical graph.
 
 ## UI isolation
 
-The main `pwa/index.html` is intentionally not expanded with another large inline feature. `server.visualize_ui.VisualizeUiMiddleware` injects four isolated assets only into the canonical `/iphone` HTML shell:
+The existing `pwa/index.html` remains authoritative. `VisualizeUiMiddleware` injects isolated same-origin bundles only into `/iphone`:
 
 - `/iphone/visualize-workspace.css`
 - `/iphone/visualize-sources.css`
+- `/iphone/visualize-advanced.css`
 - `/iphone/visualize-workspace.js`
 - `/iphone/visualize-sources.js`
+- `/iphone/visualize-advanced.js`
 
-API, manifest, service-worker and other asset responses are untouched. If a downstream HTML response is already content-encoded, the middleware does not attempt unsafe byte rewriting.
+Manifest, service-worker, API and unrelated asset responses are untouched.
 
 ## Security and privacy
 
-- Visual APIs require a trusted, active Vishnu owner device.
-- Visual data is owner-scoped in persistence.
-- Project and conversation hydration use already-authorized server-side stores.
-- Public GitHub fetching is host-bounded to GitHub's repository API and rejects arbitrary hosts/paths.
-- File payloads have a size limit and an explicit supported-format allowlist.
-- Standalone artifact export is authenticated at generation time.
-- Private memory/knowledge sharing is not automatically enabled.
-- The viewer displays work state and authored structure, not hidden chain-of-thought.
+- Visual APIs require a trusted active owner device.
+- Visual persistence is owner-scoped.
+- Project/conversation/knowledge/memory hydration uses existing server-side authorization boundaries.
+- Public GitHub fetching is host-bounded and commit-pinned for verified source evidence.
+- File payloads use size limits and allowlisted formats.
+- Sensitive memory is opt-in and permission-gated.
+- Private Knowledge obeys `knowledge:private` authorization.
+- The UI visualizes structured work state, not hidden chain-of-thought.
+- Reachability is never presented as runtime-impact proof.
 
 ## Qualification
 
-CI compiles the new Python package, syntax-checks both browser bundles with Node, and runs dedicated Visualize engine/source-adapter tests before the repository-wide qualification suite.
+CI compiles the complete Python package, syntax-checks all three browser JS bundles and the browser harness, runs dedicated Visual Intelligence tests, and then executes the repository-wide Vishnu qualification suite. The Playwright Visualize suite uses the production Visualize bundles inside the canonical `/iphone` shell and exercises the authoritative eight-screen UI plus advanced Edit, Presentation, 3D, exports and native-map entry points.
 
-## Next depth upgrades
-
-The typed IR is designed so source-line/code-symbol verification, direct Knowledge maps, live-project update policies, PNG/PDF/WebP exports, guided presentation views, richer repository dependency analysis, and the planned 3D Project Structure can reuse the same canonical graph rather than creating separate diagram data models.
+Physical-iPhone acceptance remains a release gate where required by the product release contract.
