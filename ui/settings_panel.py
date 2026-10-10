@@ -214,7 +214,7 @@ class SettingsPanel(QDialog):
         mrefresh = QPushButton('Refresh model status')
         mrefresh.clicked.connect(self.refresh_model_view)
         mprobe = QPushButton('Run bounded health check')
-        mprobe.clicked.connect(lambda: self.refresh_model_view(True))
+        mprobe.clicked.connect(lambda:self.refresh_model_view(True))
         mrow.addWidget(mrefresh)
         mrow.addWidget(mprobe)
         lay.addLayout(mrow)
@@ -426,9 +426,13 @@ class SettingsPanel(QDialog):
         self.model_provider.blockSignals(True)
         self.model_provider.clear()
         if models:
-            for provider in models.providers.values():
-                if not bool(getattr(provider, 'private', False)):
-                    self.model_provider.addItem(provider.id)
+            try:
+                report = models.health_status(probe=False) if hasattr(models, 'health_status') else models.status(probe=False)
+            except Exception:
+                report = {'providers': []}
+            for provider in report.get('providers', []):
+                if not bool(provider.get('private', False)) and provider.get('id'):
+                    self.model_provider.addItem(str(provider['id']))
         if current:
             self.model_provider.setCurrentText(current)
         self.model_provider.blockSignals(False)
@@ -442,7 +446,7 @@ class SettingsPanel(QDialog):
             return
         try:
             result = models.test_owner_provider(provider_id, api_key)
-            QMessageBox.information(self, 'Provider test', f"Connection succeeded. {result.get('model_count', 0)} model(s) were reported.")
+            QMessageBox.information(self, 'Provider test', f"Connection succeeded. {len(result.get('models', []))} model(s) were reported.")
         except Exception as exc:
             QMessageBox.warning(self, 'Provider test failed', str(exc))
 
@@ -497,7 +501,7 @@ class SettingsPanel(QDialog):
         except Exception as exc:
             QMessageBox.warning(self, 'Provider not disconnected', str(exc))
 
-    def refresh_model_view(self, probe=False):
+    def refresh_model_view(self,probe=False):
         models = self.runtime.get('models')
         try:
             report = models.health_status(probe=probe) if models and hasattr(models, 'health_status') else models.status(probe=probe)
