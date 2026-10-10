@@ -68,9 +68,6 @@ def build_repository_graph(*, owner: str, repo: str, branch: str, paths: list[st
         first = clean.split('/', 1)[0]
         top_level[first] = top_level.get(first, 0) + 1
 
-    # Prefer directories/subsystems with multiple descendants, then important
-    # repository-level files. Keep the visual readable while retaining the
-    # complete path inventory in graph metadata for later deeper analysis.
     ranked = sorted(top_level.items(), key=lambda item: (-item[1], item[0].casefold()))[:36]
     for index, (name, count) in enumerate(ranked, 1):
         node_id = f'repo-{index}'
@@ -118,22 +115,27 @@ class GitHubRepositoryAnalyzer:
     def analyze(self, url: str, *, title: str | None = None) -> VisualGraph:
         owner, repo = parse_github_repository_url(url)
         headers = {'Accept': 'application/vnd.github+json', 'User-Agent': 'Vishnu-Visualize/1.0'}
-        with httpx.Client(timeout=self.timeout_seconds, follow_redirects=False, headers=headers) as client:
-            meta_response = client.get(f'https://api.github.com/repos/{owner}/{repo}')
-            if meta_response.status_code == 404:
-                raise ValueError('GitHub repository was not found or is not public')
-            if meta_response.status_code == 403:
-                raise ValueError('GitHub API rate limit reached; try again after the limit resets')
-            meta_response.raise_for_status()
-            metadata = meta_response.json()
-            branch = str(metadata.get('default_branch') or 'main')
-            tree_response = client.get(f'https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}', params={'recursive': '1'})
-            if tree_response.status_code == 404:
-                raise ValueError('GitHub repository tree could not be read')
-            if tree_response.status_code == 403:
-                raise ValueError('GitHub API rate limit reached; try again after the limit resets')
-            tree_response.raise_for_status()
-            tree_payload = tree_response.json()
+        try:
+            with httpx.Client(timeout=self.timeout_seconds, follow_redirects=False, headers=headers) as client:
+                meta_response = client.get(f'https://api.github.com/repos/{owner}/{repo}')
+                if meta_response.status_code == 404:
+                    raise ValueError('GitHub repository was not found or is not public')
+                if meta_response.status_code == 403:
+                    raise ValueError('GitHub API rate limit reached; try again after the limit resets')
+                meta_response.raise_for_status()
+                metadata = meta_response.json()
+                branch = str(metadata.get('default_branch') or 'main')
+                tree_response = client.get(f'https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}', params={'recursive': '1'})
+                if tree_response.status_code == 404:
+                    raise ValueError('GitHub repository tree could not be read')
+                if tree_response.status_code == 403:
+                    raise ValueError('GitHub API rate limit reached; try again after the limit resets')
+                tree_response.raise_for_status()
+                tree_payload = tree_response.json()
+        except ValueError:
+            raise
+        except httpx.HTTPError as exc:
+            raise ValueError('GitHub repository could not be reached safely') from exc
         paths = [str(item.get('path') or '') for item in tree_payload.get('tree') or [] if item.get('path')]
         graph = build_repository_graph(
             owner=owner,
