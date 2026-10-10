@@ -79,11 +79,13 @@ class _FakeGitHubClient:
                 {'path': 'app/main.py', 'type': 'blob', 'sha': '1' * 40, 'size': 120},
                 {'path': 'app/db.py', 'type': 'blob', 'sha': '2' * 40, 'size': 80},
             ]})
-        if url.endswith('/contents/app/main.py'):
-            assert params == {'ref': self.commit_sha}
+        if url == f'https://raw.githubusercontent.com/example/deep-demo/{self.commit_sha}/app/main.py':
+            assert params is None
+            assert headers['Accept'].startswith('text/plain')
             return _FakeResponse(text="from .db import store\nfrom fastapi import APIRouter\nrouter=APIRouter()\n\n@router.get('/health')\ndef health():\n    return store.ok()\n")
-        if url.endswith('/contents/app/db.py'):
-            assert params == {'ref': self.commit_sha}
+        if url == f'https://raw.githubusercontent.com/example/deep-demo/{self.commit_sha}/app/db.py':
+            assert params is None
+            assert headers['Accept'].startswith('text/plain')
             return _FakeResponse(text='class Store:\n    def ok(self):\n        return True\n\nstore=Store()\n')
         raise AssertionError(f'Unexpected GitHub request: {url}')
 
@@ -94,6 +96,7 @@ def test_deep_repository_analysis_pins_verified_evidence_to_commit(monkeypatch):
     assert graph.metadata['analysis'] == 'github-source-code'
     assert graph.metadata['commit_sha'] == _FakeGitHubClient.commit_sha
     assert graph.metadata['tree_sha'] == _FakeGitHubClient.tree_sha
+    assert graph.metadata['source_files_analyzed'] == 2
     verified = [node for node in graph.nodes if node.evidence_level.value == 'verified']
     assert verified
     evidence = [item for node in verified for item in node.evidence if item.get('kind') == 'source_lines']
