@@ -3,207 +3,201 @@
 
 const API='/iphone/api/visualizations';
 const TYPES=[
-  ['architecture','Architecture','Components, services and relationships'],
-  ['workflow','Workflow','Steps, agents, decisions and execution'],
-  ['sequence','Sequence','Interactions ordered through time'],
-  ['dataflow','Data Flow','Where information moves and changes'],
-  ['lifecycle','Lifecycle','States, transitions and recovery'],
-  ['project_map','Project Map','Goals, work, agents, tools and evidence'],
+  ['architecture','Architecture'],['workflow','Workflow'],['sequence','Sequence'],['dataflow','Data Flow'],['lifecycle','Lifecycle'],['project_map','Project Map'],
 ];
+const GALLERY=[
+  {title:'Vishnu Agent Runtime',type:'architecture',category:'Architecture',description:'Owner request -> planner -> governed agents -> tools -> evidence -> completion.'},
+  {title:'Project Execution',type:'project_map',category:'Projects',description:'Goals, milestones, tasks, workers, approvals, evidence and project completion.'},
+  {title:'AI Provider Routing',type:'dataflow',category:'Data',description:'Request routing across configured AI providers, policy checks and model responses.'},
+  {title:'Memory System',type:'architecture',category:'Architecture',description:'Conversation context -> governed memory -> knowledge -> agent runtime.'},
+  {title:'Approval Workflow',type:'workflow',category:'Workflows',description:'Plan -> governed action -> owner approval -> execution -> verification.'},
+  {title:'GitHub Development',type:'workflow',category:'Workflows',description:'Issue -> branch -> implementation -> tests -> review -> merge qualification.'},
+  {title:'Authentication Flow',type:'sequence',category:'Sequences',description:'Client -> identity -> verification -> trusted device -> authenticated session.'},
+  {title:'Tool Execution',type:'architecture',category:'Architecture',description:'Agent runtime -> tool registry -> permission gate -> tool -> result evidence.'},
+  {title:'Knowledge Map',type:'project_map',category:'Projects',description:'Knowledge sources -> indexed evidence -> concepts -> projects -> agent context.'},
+];
+const NAV=[
+  ['home','Home','⌂'],['today','Today','▣'],['conversations','Conversations','▢'],['projects','Projects','▰'],['memory','Memory','▤'],['knowledge','Knowledge','◫'],['activities','Activities','⌘'],['visualize','Visualize','⌁'],['tools','Tools','▱'],['workflows','Workflows','⌗'],
+];
+const LAYERS=[
+  ['services','Services'],['agents','Agents'],['database','Database'],['external','External'],['tools','Tools'],['infrastructure','Infrastructure'],
+];
+const VIEWS=[['overview','Overview'],['agents','Agents'],['memory','Memory'],['security','Security'],['data','Data'],['infrastructure','Infrastructure'],['api','API'],['deployment','Deployment']];
 const icons={
-  graph:'<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="5" r="2.2"/><circle cx="7" cy="19" r="2.2"/><circle cx="18" cy="17" r="2.2"/><path d="M7 6.4 17 5.4M6 8l1 8.7m2-1 7-8.5m-7.2 11 7-1.2"/></svg>',
-  back:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5m7-7-7 7 7 7"/></svg>',
-  close:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>',
-  plus:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
-  project:'<svg viewBox="0 0 24 24"><path d="M3 7h7l2 2h9v10H3z"/><path d="M3 7V5h7l2 2"/></svg>',
+  graph:'<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="7" cy="19" r="2"/><circle cx="18" cy="17" r="2"/><path d="M7 6.4 17 5.4M6 8l1 8.7m2-1 7-8.5m-7.2 11 7-1.2"/></svg>',
+  menu:'<svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
+  back:'<svg viewBox="0 0 24 24"><path d="M19 12H5m7-7-7 7 7 7"/></svg>',
+  search:'<svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg>',
+  plus:'<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+  project:'<svg viewBox="0 0 24 24"><path d="M3 7h7l2 2h9v10H3zM3 7V5h7l2 2"/></svg>',
   github:'<svg viewBox="0 0 24 24"><path d="M8 20c-4 1.3-4-2-5-2.5M15.5 22v-3.2a2.8 2.8 0 0 0-.8-2.2c2.6-.3 5.3-1.3 5.3-5.8A4.5 4.5 0 0 0 18.8 7a4.2 4.2 0 0 0-.1-3.7S17.7 3 15.5 4.5a12.7 12.7 0 0 0-7 0C6.3 3 5.3 3.3 5.3 3.3A4.2 4.2 0 0 0 5.2 7 4.5 4.5 0 0 0 4 10.8c0 4.5 2.7 5.5 5.3 5.8a2.8 2.8 0 0 0-.8 2.2V22"/></svg>',
   chat:'<svg viewBox="0 0 24 24"><path d="M4 5h16v12H9l-5 3z"/></svg>',
   file:'<svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6zM14 3v5h5"/></svg>',
-  search:'<svg viewBox="0 0 24 24"><circle cx="10.7" cy="10.7" r="6"/><path d="m15.3 15.3 4.5 4.5"/></svg>',
+  magic:'<svg viewBox="0 0 24 24"><path d="m4 20 10-10m-7-3 2 2M15 3l1 3 3 1-3 1-1 3-1-3-3-1 3-1zM19 14l.7 2.3L22 17l-2.3.7L19 20l-.7-2.3L16 17l2.3-.7z"/></svg>',
+  share:'<svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="2"/><circle cx="6" cy="12" r="2"/><circle cx="18" cy="19" r="2"/><path d="m8 11 8-5M8 13l8 5"/></svg>',
+  compare:'<svg viewBox="0 0 24 24"><path d="M8 4v16m8-16v16M4 8l4-4 4 4m0 8 4 4 4-4"/></svg>',
   export:'<svg viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M4 13v7h16v-7"/></svg>',
-  history:'<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2-5.3L4 9M4 4v5h5M12 8v5l3 2"/></svg>',
+  more:'<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg>',
 };
 
-const state={visuals:[],filter:'all',type:'architecture',sourceKind:'description',active:null,selectedNode:null,compare:null};
-let workspace,viewer,mobileSheet,toastTimer;
+const state={
+  visuals:[],screen:'home',type:'architecture',galleryFilter:'All',search:'',active:null,selectedNode:null,zoom:1,hiddenLayers:new Set(),view:'overview',contextTab:'chat',reach:null,path:null,
+};
+let workspace=null,viewer=null,modal=null,navBackdrop=null,contextPanel=null,mobileDetails=null,toastTimer=null;
 
-function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
-function byId(id){return document.getElementById(id)}
-async function request(path='',options={}){
-  const response=await fetch(API+path,{credentials:'same-origin',...options,headers:{'Content-Type':'application/json',...(options.headers||{})}});
-  let data={};try{data=await response.json()}catch{}
-  if(!response.ok)throw new Error((data.detail&&typeof data.detail==='object'?(data.detail.message||data.detail.code):data.detail)||data.error||`Request failed (${response.status})`);
+function esc(value){return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));}
+function byId(id){return document.getElementById(id);}
+function typeLabel(value){return TYPES.find(item=>item[0]===value)?.[1]||String(value||'Visual');}
+function sourceLabel(kind){return ({project:'Project',github:'GitHub',conversation:'Conversation',files:'Files & Sources',description:'Description'})[kind]||String(kind||'Source');}
+function inferTitle(text,type){const first=String(text||'').split(/\n|\.|:/)[0].trim().replace(/^(show|visualize|map|diagram)\s+(me\s+)?/i,'');return (first||typeLabel(type)).slice(0,92);}
+function jsonHeaders(extra={}){return {'Content-Type':'application/json',...extra};}
+async function api(path='',options={}){
+  const response=await fetch(API+path,{credentials:'same-origin',...options,headers:jsonHeaders(options.headers||{})});
+  let data={};try{data=await response.json();}catch{}
+  if(!response.ok){const detail=data?.detail;throw new Error((typeof detail==='object'?(detail.message||detail.code):detail)||data.error||`Request failed (${response.status})`);}
   return data;
 }
-function showToast(message){
-  let node=byId('vzToast');if(!node){node=document.createElement('div');node.id='vzToast';node.className='vz-toast';document.body.append(node)}
-  node.textContent=message;node.classList.remove('vz-hidden');clearTimeout(toastTimer);toastTimer=setTimeout(()=>node.classList.add('vz-hidden'),2800);
+async function appApi(path,options={}){
+  const response=await fetch('/iphone/api'+path,{credentials:'same-origin',...options,headers:jsonHeaders(options.headers||{})});
+  let data={};try{data=await response.json();}catch{}
+  if(!response.ok)throw new Error(data.detail||`Request failed (${response.status})`);
+  return data;
 }
-function inferTitle(text,type){
-  const first=String(text||'').split(/\n|\.|:/)[0].trim().replace(/^(show|visualize|map|diagram)\s+(me\s+)?/i,'');
-  return (first||TYPES.find(t=>t[0]===type)?.[1]||'Untitled visual').slice(0,92);
-}
-function typeLabel(type){return TYPES.find(item=>item[0]===type)?.[1]||type}
-function sourceLabel(kind){return ({project:'Project',github:'GitHub',conversation:'Conversation',files:'Files & sources',description:'Description'})[kind]||kind}
+function toast(message){let node=byId('vzToast');if(!node){node=document.createElement('div');node.id='vzToast';node.className='vz-toast';document.body.append(node);}node.textContent=message;node.classList.remove('vz-hidden');clearTimeout(toastTimer);toastTimer=setTimeout(()=>node.classList.add('vz-hidden'),2600);}
+function brandMark(){return '<span class="vz-brand-mark" aria-hidden="true"><i></i><b>V</b></span>';}
 
 function ensureNavEntry(){
-  if(document.querySelector('[data-app-module="visualize"]'))return;
-  const nav=document.querySelector('.sidebar-main-nav');if(!nav)return;
+  if(document.querySelector('[data-app-module="visualize"]'))return true;
+  const nav=document.querySelector('.sidebar-main-nav');if(!nav)return false;
   const button=document.createElement('button');button.type='button';button.className='sidebar-nav-row';button.dataset.appModule='visualize';button.innerHTML=`${icons.graph}<span>Visualize</span>`;
   const tools=nav.querySelector('[data-app-module="tools"]');nav.insertBefore(button,tools||null);
-  button.addEventListener('click',event=>{event.preventDefault();event.stopImmediatePropagation();closeDrawerIfOpen();openWorkspace()},{capture:true});
+  button.addEventListener('click',event=>{event.preventDefault();event.stopImmediatePropagation();closeHostDrawer();openWorkspace();},{capture:true});
+  return true;
 }
-function closeDrawerIfOpen(){
-  const drawer=byId('appDrawer'),overlay=byId('drawerOverlay');if(drawer){drawer.classList.add('hidden');drawer.setAttribute('aria-hidden','true')}if(overlay)overlay.classList.add('hidden');
+function closeHostDrawer(){const drawer=byId('appDrawer'),overlay=byId('drawerOverlay');if(drawer){drawer.classList.add('hidden');drawer.setAttribute('aria-hidden','true');}if(overlay)overlay.classList.add('hidden');}
+function hostModule(module){
+  closeViewer();closeWorkspace();
+  const target=document.querySelector(`[data-app-module="${CSS.escape(module)}"]`);if(target&&target.dataset.appModule!=='visualize')target.click();
 }
 
-function workspaceMarkup(){return `<section id="visualizeWorkspace" class="vz-workspace vz-hidden" aria-label="Vishnu Visualize">
-<div class="vz-shell">
-<header class="vz-topbar">
-  <div class="vz-topbar-left"><button id="vzClose" class="vz-icon-btn" type="button" aria-label="Close Visualize">${icons.back}</button><span class="vz-title">Visualize</span></div>
-  <div class="vz-status"><i></i><span>Visual intelligence</span></div>
-  <div class="vz-topbar-right"><button id="vzRefresh" class="vz-action" type="button">Refresh</button><button id="vzNew" class="vz-action primary" type="button">+ Create visual</button></div>
-</header>
-<div class="vz-body">
-  <aside class="vz-rail">
-    <button id="vzCreateRail" class="vz-create-btn" type="button">+ Create visual</button>
-    <div class="vz-rail-label" style="margin-top:20px">Visuals</div>
-    <div id="vzFilters" class="vz-filter-list"></div>
-    <div class="vz-rail-label">Recent</div><div id="vzRecentMini" class="vz-recent-mini"></div>
-  </aside>
-  <main class="vz-main" id="vzMain"></main>
-  <aside id="vzInspector" class="vz-inspector vz-hidden-panel" aria-label="Visual details"></aside>
-</div></div></section>`}
+function internalNav(){
+  return `<aside id="vzNavDrawer" class="vz-nav-drawer" aria-hidden="true">
+    <div class="vz-nav-brand">${brandMark()}<strong>VISHNU</strong></div>
+    <nav class="vz-nav-list" aria-label="Vishnu navigation">${NAV.map(([id,label,glyph])=>`<button type="button" class="vz-nav-row ${id==='visualize'?'active':''}" data-vz-module="${id}"><span>${glyph}</span><b>${label}</b></button>`).join('')}</nav>
+    <div class="vz-nav-bottom"><button type="button" class="vz-nav-row" data-vz-module="settings"><span>⚙</span><b>Settings</b></button><button type="button" class="vz-nav-row" data-vz-module="owner-controls"><span>◎</span><b>Owner Controls</b></button></div>
+  </aside><button id="vzNavBackdrop" class="vz-nav-backdrop" type="button" aria-label="Close navigation"></button>`;
+}
+function workspaceMarkup(){return `<section id="visualizeWorkspace" class="vz-workspace vz-hidden" aria-label="Vishnu Visualize">${internalNav()}
+  <div class="vz-page-shell">
+    <header class="vz-home-topbar">
+      <div class="vz-top-left"><button id="vzMenu" class="vz-icon-btn" type="button" aria-label="Open navigation">${icons.menu}</button><div class="vz-mobile-brand">${brandMark()}<strong>VISHNU</strong></div></div>
+      <label class="vz-global-search">${icons.search}<input id="vzGlobalSearch" type="search" placeholder="Search visuals, projects, or describe…" aria-label="Search visuals"></label>
+      <div class="vz-top-actions"><button id="vzGallery" class="vz-text-btn" type="button">Gallery</button><button id="vzNew" class="vz-primary-btn" type="button">Create Visual</button><button class="vz-round-mini" type="button" aria-label="Notifications">♧</button><span class="vz-avatar" aria-label="Owner profile">V</span></div>
+    </header>
+    <main id="vzMain" class="vz-page-main"></main>
+  </div>
+</section>`;}
+function openNav(){const nav=byId('vzNavDrawer'),backdrop=byId('vzNavBackdrop');if(!nav)return;nav.classList.add('open');nav.setAttribute('aria-hidden','false');backdrop?.classList.add('open');}
+function closeNav(){const nav=byId('vzNavDrawer'),backdrop=byId('vzNavBackdrop');if(!nav)return;nav.classList.remove('open');nav.setAttribute('aria-hidden','true');backdrop?.classList.remove('open');}
 
-function homeMarkup(){return `<div class="vz-hero"><div class="vz-eyebrow">Visual intelligence workspace</div><h1>Turn anything into a visual system.</h1><p>Understand projects, code, workflows, conversations and knowledge as interactive maps with evidence, paths, versions and Vishnu context.</p></div>
-<div id="vzPromptCard" class="vz-prompt-card"><textarea id="vzPrompt" placeholder="Describe what you want to visualize…\nExample: Browser → API → Redis → PostgreSQL"></textarea><div class="vz-prompt-footer"><div id="vzTypeSelector" class="vz-selector"></div><button id="vzGenerate" class="vz-generate" type="button">Generate</button></div></div>
-<section class="vz-section"><div class="vz-section-head"><div><h2>Create from</h2><span>Use the context Vishnu already has</span></div></div><div class="vz-source-grid">
-${sourceCard('project','Project', 'Goals, tasks, agents, files and live work',icons.project)}
-${sourceCard('github','GitHub','Repository architecture and source evidence',icons.github)}
-${sourceCard('conversation','Conversation','Turn a discussion into a system map',icons.chat)}
-${sourceCard('files','Files & sources','Map documents, notes and structured data',icons.file)}
+function sourceCard(kind,title,subtitle,cta,icon){return `<button class="vz-source-card vz-source-${kind}" type="button" data-vz-source="${kind}"><span class="vz-source-icon">${icon}</span><span class="vz-source-copy"><strong>${title}</strong><small>${subtitle}</small></span><span class="vz-source-cta">${cta}<b>→</b></span></button>`;}
+function homeMarkup(){return `<section class="vz-home-hero"><div><h1>Visualize</h1><h2>Turn anything into a visual system</h2><p>Understand structure, flows, dependencies, work and evidence with Vishnu.</p></div><div class="vz-hero-network" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div></section>
+<section class="vz-create-panel"><h3>Create a visual</h3><div class="vz-create-grid">
+${sourceCard('project','From a Project','Visualize your Vishnu project — tasks, agents, files, workflows…','Select Project',icons.project)}
+${sourceCard('github','From GitHub','Visualize any public repository — architecture, modules, APIs…','Connect Repository',icons.github)}
+${sourceCard('conversation','From Conversation','Turn discussions into visuals — architecture, workflows…','Select Conversation',icons.chat)}
+${sourceCard('files','From Files & Sources','Upload files, docs or code — PDF, DOCX, Markdown, CSV…','Upload Files',icons.file)}
+${sourceCard('description','Describe it','Just describe what you want — e.g. show my agent workflow…','Generate',icons.magic)}
 </div></section>
-<section class="vz-section"><div class="vz-section-head"><div><h2>Recent visuals</h2><span id="vzRecentCount">0 visuals</span></div></div><div id="vzVisualGrid" class="vz-card-grid"></div></section>`}
-function sourceCard(kind,title,subtitle,icon){return `<button class="vz-source-card" type="button" data-vz-source="${kind}"><span class="vz-source-icon">${icon}</span><strong>${title}</strong><span>${subtitle}</span></button>`}
-function typeButtons(){return TYPES.map(([value,label])=>`<button class="vz-pill ${state.type===value?'active':''}" type="button" data-vz-type="${value}">${label}</button>`).join('')}
+<section class="vz-recent-section"><div class="vz-section-head"><h3>Recent Visuals</h3><button id="vzViewAll" type="button">View all →</button></div><div id="vzRecentGrid" class="vz-recent-grid"></div></section>`;}
+function graphThumb(item){
+  const nodes=(item.graph?.nodes||[]).slice(0,10),edges=(item.graph?.edges||[]).slice(0,14);const pos=new Map();nodes.forEach((node,index)=>pos.set(node.id,{x:18+(index%4)*31,y:22+Math.floor(index/4)*30}));
+  const fills=['#28d9d3','#5979ff','#a65cff','#3ecf8e','#f0a33a'];
+  return `<svg viewBox="0 0 120 92" aria-hidden="true"><g opacity=".85">${edges.map(edge=>{const a=pos.get(edge.source),b=pos.get(edge.target);return a&&b?`<path d="M${a.x} ${a.y}L${b.x} ${b.y}"/>`:'';}).join('')}</g>${nodes.map((node,index)=>{const p=pos.get(node.id);return `<rect x="${p.x-8}" y="${p.y-4}" width="16" height="8" rx="2" fill="${fills[index%fills.length]}"/>`;}).join('')}</svg>`;
+}
+function renderRecent(){const grid=byId('vzRecentGrid');if(!grid)return;let rows=state.visuals.filter(item=>!state.search||`${item.title} ${typeLabel(item.type)}`.toLowerCase().includes(state.search.toLowerCase())).slice(0,4);if(!rows.length){grid.innerHTML='<div class="vz-empty">No visuals yet. Create your first visual above.</div>';return;}grid.innerHTML=rows.map(item=>`<button class="vz-recent-card" type="button" data-vz-open="${esc(item.id)}"><span class="vz-recent-thumb">${graphThumb(item)}</span><strong>${esc(item.title)}</strong><span class="vz-badge-row"><i>${typeLabel(item.type)}</i>${item.mode==='live'?'<i class="live">● Live</i>':''}</span><small>${item.node_count||item.graph?.nodes?.length||0} nodes · ${item.edge_count||item.graph?.edges?.length||0} relationships</small></button>`).join('');grid.querySelectorAll('[data-vz-open]').forEach(btn=>btn.addEventListener('click',()=>openVisual(btn.dataset.vzOpen)));}
+function renderHome(){state.screen='home';const main=byId('vzMain');if(!main)return;main.innerHTML=homeMarkup();main.querySelectorAll('[data-vz-source]').forEach(btn=>btn.addEventListener('click',()=>openSource(btn.dataset.vzSource)));byId('vzViewAll')?.addEventListener('click',renderGallery);renderRecent();}
 
-function renderFilters(){
-  const filters=[['all','All visuals'],...TYPES.map(([v,l])=>[v,l])];
-  const node=byId('vzFilters');if(!node)return;
-  node.innerHTML=filters.map(([value,label])=>{const count=value==='all'?state.visuals.length:state.visuals.filter(v=>v.type===value).length;return `<button type="button" class="vz-filter ${state.filter===value?'active':''}" data-vz-filter="${value}"><span>${label}</span><b>${count}</b></button>`}).join('');
-  node.querySelectorAll('[data-vz-filter]').forEach(btn=>btn.onclick=()=>{state.filter=btn.dataset.vzFilter;renderFilters();renderVisualCards()});
-}
-function renderMini(){
-  const node=byId('vzRecentMini');if(!node)return;
-  node.innerHTML=state.visuals.slice(0,5).map(v=>`<button type="button" class="vz-mini-card" data-vz-open="${v.id}"><strong>${esc(v.title)}</strong><span>${typeLabel(v.type)} · ${v.node_count} nodes</span></button>`).join('')||'<div class="vz-empty">No visuals yet</div>';
-  node.querySelectorAll('[data-vz-open]').forEach(btn=>btn.onclick=()=>openVisual(btn.dataset.vzOpen));
-}
-function tinyGraph(v){
-  const nodes=(v.graph?.nodes||[]).slice(0,9),edges=(v.graph?.edges||[]).slice(0,12),positions=new Map();
-  nodes.forEach((n,i)=>positions.set(n.id,{x:18+(i%3)*41,y:22+Math.floor(i/3)*31}));
-  return `<svg viewBox="0 0 120 100" aria-hidden="true">${edges.map(e=>{const a=positions.get(e.source),b=positions.get(e.target);return a&&b?`<path d="M${a.x} ${a.y} L${b.x} ${b.y}" stroke="#3f5879" stroke-width="1"/>`:''}).join('')}${nodes.map((n,i)=>{const p=positions.get(n.id);return `<circle cx="${p.x}" cy="${p.y}" r="${i===0?4.3:3.2}" fill="${i===0?'#6ab8ff':'#8294ad'}"/>`}).join('')}</svg>`;
-}
-function renderVisualCards(){
-  const grid=byId('vzVisualGrid');if(!grid)return;
-  const visuals=state.filter==='all'?state.visuals:state.visuals.filter(v=>v.type===state.filter);
-  const count=byId('vzRecentCount');if(count)count.textContent=`${visuals.length} visual${visuals.length===1?'':'s'}`;
-  if(!visuals.length){grid.innerHTML='<div class="vz-empty" style="grid-column:1/-1">No visuals in this view yet. Create one above.</div>';return}
-  grid.innerHTML=visuals.map(v=>`<button type="button" class="vz-visual-card" data-vz-open="${v.id}"><div class="vz-thumb">${tinyGraph(v)}</div><div class="vz-card-copy"><strong>${esc(v.title)}</strong><span>${typeLabel(v.type)} · ${v.mode}</span><div class="vz-card-meta"><i>${v.node_count} nodes</i><i>${v.edge_count} links</i><i>${sourceLabel(v.source_kind)}</i></div></div></button>`).join('');
-  grid.querySelectorAll('[data-vz-open]').forEach(btn=>btn.onclick=()=>openVisual(btn.dataset.vzOpen));
-}
-function wireHome(){
-  byId('vzTypeSelector').innerHTML=typeButtons();
-  byId('vzTypeSelector').querySelectorAll('[data-vz-type]').forEach(btn=>btn.onclick=()=>{state.type=btn.dataset.vzType;byId('vzTypeSelector').innerHTML=typeButtons();wireTypeButtonsOnly()});
-  document.querySelectorAll('[data-vz-source]').forEach(btn=>btn.onclick=()=>selectSource(btn.dataset.vzSource));
-  byId('vzGenerate').onclick=generateVisual;
-}
-function wireTypeButtonsOnly(){byId('vzTypeSelector')?.querySelectorAll('[data-vz-type]').forEach(btn=>btn.onclick=()=>{state.type=btn.dataset.vzType;byId('vzTypeSelector').innerHTML=typeButtons();wireTypeButtonsOnly()})}
-function renderHome(){const main=byId('vzMain');main.innerHTML=homeMarkup();wireHome();renderFilters();renderMini();renderVisualCards()}
+function galleryMarkup(){const tabs=['All','Architecture','Workflows','Sequences','Data','Lifecycles','Projects'];const filtered=GALLERY.filter(item=>state.galleryFilter==='All'||item.category===state.galleryFilter).filter(item=>!state.search||item.title.toLowerCase().includes(state.search.toLowerCase()));return `<section class="vz-gallery-page"><div class="vz-gallery-heading"><button id="vzGalleryBack" class="vz-inline-back" type="button">←</button><div><h1>Gallery</h1><p>Explore example visuals and templates</p></div></div><div class="vz-gallery-tabs">${tabs.map(tab=>`<button type="button" class="${tab===state.galleryFilter?'active':''}" data-vz-gallery-tab="${tab}">${tab}</button>`).join('')}</div><div class="vz-gallery-grid">${filtered.map((item,index)=>`<button class="vz-gallery-card" type="button" data-vz-template="${GALLERY.indexOf(item)}"><span class="vz-gallery-thumb">${templateThumb(index)}</span><strong>${esc(item.title)}</strong><span>${esc(item.category)}</span></button>`).join('')}</div></section>`;}
+function templateThumb(seed){const count=6+(seed%4);let nodes='';let edges='';for(let i=0;i<count;i++){const x=18+(i%3)*36,y=18+Math.floor(i/3)*27;nodes+=`<rect x="${x}" y="${y}" width="19" height="9" rx="2" class="n${(i+seed)%5}"/>`;if(i>0){const px=18+((i-1)%3)*36,py=18+Math.floor((i-1)/3)*27;edges+=`<path d="M${px+9} ${py+9} L${x+9} ${y}"/>`;}}return `<svg viewBox="0 0 130 96"><g>${edges}</g>${nodes}</svg>`;}
+function renderGallery(){state.screen='gallery';const main=byId('vzMain');if(!main)return;main.innerHTML=galleryMarkup();byId('vzGalleryBack')?.addEventListener('click',renderHome);main.querySelectorAll('[data-vz-gallery-tab]').forEach(btn=>btn.addEventListener('click',()=>{state.galleryFilter=btn.dataset.vzGalleryTab;renderGallery();}));main.querySelectorAll('[data-vz-template]').forEach(btn=>btn.addEventListener('click',()=>openTemplate(Number(btn.dataset.vzTemplate))));}
 
-async function loadVisuals(){
-  try{const data=await request();state.visuals=Array.isArray(data.visualizations)?data.visualizations:[];renderFilters();renderMini();renderVisualCards()}
-  catch(error){showToast(error.message)}
+function showModal(markup){closeModal();modal=document.createElement('div');modal.className='vz-modal-wrap';modal.innerHTML=`<button class="vz-modal-backdrop" type="button" aria-label="Close dialog"></button><section class="vz-modal" role="dialog" aria-modal="true">${markup}</section>`;document.body.append(modal);modal.querySelector('.vz-modal-backdrop')?.addEventListener('click',closeModal);modal.querySelector('[data-vz-close]')?.addEventListener('click',closeModal);}
+function closeModal(){modal?.remove();modal=null;}
+function dialogHead(title,copy){return `<header class="vz-dialog-head"><div><h2>${esc(title)}</h2><p>${esc(copy)}</p></div><button data-vz-close class="vz-icon-btn" type="button" aria-label="Close">×</button></header>`;}
+function typeSelect(){return `<label class="vz-field"><span>Visual type</span><select id="vzDialogType">${TYPES.map(([value,label])=>`<option value="${value}" ${state.type===value?'selected':''}>${label}</option>`).join('')}</select></label>`;}
+async function openSource(kind){
+  if(kind==='project'){showModal(`${dialogHead('Select a project','Build a Project Map from Vishnu’s persisted project data.')}<div id="vzDialogBody" class="vz-picker-list"><div class="vz-loading">Loading projects…</div></div>`);try{const data=await appApi('/projects');const rows=Array.isArray(data.projects)?data.projects:[];const body=byId('vzDialogBody');body.innerHTML=rows.length?rows.map(item=>`<button type="button" class="vz-picker-row" data-vz-project="${esc(item.id)}"><span><strong>${esc(item.name||item.title||'Project')}</strong><small>${esc(item.status||'active')}</small></span><b>→</b></button>`).join(''):'<div class="vz-empty">No projects available.</div>';body.querySelectorAll('[data-vz-project]').forEach(btn=>btn.addEventListener('click',()=>createProjectVisual(btn.dataset.vzProject)));}catch(error){byId('vzDialogBody').innerHTML=`<div class="vz-error">${esc(error.message)}</div>`;}return;}
+  if(kind==='conversation'){showModal(`${dialogHead('Select a conversation','Turn a persisted owner/Vishnu conversation into a visual.')}<div id="vzDialogBody" class="vz-picker-list"><div class="vz-loading">Loading conversations…</div></div>`);try{const data=await appApi('/conversations');const rows=Array.isArray(data.conversations)?data.conversations:[];const body=byId('vzDialogBody');body.innerHTML=rows.length?rows.map(item=>`<button type="button" class="vz-picker-row" data-vz-conversation="${esc(item.id)}"><span><strong>${esc(item.title||'Conversation')}</strong><small>${esc(item.preview||'Persisted conversation')}</small></span><b>→</b></button>`).join(''):'<div class="vz-empty">No conversations available.</div>';body.querySelectorAll('[data-vz-conversation]').forEach(btn=>btn.addEventListener('click',()=>createConversationVisual(btn.dataset.vzConversation)));}catch(error){byId('vzDialogBody').innerHTML=`<div class="vz-error">${esc(error.message)}</div>`;}return;}
+  if(kind==='github'){showModal(`${dialogHead('Visualize a GitHub repository','Use a public GitHub repository URL. Repository-tree evidence is labelled strong, not verified.')}<form id="vzGithubForm" class="vz-dialog-form"><label class="vz-field"><span>Repository URL</span><input id="vzGithubUrl" type="url" required placeholder="https://github.com/owner/repository"></label><button class="vz-primary-btn wide" type="submit">Analyze repository</button></form>`);byId('vzGithubForm').addEventListener('submit',createGitHubVisual);return;}
+  if(kind==='files'){showModal(`${dialogHead('Files & Sources','Upload one supported source file. Vishnu applies server-side format and size validation.')}<form id="vzFileForm" class="vz-dialog-form"><label class="vz-file-drop"><input id="vzFileInput" type="file" required accept=".pdf,.docx,.csv,.json,.yaml,.yml,.md,.txt,.py,.js,.ts,.tsx,.jsx,.html,.css,.sql,.toml,.ini,.sh"><span>${icons.file}</span><strong>Choose a file</strong><small>PDF, DOCX, CSV, JSON/YAML, Markdown, text or source code</small></label>${typeSelect()}<button class="vz-primary-btn wide" type="submit">Create visual</button></form>`);byId('vzFileForm').addEventListener('submit',createFileVisual);return;}
+  showModal(`${dialogHead('Describe it','Tell Vishnu what system, flow or lifecycle you want to understand.')}<form id="vzDescribeForm" class="vz-dialog-form"><label class="vz-field"><span>Description</span><textarea id="vzDescription" required placeholder="Show how my agents receive work, plan, use tools, request approval and verify completion."></textarea></label>${typeSelect()}<button class="vz-primary-btn wide" type="submit">Generate</button></form>`);byId('vzDescribeForm').addEventListener('submit',createDescriptionVisual);
 }
-function selectSource(kind){
-  state.sourceKind=kind;const prompt=byId('vzPrompt');if(!prompt)return;
-  const copy={project:'Visualize this Vishnu project: goals, work plan, tasks, agents, tools, files, milestones and current execution.',github:'Visualize this repository architecture with modules, services, APIs, data stores, dependencies and source evidence.',conversation:'Turn this conversation into a clear visual map of decisions, systems, steps and relationships.',files:'Analyze these files and sources, then visualize their structure, flows, dependencies and evidence.'};
-  prompt.value=copy[kind]||'';prompt.focus();showToast(`${sourceLabel(kind)} selected. Add or paste the source context, then generate.`)
-}
-async function generateVisual(){
-  const prompt=byId('vzPrompt'),description=prompt?.value.trim()||'';if(!description){showToast('Describe what you want Vishnu to visualize.');prompt?.focus();return}
-  const button=byId('vzGenerate');button.disabled=true;button.textContent='Generating…';
-  try{
-    const body={title:inferTitle(description,state.type),type:state.type,mode:'manual',description,source_kind:state.sourceKind};
-    const data=await request('',{method:'POST',body:JSON.stringify(body)});state.visuals.unshift(data.visualization);renderFilters();renderMini();renderVisualCards();prompt.value='';showToast('Visual created and verified.');openViewer(data.visualization)
-  }catch(error){showToast(error.message)}finally{button.disabled=false;button.textContent='Generate'}
-}
+function setBusy(form,busy,label='Working…'){const button=form?.querySelector('button[type="submit"]');if(!button)return;button.disabled=busy;if(busy){button.dataset.label=button.textContent;button.textContent=label;}else button.textContent=button.dataset.label||'Continue';}
+async function createProjectVisual(projectId){try{const data=await api('',{method:'POST',body:JSON.stringify({title:'Project Map',type:'project_map',mode:'live',source_kind:'project',project_id:projectId})});afterCreate(data.visualization);}catch(error){toast(error.message);}}
+async function createConversationVisual(conversationId){try{const data=await api('',{method:'POST',body:JSON.stringify({title:'Conversation',type:'architecture',mode:'manual',source_kind:'conversation',conversation_id:conversationId})});afterCreate(data.visualization);}catch(error){toast(error.message);}}
+async function createGitHubVisual(event){event.preventDefault();const form=event.currentTarget,url=byId('vzGithubUrl').value.trim();if(!/^https:\/\/(www\.)?github\.com\/[^/]+\/[^/]+\/?$/.test(url)){toast('Enter a public GitHub repository URL.');return;}setBusy(form,true,'Analyzing…');try{const data=await api('',{method:'POST',body:JSON.stringify({title:'Untitled visual',type:'architecture',mode:'manual',source_kind:'github',source_ref:url})});afterCreate(data.visualization);}catch(error){toast(error.message);}finally{setBusy(form,false);}}
+function fileToBase64(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onerror=()=>reject(new Error('The file could not be read.'));reader.onload=()=>{const value=String(reader.result||'');resolve(value.includes(',')?value.split(',',2)[1]:value);};reader.readAsDataURL(file);});}
+async function createFileVisual(event){event.preventDefault();const form=event.currentTarget,file=byId('vzFileInput').files?.[0];if(!file){toast('Choose a file first.');return;}setBusy(form,true,'Reading…');try{const content_base64=await fileToBase64(file);const type=byId('vzDialogType').value;const data=await api('/from-file',{method:'POST',body:JSON.stringify({filename:file.name,content_base64,type,mode:'manual'})});afterCreate(data.visualization);}catch(error){toast(error.message);}finally{setBusy(form,false);}}
+async function createDescriptionVisual(event){event.preventDefault();const form=event.currentTarget,description=byId('vzDescription').value.trim(),type=byId('vzDialogType').value;if(!description)return;setBusy(form,true,'Generating…');try{const data=await api('',{method:'POST',body:JSON.stringify({title:inferTitle(description,type),type,mode:'manual',description,source_kind:'description'})});afterCreate(data.visualization);}catch(error){toast(error.message);}finally{setBusy(form,false);}}
+function afterCreate(item){closeModal();state.visuals=[item,...state.visuals.filter(row=>row.id!==item.id)];renderRecent();openViewer(item);toast('Visual created.');}
+function openTemplate(index){const item=GALLERY[index];if(!item)return;showModal(`${dialogHead(item.title,'Gallery template — create a real stored visual from this starting point.')}<div class="vz-template-preview">${templateThumb(index)}<p>${esc(item.description)}</p></div><form id="vzTemplateForm" class="vz-dialog-form"><button class="vz-primary-btn wide" type="submit">Use this template</button></form>`);byId('vzTemplateForm').addEventListener('submit',async event=>{event.preventDefault();setBusy(event.currentTarget,true,'Creating…');try{const data=await api('',{method:'POST',body:JSON.stringify({title:item.title,type:item.type,mode:'manual',description:item.description,source_kind:'description'})});afterCreate(data.visualization);}catch(error){toast(error.message);}finally{setBusy(event.currentTarget,false);}});}
 
-function viewerMarkup(v){return `<section id="vzViewer" class="vz-viewer" aria-label="${esc(v.title)}">
-<header class="vz-topbar"><div class="vz-topbar-left"><button id="vzViewerBack" class="vz-icon-btn" type="button" aria-label="Back to Visualize">${icons.back}</button><div><div class="vz-title">${esc(v.title)}</div><div class="vz-status"><i></i><span>${typeLabel(v.type)} · ${esc(v.mode)}</span></div></div></div><div class="vz-status"><span>${v.node_count} nodes · ${v.edge_count} relationships</span></div><div class="vz-topbar-right"><button id="vzHistory" class="vz-action" type="button">History</button><button id="vzCompare" class="vz-action" type="button">Compare</button><button id="vzExport" class="vz-action primary" type="button">Export</button></div></header>
-<div class="vz-viewer-main"><aside class="vz-viewer-panel"><div class="vz-section-label">Explore</div><input id="vzNodeSearch" class="vz-search" type="search" placeholder="Search this visual…"><div class="vz-section-label" style="margin-top:18px">Views</div><div class="vz-filter-list"><button class="vz-filter active" type="button"><span>Overview</span></button><button class="vz-filter" type="button" data-vz-action="clear"><span>Clear focus</span></button></div><div class="vz-section-label">Evidence</div><p style="color:#7f8ea3;font-size:.72rem;line-height:1.5">Node evidence levels distinguish verified, strong, inferred, user-supplied and unverified claims.</p></aside><div id="vzCanvas" class="vz-canvas">${v.svg||''}</div><aside id="vzViewerInspector" class="vz-viewer-panel right"></aside></div>
-<div class="vz-viewer-composer"><form id="vzAskForm"><input id="vzAskInput" autocomplete="off" placeholder="Ask Vishnu about this visual…"><button type="submit" aria-label="Ask Vishnu">↑</button></form></div></section>`}
-async function openVisual(id){
-  try{const data=await request('/'+encodeURIComponent(id));openViewer(data.visualization)}catch(error){showToast(error.message)}
+async function loadVisuals(){try{const data=await api();state.visuals=Array.isArray(data.visualizations)?data.visualizations:[];if(state.screen==='home')renderRecent();}catch(error){toast(error.message);}}
+function openWorkspace(){
+  if(!workspace){const holder=document.createElement('div');holder.innerHTML=workspaceMarkup();workspace=holder.firstElementChild;document.body.append(workspace);byId('vzMenu').addEventListener('click',openNav);byId('vzNavBackdrop').addEventListener('click',closeNav);byId('vzGallery').addEventListener('click',renderGallery);byId('vzNew').addEventListener('click',()=>openSource('description'));byId('vzGlobalSearch').addEventListener('input',event=>{state.search=event.target.value.trim();state.screen==='gallery'?renderGallery():renderRecent();});workspace.querySelectorAll('[data-vz-module]').forEach(btn=>btn.addEventListener('click',()=>{const module=btn.dataset.vzModule;if(module==='visualize'){closeNav();renderHome();}else hostModule(module);}));}
+  workspace.classList.remove('vz-hidden');renderHome();loadVisuals();
 }
-function openViewer(v){
-  state.active=v;state.selectedNode=null;viewer?.remove();viewer=document.createElement('div');viewer.innerHTML=viewerMarkup(v);document.body.append(viewer.firstElementChild);viewer=byId('vzViewer');
-  byId('vzViewerBack').onclick=closeViewer;byId('vzExport').onclick=()=>window.open(`${API}/${encodeURIComponent(v.id)}/artifact`,'_blank','noopener');
-  byId('vzHistory').onclick=showHistory;byId('vzCompare').onclick=compareCurrent;byId('vzAskForm').onsubmit=askVishnu;
-  byId('vzNodeSearch').oninput=event=>filterNodes(event.target.value);document.querySelector('[data-vz-action="clear"]')?.addEventListener('click',clearNodeFocus);
-  byId('vzCanvas')?.querySelectorAll('.vv-node').forEach(node=>{node.addEventListener('click',()=>selectNode(node.dataset.nodeId));node.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();selectNode(node.dataset.nodeId)}})});
-  renderInspector(null)
-}
-function closeViewer(){viewer?.remove();viewer=null;state.active=null;state.selectedNode=null;mobileSheet?.remove();mobileSheet=null}
-function activeGraph(){return state.active?.graph||{nodes:[],edges:[]}}
-function selectNode(id){
-  state.selectedNode=id;byId('vzCanvas')?.querySelectorAll('.vv-node').forEach(node=>node.classList.toggle('vz-node-selected',node.dataset.nodeId===id));
-  const node=activeGraph().nodes.find(item=>item.id===id);renderInspector(node);if(window.matchMedia('(max-width:720px)').matches)renderMobileSheet(node)
-}
-function clearNodeFocus(){state.selectedNode=null;byId('vzCanvas')?.querySelectorAll('.vv-node').forEach(node=>{node.classList.remove('vz-node-selected');node.style.opacity=''});byId('vzCanvas')?.querySelectorAll('[data-edge-id]').forEach(edge=>edge.style.opacity='');renderInspector(null);mobileSheet?.remove();mobileSheet=null}
-function renderInspector(node){
-  const panel=byId('vzViewerInspector');if(!panel)return;
-  if(!node){panel.innerHTML='<div class="vz-section-label">Node intelligence</div><p style="color:#7f8ea3;font-size:.76rem;line-height:1.55">Select any node to inspect relationships, evidence and source metadata.</p>';return}
-  const incoming=activeGraph().edges.filter(e=>e.target===node.id).length,outgoing=activeGraph().edges.filter(e=>e.source===node.id).length,evidence=(node.evidence||[]).length;
-  panel.innerHTML=`<h3>${esc(node.label)}</h3><div class="vz-inspector-sub">${esc(node.category)} · ${esc(node.status||'active')}</div><div class="vz-inspector-section"><div class="vz-evidence"><i></i><span>${esc(String(node.evidence_level||'unverified').replaceAll('_',' '))}</span></div>${node.description?`<p style="font-size:.76rem;color:#9cabbd;line-height:1.55">${esc(node.description)}</p>`:''}</div><div class="vz-inspector-section"><h4>Relationships</h4><div class="vz-info-row"><span>Incoming</span><span>${incoming}</span></div><div class="vz-info-row"><span>Outgoing</span><span>${outgoing}</span></div><div class="vz-info-row"><span>Evidence</span><span>${evidence}</span></div><div class="vz-inspector-actions"><button type="button" data-reach="upstream">Upstream</button><button type="button" data-reach="downstream">Downstream</button><button type="button" id="vzFindPath">Find path</button><button type="button" id="vzAskNode">Ask Vishnu</button></div></div>`;
-  panel.querySelectorAll('[data-reach]').forEach(button=>button.onclick=()=>runReach(node.id,button.dataset.reach));
-  byId('vzFindPath').onclick=()=>findPath(node.id);byId('vzAskNode').onclick=()=>moveQuestionToChat(`Explain the “${node.label}” node in my visual “${state.active.title}”, including its role, connections and evidence.`)
-}
-function renderMobileSheet(node){
-  mobileSheet?.remove();if(!node)return;mobileSheet=document.createElement('section');mobileSheet.className='vz-mobile-sheet';mobileSheet.innerHTML=`<div class="vz-mobile-sheet-handle"></div><button type="button" class="vz-icon-btn" style="float:right" aria-label="Close">${icons.close}</button><h3 style="margin:5px 0 2px">${esc(node.label)}</h3><div style="color:#7f8da2;font-size:.72rem">${esc(node.category)} · ${esc(String(node.evidence_level||'unverified').replaceAll('_',' '))}</div><div class="vz-inspector-actions" style="margin-top:16px"><button data-reach="upstream">Upstream</button><button data-reach="downstream">Downstream</button><button id="vzMobilePath">Find path</button><button id="vzMobileAsk">Ask Vishnu</button></div>`;document.body.append(mobileSheet);mobileSheet.querySelector('.vz-icon-btn').onclick=()=>{mobileSheet.remove();mobileSheet=null};mobileSheet.querySelectorAll('[data-reach]').forEach(b=>b.onclick=()=>runReach(node.id,b.dataset.reach));byId('vzMobilePath').onclick=()=>findPath(node.id);byId('vzMobileAsk').onclick=()=>moveQuestionToChat(`Explain “${node.label}” in the visual “${state.active.title}”.`)
-}
-function filterNodes(query){
-  const q=String(query||'').trim().toLowerCase();const graph=activeGraph();const matched=new Set(graph.nodes.filter(n=>!q||`${n.label} ${n.category} ${n.description||''}`.toLowerCase().includes(q)).map(n=>n.id));
-  byId('vzCanvas')?.querySelectorAll('.vv-node').forEach(node=>node.style.opacity=(!q||matched.has(node.dataset.nodeId))?'1':'.16');
-  byId('vzCanvas')?.querySelectorAll('[data-edge-id]').forEach(edge=>{const item=graph.edges.find(e=>e.id===edge.dataset.edgeId);edge.style.opacity=(!q||matched.has(item?.source)||matched.has(item?.target))?'1':'.1'})
-}
-function highlightSet(nodeIds,edgeIds){const ns=new Set(nodeIds),es=new Set(edgeIds);byId('vzCanvas')?.querySelectorAll('.vv-node').forEach(n=>n.style.opacity=ns.has(n.dataset.nodeId)?'1':'.14');byId('vzCanvas')?.querySelectorAll('[data-edge-id]').forEach(e=>{e.style.opacity=es.has(e.dataset.edgeId)?'1':'.08';if(es.has(e.dataset.edgeId))e.style.stroke='#78d7ff'})}
-async function runReach(origin,direction){try{const result=await request(`/${encodeURIComponent(state.active.id)}/reach`,{method:'POST',body:JSON.stringify({origin,direction})});highlightSet(result.node_ids,result.edge_ids);showToast(`${direction==='upstream'?'Upstream':'Downstream'}: ${result.node_ids.length} nodes · ${result.edge_ids.length} links · ${result.max_hops} hops`)}catch(error){showToast(error.message)}}
-async function findPath(source){
-  const options=activeGraph().nodes.filter(n=>n.id!==source);const answer=window.prompt('Find path to which node?\n'+options.slice(0,20).map(n=>`${n.id} — ${n.label}`).join('\n'));if(!answer)return;
-  const target=(options.find(n=>n.id===answer.trim())||options.find(n=>n.label.toLowerCase()===answer.trim().toLowerCase()))?.id;if(!target){showToast('That node was not found.');return}
-  try{const result=await request(`/${encodeURIComponent(state.active.id)}/path`,{method:'POST',body:JSON.stringify({source,target})});if(!result.found){showToast('No authored path was found.');return}highlightSet(result.node_ids,result.edge_ids);showToast(`Path found · ${result.hops} hops`)}catch(error){showToast(error.message)}
-}
-async function showHistory(){
-  try{const data=await request(`/${encodeURIComponent(state.active.id)}/revisions`);const panel=byId('vzViewerInspector');panel.innerHTML=`<h3>Version history</h3><div class="vz-inspector-sub">${data.revisions.length} revision${data.revisions.length===1?'':'s'}</div><div class="vz-inspector-section">${data.revisions.map(r=>`<div style="padding:9px 0;border-bottom:1px solid rgba(145,171,207,.1)"><strong style="font-size:.76rem">Revision ${r.revision}</strong><div style="color:#7c8ca2;font-size:.68rem;margin-top:4px">${esc(r.reason)} · ${new Date(r.created_at).toLocaleString()}</div></div>`).join('')}</div>`}catch(error){showToast(error.message)}
-}
-async function compareCurrent(){
-  if(state.visuals.length<2){showToast('Create another visual before comparing.');return}
-  const candidates=state.visuals.filter(v=>v.id!==state.active.id);const answer=window.prompt('Compare this visual with which one?\n'+candidates.slice(0,20).map(v=>`${v.id.slice(0,8)} — ${v.title}`).join('\n'));if(!answer)return;
-  const other=candidates.find(v=>v.id.startsWith(answer.trim()))||candidates.find(v=>v.title.toLowerCase()===answer.trim().toLowerCase());if(!other){showToast('Visual not found.');return}
-  try{const result=await request('/compare',{method:'POST',body:JSON.stringify({before_id:other.id,after_id:state.active.id})});state.compare=result;const p=byId('vzViewerInspector');p.innerHTML=`<h3>Compare</h3><div class="vz-inspector-sub">${esc(other.title)} → ${esc(state.active.title)}</div><div class="vz-inspector-section"><div class="vz-info-row"><span>Added</span><span>${result.summary.added}</span></div><div class="vz-info-row"><span>Removed</span><span>${result.summary.removed}</span></div><div class="vz-info-row"><span>Changed</span><span>${result.summary.changed}</span></div></div>`}catch(error){showToast(error.message)}
-}
-function askVishnu(event){event.preventDefault();const input=byId('vzAskInput'),question=input?.value.trim();if(!question)return;const selected=state.selectedNode?activeGraph().nodes.find(n=>n.id===state.selectedNode):null;moveQuestionToChat(`About my visual “${state.active.title}”${selected?` and node “${selected.label}”`:''}: ${question}`)}
-function moveQuestionToChat(text){
-  closeViewer();closeWorkspace();const message=byId('message');if(message){message.value=text;message.dispatchEvent(new Event('input',{bubbles:true}));message.focus();showToast('Question moved to Vishnu chat.')}else{navigator.clipboard?.writeText(text);showToast('Question copied for Vishnu chat.')}
-}
+function closeWorkspace(){workspace?.classList.add('vz-hidden');closeNav();closeModal();}
 
-function openWorkspace(){workspace.classList.remove('vz-hidden');document.body.style.overflow='hidden';renderHome();loadVisuals()}
-function closeWorkspace(){workspace.classList.add('vz-hidden');document.body.style.overflow='';closeViewer()}
-function scrollCreate(){byId('vzPrompt')?.focus();byId('vzPromptCard')?.scrollIntoView({behavior:'smooth',block:'center'})}
-function init(){
-  ensureNavEntry();const holder=document.createElement('div');holder.innerHTML=workspaceMarkup();document.body.append(holder.firstElementChild);workspace=byId('visualizeWorkspace');
-  byId('vzClose').onclick=closeWorkspace;byId('vzNew').onclick=scrollCreate;byId('vzCreateRail').onclick=scrollCreate;byId('vzRefresh').onclick=loadVisuals;renderHome();
-  window.VishnuVisualize={open:openWorkspace,close:closeWorkspace,openVisual};
-}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+function activeGraph(){return state.active?.graph||{nodes:[],edges:[]};}
+function nodeById(id){return activeGraph().nodes?.find(node=>node.id===id)||null;}
+function layerFor(node){const c=String(node?.category||'').toLowerCase(),label=String(node?.label||'').toLowerCase();if(c==='agent'||label.includes('agent')||label.includes('worker'))return 'agents';if(c==='database'||label.includes('database')||label.includes('postgres')||label.includes('redis')||label.includes('memory'))return 'database';if(c==='tool'||label.includes('tool'))return 'tools';if(['cloud','messagebus'].includes(c)||/deploy|infra|queue|storage|cdn|gateway/.test(label))return 'infrastructure';if(['source','external'].includes(c)||/external|provider|github/.test(label))return 'external';return 'services';}
+function relationNames(node){if(!node)return[];const nodes=new Map((activeGraph().nodes||[]).map(item=>[item.id,item.label]));return (activeGraph().edges||[]).filter(edge=>edge.source===node.id||edge.target===node.id).slice(0,8).map(edge=>({direction:edge.target===node.id?'incoming':'outgoing',label:edge.target===node.id?nodes.get(edge.source):nodes.get(edge.target),kind:edge.kind||'relationship'}));}
+function evidencePercent(node){const value=Number(node?.metadata?.confidence);if(Number.isFinite(value))return Math.max(0,Math.min(100,Math.round(value<=1?value*100:value)));return null;}
+function evidenceLabel(node){return String(node?.evidence_level||'unverified').replaceAll('_',' ');}
+function sourceLine(item){if(!item||typeof item!=='object')return '';const path=item.path||item.file||item.url||item.repository||item.kind||'Source';const lines=item.lines||((item.line_start||item.line_end)?`Lines ${item.line_start||'?'}–${item.line_end||'?'}`:'');return `<div class="vz-source-ref"><span>▰</span><div><strong>${esc(path)}</strong>${lines?`<small>${esc(lines)}</small>`:''}</div></div>`;}
+function inspectorMarkup(node){if(!node)return `<div class="vz-inspector-empty"><span>${icons.graph}</span><strong>Select a node</strong><p>Inspect evidence, relationships and actions.</p></div>`;const relations=relationNames(node),confidence=evidencePercent(node),sources=Array.isArray(node.evidence)?node.evidence:[];return `<div class="vz-node-head"><span class="vz-node-icon">${node.category==='database'?'▰':'◆'}</span><div><h3>${esc(node.label)}</h3><small>${esc(node.category||'Component')}</small></div><i class="vz-evidence-pill ${esc(node.evidence_level||'unverified')}">✓ ${esc(evidenceLabel(node))}</i></div><dl class="vz-node-facts"><div><dt>Status</dt><dd>${esc(node.status||'active')}</dd></div><div><dt>Description</dt><dd>${esc(node.description||'No description supplied.')}</dd></div></dl><section class="vz-inspector-block"><h4>Relationships</h4>${relations.length?relations.map(item=>`<div class="vz-relation-row"><span>→</span><b>${esc(item.label||'Unknown')}</b><small>${esc(item.direction)}</small></div>`).join(''):'<p>No authored relationships.</p>'}</section><section class="vz-inspector-block"><h4>Source evidence (${sources.length})</h4>${sources.length?sources.slice(0,4).map(sourceLine).join(''):'<p>No source references attached to this node.</p>'}</section><section class="vz-inspector-block"><h4>Evidence</h4>${confidence!==null?`<div class="vz-confidence"><span><b>Evidence confidence</b><em>${confidence}%</em></span><i><b style="width:${confidence}%"></b></i></div>`:`<p class="vz-evidence-copy">Level: <strong>${esc(evidenceLabel(node))}</strong>. No numeric confidence was authored.</p>`}</section><div class="vz-node-actions"><button type="button" data-vz-reach="upstream">Upstream</button><button type="button" data-vz-reach="downstream">Downstream</button><button type="button" data-vz-ask>Ask Vishnu</button></div>`;}
+function viewerMarkup(item){return `<section id="vzViewer" class="vz-viewer" aria-label="${esc(item.title)}">
+<header class="vz-viewer-top"><div class="vz-viewer-title"><button id="vzViewerBack" class="vz-icon-btn" type="button" aria-label="Back to Visualize">${icons.back}</button><span>Visualize</span><b>›</b><strong>${esc(item.title)}</strong><i class="vz-live-pill ${item.mode==='live'?'live':''}">${item.mode==='live'?'● Live':esc(item.mode||'manual')}</i></div><div class="vz-viewer-actions"><button id="vzShare" type="button">${icons.share}<span>Share</span></button><button id="vzCompare" type="button">${icons.compare}<span>Compare</span></button><button id="vzExport" type="button">${icons.export}<span>Export</span></button><button id="vzMore" class="icon-only" type="button" aria-label="More actions">${icons.more}</button></div></header>
+<div class="vz-viewer-grid"><aside class="vz-viewer-left"><section><h4>Layers</h4><div id="vzLayerList" class="vz-layer-list"></div></section><section><h4>Views</h4><div id="vzViewList" class="vz-view-list"></div></section></aside><main class="vz-canvas-wrap"><div id="vzCanvas" class="vz-canvas">${item.svg||''}</div><div class="vz-zoom-controls"><button id="vzZoomOut" type="button" aria-label="Zoom out">−</button><span id="vzZoomLabel">100%</span><button id="vzZoomIn" type="button" aria-label="Zoom in">+</button><button id="vzFit" type="button" aria-label="Fit visual">⌗</button></div></main><aside id="vzViewerInspector" class="vz-viewer-right"></aside></div>
+<div id="vzMobileNodeCard" class="vz-mobile-node-card vz-hidden"></div><button id="vzMobileAsk" class="vz-mobile-ask" type="button">Ask Vishnu</button></section>`;}
+function openViewer(item){closeViewer();closeWorkspace();state.active=item;state.selectedNode=null;state.zoom=1;state.hiddenLayers.clear();state.view='overview';const holder=document.createElement('div');holder.innerHTML=viewerMarkup(item);viewer=holder.firstElementChild;document.body.append(viewer);byId('vzViewerBack').addEventListener('click',()=>{closeViewer();openWorkspace();});byId('vzShare').addEventListener('click',shareCurrent);byId('vzCompare').addEventListener('click',compareCurrent);byId('vzExport').addEventListener('click',()=>window.open(`${API}/${encodeURIComponent(item.id)}/artifact`,'_blank','noopener'));byId('vzMore').addEventListener('click',showViewerMenu);byId('vzZoomOut').addEventListener('click',()=>setZoom(state.zoom-.1));byId('vzZoomIn').addEventListener('click',()=>setZoom(state.zoom+.1));byId('vzFit').addEventListener('click',()=>setZoom(1));byId('vzMobileAsk').addEventListener('click',openContextual);renderLayerList();renderViewList();renderInspector();wireCanvas();setZoom(1);}
+async function openVisual(id){try{const data=await api('/'+encodeURIComponent(id));openViewer(data.visualization);}catch(error){toast(error.message);}}
+function closeViewer(){viewer?.remove();viewer=null;contextPanel?.remove();contextPanel=null;mobileDetails?.remove();mobileDetails=null;state.active=null;state.selectedNode=null;}
+function setZoom(value){state.zoom=Math.max(.55,Math.min(1.65,Math.round(value*10)/10));const svg=byId('vzCanvas')?.querySelector('svg');if(svg){svg.style.transform=`scale(${state.zoom})`;svg.style.transformOrigin='center center';}const label=byId('vzZoomLabel');if(label)label.textContent=`${Math.round(state.zoom*100)}%`;}
+function renderLayerList(){const graph=activeGraph(),counts=Object.fromEntries(LAYERS.map(([id])=>[id,0]));(graph.nodes||[]).forEach(node=>{counts[layerFor(node)]++;});const list=byId('vzLayerList');if(!list)return;list.innerHTML=LAYERS.map(([id,label])=>`<label class="vz-check-row"><input type="checkbox" data-vz-layer="${id}" ${state.hiddenLayers.has(id)?'':'checked'} ${counts[id]?'':'disabled'}><span>${label}</span><small>${counts[id]}</small></label>`).join('');list.querySelectorAll('[data-vz-layer]').forEach(input=>input.addEventListener('change',()=>{input.checked?state.hiddenLayers.delete(input.dataset.vzLayer):state.hiddenLayers.add(input.dataset.vzLayer);applyPresentation();}));}
+function renderViewList(){const list=byId('vzViewList');if(!list)return;list.innerHTML=VIEWS.map(([id,label])=>`<button type="button" class="${state.view===id?'active':''}" data-vz-view="${id}"><span>${viewGlyph(id)}</span>${label}</button>`).join('');list.querySelectorAll('[data-vz-view]').forEach(btn=>btn.addEventListener('click',()=>{state.view=btn.dataset.vzView;renderViewList();applyPresentation();}));}
+function viewGlyph(id){return ({overview:'▣',agents:'◎',memory:'◉',security:'◇',data:'▰',infrastructure:'▱',api:'▤',deployment:'▥'})[id]||'•';}
+function viewMatches(node){if(state.view==='overview')return true;const c=String(node.category||'').toLowerCase(),label=String(node.label||'').toLowerCase();if(state.view==='agents')return layerFor(node)==='agents';if(state.view==='memory')return /memory|knowledge|context/.test(label)||c==='database';if(state.view==='security')return c==='security'||/auth|security|identity|permission/.test(label);if(state.view==='data')return layerFor(node)==='database'||c==='source';if(state.view==='infrastructure')return layerFor(node)==='infrastructure';if(state.view==='api')return /api|gateway|endpoint|server/.test(label)||c==='backend';if(state.view==='deployment')return /deploy|release|cloud|container|vercel|render|railway/.test(label)||c==='cloud';return true;}
+function applyPresentation(){const graph=activeGraph(),visible=new Set();(graph.nodes||[]).forEach(node=>{if(!state.hiddenLayers.has(layerFor(node)))visible.add(node.id);});byId('vzCanvas')?.querySelectorAll('.vv-node').forEach(group=>{const node=nodeById(group.dataset.nodeId);const layerVisible=visible.has(group.dataset.nodeId),viewVisible=node?viewMatches(node):true;group.style.display=layerVisible?'':'none';group.style.opacity=viewVisible?'1':'.18';});byId('vzCanvas')?.querySelectorAll('[data-edge-id]').forEach(path=>{const edge=(graph.edges||[]).find(item=>item.id===path.dataset.edgeId);if(!edge){return;}path.style.display=visible.has(edge.source)&&visible.has(edge.target)?'':'none';const a=nodeById(edge.source),b=nodeById(edge.target);path.style.opacity=(a&&b&&viewMatches(a)&&viewMatches(b))?'1':'.14';});}
+function wireCanvas(){const canvas=byId('vzCanvas');if(!canvas)return;canvas.querySelectorAll('.vv-node').forEach(group=>{group.addEventListener('click',()=>selectNode(group.dataset.nodeId));group.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();selectNode(group.dataset.nodeId);}});});applyPresentation();}
+function selectNode(id){state.selectedNode=id;byId('vzCanvas')?.querySelectorAll('.vv-node').forEach(group=>group.classList.toggle('vz-node-selected',group.dataset.nodeId===id));renderInspector();renderMobileNodeCard();}
+function renderInspector(){const panel=byId('vzViewerInspector');if(!panel)return;panel.innerHTML=inspectorMarkup(nodeById(state.selectedNode));panel.querySelectorAll('[data-vz-reach]').forEach(btn=>btn.addEventListener('click',()=>runReach(btn.dataset.vzReach)));panel.querySelector('[data-vz-ask]')?.addEventListener('click',openContextual);}
+function renderMobileNodeCard(){const card=byId('vzMobileNodeCard'),node=nodeById(state.selectedNode);if(!card)return;if(!node){card.classList.add('vz-hidden');card.innerHTML='';return;}card.classList.remove('vz-hidden');card.innerHTML=`<div class="vz-mobile-node-head"><span class="vz-node-icon">${node.category==='database'?'▰':'◆'}</span><div><strong>${esc(node.label)}</strong><small>${esc(node.category)} · ${esc(evidenceLabel(node))}</small></div><button id="vzMobileNodeCollapse" type="button">⌃</button></div><p>${esc(node.description||'No description supplied.')}</p><div class="vz-mobile-node-actions"><button id="vzNodeDetails" type="button">Details</button><button type="button" data-vz-reach="upstream">◇ Upstream</button><button type="button" data-vz-reach="downstream">◇ Downstream</button></div>`;byId('vzNodeDetails').addEventListener('click',openMobileDetails);byId('vzMobileNodeCollapse').addEventListener('click',()=>card.classList.add('vz-hidden'));card.querySelectorAll('[data-vz-reach]').forEach(btn=>btn.addEventListener('click',()=>runReach(btn.dataset.vzReach)));}
+async function runReach(direction){const node=nodeById(state.selectedNode);if(!node){toast('Select a node first.');return;}try{const result=await api('/'+encodeURIComponent(state.active.id)+'/reach',{method:'POST',body:JSON.stringify({origin:node.id,direction})});state.reach=result;const ids=new Set(result.node_ids||[]);byId('vzCanvas')?.querySelectorAll('.vv-node').forEach(group=>{group.style.opacity=ids.has(group.dataset.nodeId)?'1':'.14';});toast(`${direction==='upstream'?'Upstream':'Downstream'} reach: ${Math.max(0,(result.node_ids||[]).length-1)} connected nodes.`);}catch(error){toast(error.message);}}
+async function shareCurrent(){const url=`${location.origin}${API}/${encodeURIComponent(state.active.id)}/artifact`;if(navigator.share){try{await navigator.share({title:state.active.title,text:'Vishnu Visualize',url});return;}catch(error){if(error?.name==='AbortError')return;}}window.open(url,'_blank','noopener');}
+function showViewerMenu(){showModal(`${dialogHead('Visual actions','Manage this visual without changing its evidence semantics.')}<div class="vz-picker-list"><button id="vzHistoryAction" class="vz-picker-row" type="button"><span><strong>Version history</strong><small>View persisted revisions</small></span><b>→</b></button><button id="vzRefreshAction" class="vz-picker-row" type="button"><span><strong>Refresh source</strong><small>Re-read the live project, conversation or repository source</small></span><b>↻</b></button></div>`);byId('vzHistoryAction').addEventListener('click',showHistory);byId('vzRefreshAction').addEventListener('click',refreshCurrent);}
+async function showHistory(){closeModal();try{const data=await api('/'+encodeURIComponent(state.active.id)+'/revisions');showModal(`${dialogHead('Version history','Every canonical graph mutation creates a persisted revision.')}<div class="vz-picker-list">${(data.revisions||[]).map(item=>`<div class="vz-picker-row static"><span><strong>Revision ${esc(item.revision)}</strong><small>${esc(item.reason||'update')} · ${esc(item.created_at||'')}</small></span></div>`).join('')||'<div class="vz-empty">No revisions available.</div>'}</div>`);}catch(error){toast(error.message);}}
+async function refreshCurrent(){closeModal();try{const data=await api('/'+encodeURIComponent(state.active.id)+'/refresh',{method:'POST',body:JSON.stringify({reason:'owner refresh'})});state.active=data.visualization;openViewer(data.visualization);toast('Visual refreshed from its source.');}catch(error){toast(error.message);}}
+function compareCurrent(){const others=state.visuals.filter(item=>item.id!==state.active.id);showModal(`${dialogHead('Compare visual','Choose another stored visual. The result is an architecture delta, not automatic runtime impact.')}<div class="vz-picker-list">${others.length?others.map(item=>`<button type="button" class="vz-picker-row" data-vz-compare-id="${esc(item.id)}"><span><strong>${esc(item.title)}</strong><small>${esc(typeLabel(item.type))}</small></span><b>→</b></button>`).join(''):'<div class="vz-empty">Create another visual to compare.</div>'}</div>`);modal.querySelectorAll('[data-vz-compare-id]').forEach(btn=>btn.addEventListener('click',()=>runCompare(btn.dataset.vzCompareId)));}
+async function runCompare(beforeId){try{const data=await api('/compare',{method:'POST',body:JSON.stringify({before_id:beforeId,after_id:state.active.id})});const s=data.summary||{};showModal(`${dialogHead('Architecture delta','Added, removed and changed authored structure.')}<div class="vz-delta-grid"><div><b>+${Number(s.added||0)}</b><span>Added</span></div><div><b>−${Number(s.removed||0)}</b><span>Removed</span></div><div><b>~${Number(s.changed||0)}</b><span>Changed</span></div></div>`);}catch(error){toast(error.message);}}
+
+function contextualMarkup(){const node=nodeById(state.selectedNode);const tabs=['chat','sources','paths','evidence'];return `<aside id="vzContextPanel" class="vz-context-panel"><header><div><strong>Ask Vishnu</strong><small>${node?esc(node.label):esc(state.active?.title||'Visual')}</small></div><button id="vzContextClose" type="button">×</button></header><nav>${tabs.map(tab=>`<button type="button" class="${state.contextTab===tab?'active':''}" data-vz-context-tab="${tab}">${tab[0].toUpperCase()+tab.slice(1)}</button>`).join('')}</nav><div id="vzContextBody" class="vz-context-body">${contextBody(node)}</div><form id="vzAskForm" class="vz-context-composer"><input id="vzAskInput" autocomplete="off" placeholder="Ask Vishnu about this visual…"><button type="submit">→</button></form></aside>`;}
+function contextBody(node){if(state.contextTab==='chat')return `<div class="vz-context-callout"><p>Ask about <strong>${esc(node?.label||state.active?.title||'this visual')}</strong>. Vishnu will receive the visual id, selected node and your question in the canonical conversation.</p><div class="vz-suggestions"><button type="button" data-vz-suggest="Why is this component here?">Why is this component here?</button><button type="button" data-vz-suggest="Explain its dependencies.">Explain its dependencies.</button><button type="button" data-vz-suggest="What evidence supports this?">What evidence supports this?</button></div></div>`;if(state.contextTab==='sources'){const sources=Array.isArray(node?.evidence)?node.evidence:[];return `<section class="vz-context-section"><h4>Source references (${sources.length})</h4>${sources.length?sources.map(sourceLine).join(''):'<p>No source references are attached to the selected node.</p>'}</section>`;}if(state.contextTab==='paths')return `<section class="vz-context-section"><h4>Authored graph paths</h4><p>Reachability follows authored relationships only; it does not claim runtime impact.</p><div class="vz-path-actions"><button type="button" data-vz-context-reach="upstream">Show upstream</button><button type="button" data-vz-context-reach="downstream">Show downstream</button></div>${state.reach?`<div class="vz-reach-result"><b>${(state.reach.node_ids||[]).length}</b><span>reachable nodes · max ${state.reach.max_hops||0} hops</span></div>`:''}</section>`;const confidence=evidencePercent(node);return `<section class="vz-context-section"><h4>Evidence</h4><div class="vz-evidence-large"><strong>${esc(evidenceLabel(node||{}))}</strong><p>${confidence!==null?`${confidence}% authored confidence metadata.`:'No numeric confidence metadata was authored for this node.'}</p></div><p>Evidence labels describe provenance strength. They are not a guarantee that an AI-authored architectural interpretation is semantically correct.</p></section>`;}
+function openContextual(){if(!state.active)return;state.contextTab='chat';contextPanel?.remove();const holder=document.createElement('div');holder.innerHTML=contextualMarkup();contextPanel=holder.firstElementChild;document.body.append(contextPanel);wireContextual();}
+function wireContextual(){byId('vzContextClose')?.addEventListener('click',()=>{contextPanel?.remove();contextPanel=null;});contextPanel?.querySelectorAll('[data-vz-context-tab]').forEach(btn=>btn.addEventListener('click',()=>{state.contextTab=btn.dataset.vzContextTab;contextPanel.outerHTML=contextualMarkup();contextPanel=byId('vzContextPanel');wireContextual();}));contextPanel?.querySelectorAll('[data-vz-suggest]').forEach(btn=>btn.addEventListener('click',()=>{const input=byId('vzAskInput');input.value=btn.dataset.vzSuggest;input.focus();}));contextPanel?.querySelectorAll('[data-vz-context-reach]').forEach(btn=>btn.addEventListener('click',async()=>{await runReach(btn.dataset.vzContextReach);state.contextTab='paths';contextPanel.outerHTML=contextualMarkup();contextPanel=byId('vzContextPanel');wireContextual();}));byId('vzAskForm')?.addEventListener('submit',handoffQuestion);}
+function handoffQuestion(event){event.preventDefault();const text=byId('vzAskInput')?.value.trim();if(!text)return;const node=nodeById(state.selectedNode);const prompt=`Regarding Vishnu Visualize \"${state.active.title}\"${node?` and node \"${node.label}\"`:''}: ${text}`;const hostInput=document.querySelector('.composer input');if(!hostInput){toast('Vishnu chat composer is unavailable on this surface.');return;}hostInput.value=prompt;hostInput.dispatchEvent(new Event('input',{bubbles:true}));const send=byId('sendButton');closeViewer();closeWorkspace();hostInput.focus();if(send&&!send.disabled)send.click();}
+
+function openMobileDetails(){const node=nodeById(state.selectedNode);if(!node)return;mobileDetails?.remove();mobileDetails=document.createElement('section');mobileDetails.className='vz-mobile-details';mobileDetails.innerHTML=mobileDetailsMarkup(node,'details');document.body.append(mobileDetails);wireMobileDetails();}
+function mobileDetailsMarkup(node,tab){const relations=relationNames(node),sources=Array.isArray(node.evidence)?node.evidence:[],confidence=evidencePercent(node);let body='';if(tab==='details')body=`<dl class="vz-mobile-facts"><div><dt>Status</dt><dd>${esc(node.status||'active')}</dd></div><div><dt>Project</dt><dd>${esc(state.active?.title||'Visual')}</dd></div><div><dt>Description</dt><dd>${esc(node.description||'No description supplied.')}</dd></div></dl><div class="vz-mobile-confidence"><span>Evidence ${esc(evidenceLabel(node))}</span>${confidence!==null?`<b>${confidence}%</b>`:''}<i><em style="width:${confidence??35}%"></em></i></div>`;else if(tab==='sources')body=sources.length?sources.map(sourceLine).join(''):'<div class="vz-empty">No source references attached.</div>';else if(tab==='relations')body=relations.length?relations.map(item=>`<div class="vz-relation-row"><span>→</span><b>${esc(item.label||'Unknown')}</b><small>${esc(item.direction)}</small></div>`).join(''):'<div class="vz-empty">No authored relationships.</div>';else body='<div class="vz-mobile-action-list"><button type="button" data-vz-mobile-reach="upstream">Show upstream</button><button type="button" data-vz-mobile-reach="downstream">Show downstream</button><button type="button" data-vz-mobile-ask>Ask Vishnu about this node</button></div>';return `<header><button id="vzMobileDetailsBack" type="button">←</button><div class="vz-node-icon">${node.category==='database'?'▰':'◆'}</div><div><h2>${esc(node.label)}</h2><span>${esc(node.category)} · ${esc(evidenceLabel(node))}</span></div><button type="button" aria-label="More">⋮</button></header><nav>${[['details','Details'],['sources','Sources'],['relations','Relations'],['actions','Actions']].map(([id,label])=>`<button class="${tab===id?'active':''}" type="button" data-vz-mobile-tab="${id}">${label}</button>`).join('')}</nav><main>${body}</main><button class="vz-mobile-details-ask" type="button" data-vz-mobile-ask>Ask Vishnu about this node</button>`;}
+function wireMobileDetails(){byId('vzMobileDetailsBack')?.addEventListener('click',()=>{mobileDetails?.remove();mobileDetails=null;});mobileDetails?.querySelectorAll('[data-vz-mobile-tab]').forEach(btn=>btn.addEventListener('click',()=>{const node=nodeById(state.selectedNode);mobileDetails.innerHTML=mobileDetailsMarkup(node,btn.dataset.vzMobileTab);wireMobileDetails();}));mobileDetails?.querySelectorAll('[data-vz-mobile-reach]').forEach(btn=>btn.addEventListener('click',()=>runReach(btn.dataset.vzMobileReach)));mobileDetails?.querySelectorAll('[data-vz-mobile-ask]').forEach(btn=>btn.addEventListener('click',()=>{mobileDetails?.remove();mobileDetails=null;openContextual();}));}
+
+function openWorkspaceFromTest(){openWorkspace();}
+function openGalleryFromTest(){openWorkspace();renderGallery();}
+async function openViewerFromTest(id){if(!state.visuals.length)await loadVisuals();const item=state.visuals.find(row=>row.id===id)||state.visuals[0];if(item)openViewer(item);}
+window.__VISHNU_VISUALIZE__={openWorkspace:openWorkspaceFromTest,openGallery:openGalleryFromTest,openViewer:openViewerFromTest,openNav,selectNode,openContextual,openMobileDetails,getState:()=>state};
+
+function boot(){if(!ensureNavEntry()){setTimeout(boot,250);return;}const observer=new MutationObserver(()=>ensureNavEntry());observer.observe(document.documentElement,{subtree:true,childList:true});}
+boot();
 })();
