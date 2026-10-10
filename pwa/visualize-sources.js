@@ -60,11 +60,22 @@ function enhancePaths(){
   if(state.path)renderPathResult(section,state.path,state.active.graph);
   lastPanel=panel;
 }
+function mobileSearch(event){
+  const trigger=event.target.closest?.('#vzGallery');
+  if(!trigger||!window.matchMedia('(max-width:720px)').matches)return;
+  event.preventDefault();event.stopImmediatePropagation();
+  const field=document.getElementById('vzGlobalSearch');
+  if(!field)return;
+  const open=field.classList.toggle('mobile-open');
+  trigger.setAttribute('aria-label',open?'Close search':'Search visuals');
+  if(open)field.querySelector('input')?.focus();
+}
 function start(){
   enhancePaths();
   observer?.disconnect();
   observer=new MutationObserver(enhancePaths);
   observer.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});
+  document.addEventListener('click',mobileSearch,true);
 }
 
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
