@@ -46,7 +46,7 @@ if(!source.includes(pathBefore))throw new Error('Visualize contextual assertion 
 source=source.replace(pathBefore,pathAfter);
 
 const mobileBefore=`  await mp.waitForSelector('#vzMobileNodeCard:not(.vz-hidden)');`;
-const mobileAfter=`  await mp.waitForSelector('#vzMobileNodeCard:not(.vz-hidden)');\n  await mp.locator('#vzMore').click();\n  await mp.waitForSelector('[data-vza-menu-entry]');\n  await mp.locator('[data-vza-menu-entry]').click();\n  await mp.waitForSelector('.vza-create-menu');\n  assert.equal(await mp.locator('[data-vza-action]').count(),4,'Mobile viewer exposes Edit, Presentation, 3D and Export through its existing More menu');\n  await mp.locator('[data-vza-close]').click();`;
+const mobileAfter=`  await mp.waitForSelector('#vzMobileNodeCard:not(.vz-hidden)');\n  await mp.evaluate(()=>document.querySelector('#vzMore')?.click());\n  await mp.waitForSelector('[data-vza-menu-entry]');\n  await mp.locator('[data-vza-menu-entry]').click();\n  await mp.waitForSelector('.vza-create-menu');\n  assert.equal(await mp.locator('[data-vza-action]').count(),4,'Mobile viewer exposes Edit, Presentation, 3D and Export through its existing More menu');\n  await mp.locator('[data-vza-close]').click();`;
 if(!source.includes(mobileBefore))throw new Error('Visualize mobile viewer contract changed; update runner explicitly.');
 source=source.replace(mobileBefore,mobileAfter);
 
