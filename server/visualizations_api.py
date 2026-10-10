@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from pathlib import PurePath
 from typing import Any
 
 from fastapi import APIRouter, Cookie, HTTPException, Query
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
+from visual_intelligence.file_sources import decode_file_payload, extract_source_text
+from visual_intelligence.github_repository import GitHubRepositoryAnalyzer
 from visual_intelligence.models import VisualMode, VisualType
 
 
@@ -20,6 +23,14 @@ class VisualCreateBody(BaseModel):
     conversation_id: str | None = Field(default=None, max_length=120)
     source_kind: str = Field(default='description', max_length=80)
     source_ref: str | None = Field(default=None, max_length=500)
+
+
+class FileVisualBody(BaseModel):
+    filename: str = Field(min_length=1, max_length=260)
+    content_base64: str = Field(min_length=1, max_length=9_000_000)
+    title: str | None = Field(default=None, max_length=160)
+    type: VisualType = VisualType.ARCHITECTURE
+    mode: VisualMode = VisualMode.MANUAL
 
 
 class VisualPatchBody(BaseModel):
@@ -56,6 +67,7 @@ def visualizations_router(runtime):
     registry = runtime['device_registry']
     projects = runtime.get('project_store')
     continuity = runtime.get('continuity')
+    repository_analyzer = GitHubRepositoryAnalyzer()
 
     def require_owner(pa_device: str | None, pa_token: str | None) -> str:
         if not pa_device or not pa_token or not registry.authenticate(pa_device, pa_token):
@@ -129,21 +141,58 @@ def visualizations_router(runtime):
         context = dict(body.context)
         visual_type = body.type
         source_ref = body.source_ref
-        if body.source_kind == 'project' and body.project_id and body.graph is None:
+        graph = body.graph
+        if body.source_kind == 'project' and body.project_id and graph is None:
             project_name, native_context = project_visual_context(body.project_id)
             context = {**native_context, **context}
             visual_type = VisualType.PROJECT_MAP
             source_ref = source_ref or body.project_id
             if title.casefold() in {'untitled visual', 'project map'}:
                 title = f'{project_name} · Project Map'
-        elif body.source_kind == 'conversation' and body.conversation_id and body.graph is None:
+        elif body.source_kind == 'conversation' and body.conversation_id and graph is None:
             conversation_title, native_description = conversation_description(body.conversation_id)
             description = description.strip() or native_description
             source_ref = source_ref or body.conversation_id
             if title.casefold() in {'untitled visual', 'conversation'}:
                 title = conversation_title
+        elif body.source_kind == 'github' and source_ref and graph is None:
+            try:
+                repository_graph = repository_analyzer.analyze(
+                    source_ref,
+                    title=None if title.casefold() == 'untitled visual' else title,
+                )
+            except ValueError as exc:
+                raise HTTPException(422, str(exc)) from exc
+            graph = repository_graph
+            visual_type = VisualType.ARCHITECTURE
+            title = repository_graph.title
         try:
-            return {'visualization': service.create(owner_id=owner_id, title=title, visual_type=visual_type, mode=body.mode, description=description, context=context, graph=body.graph, project_id=body.project_id, conversation_id=body.conversation_id, source_kind=body.source_kind, source_ref=source_ref)}
+            return {'visualization': service.create(owner_id=owner_id, title=title, visual_type=visual_type, mode=body.mode, description=description, context=context, graph=graph, project_id=body.project_id, conversation_id=body.conversation_id, source_kind=body.source_kind, source_ref=source_ref)}
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+
+    @router.post('/from-file')
+    def create_visual_from_file(
+        body: FileVisualBody,
+        pa_device: str | None = Cookie(default=None),
+        pa_token: str | None = Cookie(default=None),
+    ):
+        owner_id = require_owner(pa_device, pa_token)
+        try:
+            raw = decode_file_payload(body.filename, body.content_base64)
+            description, metadata = extract_source_text(body.filename, raw)
+            title = str(body.title or PurePath(body.filename).stem or 'File visual').strip()[:160]
+            item = service.create(
+                owner_id=owner_id,
+                title=title,
+                visual_type=body.type,
+                mode=body.mode,
+                description=description,
+                context={'file': metadata},
+                source_kind='files',
+                source_ref=body.filename,
+            )
+            return {'visualization': item, 'source': metadata}
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
 
@@ -215,6 +264,12 @@ def visualizations_router(runtime):
             context = {**native_context, **context}
         elif current.get('source_kind') == 'conversation' and current.get('conversation_id') and description is None:
             _, description = conversation_description(current['conversation_id'])
+        elif current.get('source_kind') == 'github' and current.get('source_ref'):
+            try:
+                graph = repository_analyzer.analyze(current['source_ref'], title=current['title'])
+                return {'visualization': service.update(owner_id, visual_id, graph=graph.to_dict(), reason=body.reason or 'repository refresh')}
+            except ValueError as exc:
+                raise HTTPException(422, str(exc)) from exc
         try:
             return {'visualization': service.refresh(owner_id, visual_id, description=description, context=context, reason=body.reason)}
         except KeyError as exc:
