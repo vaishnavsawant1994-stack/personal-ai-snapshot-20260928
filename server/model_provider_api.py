@@ -3,6 +3,8 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from server.agent_workforce_api import agent_workforce_router
+
 
 class ProviderCredentialBody(BaseModel):
     provider_id: str = Field(min_length=1, max_length=80)
@@ -146,4 +148,8 @@ def model_provider_router(runtime) -> APIRouter:
             'model_output_authority': False,
         }
 
+    # Workforce lives under the already loopback-only Owner AI surface on the
+    # desktop control server. Hosted/PWA registration uses the same router with
+    # its trusted owner-session boundary rather than weakening this one.
+    router.include_router(agent_workforce_router(runtime, prefix='/agents', require_loopback=True))
     return router
