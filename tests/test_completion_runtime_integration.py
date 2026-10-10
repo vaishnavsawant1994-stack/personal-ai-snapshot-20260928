@@ -98,5 +98,6 @@ def test_completion_runtime_status_declares_completion_authority(tmp_path):
     status = autonomy.status()["completion_judge"]
     assert status["installed"] is True
     assert status["authority"] == "deterministic_completion_judge"
-    assert status["execution_authority"] == "existing_p10_p6_runtime"
+    assert status["execution_authority"] == "canonical_work"
+    assert status["compatibility_execution_path"] == "p10_p6_governed_runtime"
     assert status["client_completion_flags_authoritative"] is False

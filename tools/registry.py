@@ -4,10 +4,11 @@ from enum import IntEnum
 from pathlib import Path
 import sqlite3
 import json
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 from urllib.parse import urlparse
 from core.permissions import PermissionDecision, PermissionEngine
 from desktop.operator_context import current_operator_request
+from tools.contracts import validate_contract
 
 class Risk(IntEnum): READ_ONLY=0; REVERSIBLE=1; EXTERNAL_SIDE_EFFECT=2; DESTRUCTIVE=3; CRITICAL=4
 @dataclass(frozen=True)
@@ -20,6 +21,9 @@ class Tool:
     allowed_destinations:tuple[str,...]|None=None; verification_required:bool=False; requires_reauth:bool=False
     connector_id:str|None=None; capability:str|None=None; minimum_risk:Risk|None=None; prohibited_data_classifications:tuple[str,...]=(); prohibited:bool=False
     prepare:Callable[[dict[str,Any]],dict[str,Any]]|None=None; on_reject:Callable[[dict[str,Any]],Any]|None=None; requires_trusted_context:bool=False
+    input_schema:Mapping[str,Any]|None=None; output_schema:Mapping[str,Any]|None=None
+    input_validator:Callable[[dict[str,Any]],Any]|None=None; output_validator:Callable[[Any],Any]|None=None
+    idempotency_supported:bool=False; verification_method:str|None=None
 class ToolRegistry:
     def __init__(self,settings):
         self.settings=settings; self.permissions=PermissionEngine(settings.autonomy_mode); self._tools={}; self.emergency_stop=False; self._control_path=None; self._approval_path=None; self.policy_gateway=None; self.recovery_authority=None; self._data_root=None
@@ -69,13 +73,44 @@ class ToolRegistry:
         if self.policy_gateway is None:return {'policies':[],'recent_use':[],'safe_default':'deny','schema_version':None}
         return self.policy_gateway.owner_snapshot(owner_id)
     def recovery_snapshot(self,transaction_id):return self.ensure_recovery_authority().owner_view(transaction_id)
+    @staticmethod
+    def validate_input(tool,parameters):
+        if not isinstance(parameters,dict):raise ValueError('tool parameters must be an object')
+        if tool.input_schema is not None:validate_contract(parameters,tool.input_schema,label=f'{tool.name} input')
+        if tool.input_validator is not None:
+            verdict=tool.input_validator(parameters)
+            if verdict is False:raise ValueError('tool input contract rejected parameters')
+        return parameters
+    @staticmethod
+    def validate_output(tool,result):
+        if tool.output_schema is not None:validate_contract(result,tool.output_schema,label=f'{tool.name} output')
+        if tool.output_validator is not None:
+            verdict=tool.output_validator(result)
+            if verdict is False:raise ValueError('tool output contract rejected result')
+        return result
+    def dispatch(self,tool,parameters):
+        """Final fail-closed contract check at the exact handler boundary."""
+        self.validate_input(tool,parameters)
+        result=tool.handler(parameters)
+        self.validate_output(tool,result)
+        return result
+    def contract_snapshot(self,tool):
+        return {'name':tool.name,'input_schema':dict(tool.input_schema or {}),'output_schema':dict(tool.output_schema or {}),'input_validator':bool(tool.input_validator),'output_validator':bool(tool.output_validator),'idempotency_supported':bool(tool.idempotency_supported),'verification_method':tool.verification_method,'verification_required':bool(tool.verification_required),'prohibited':bool(tool.prohibited),'risk':tool.risk.name}
     def register(self,tool:Tool):
         if tool.name in self._tools:raise ValueError(f'Duplicate tool {tool.name}')
         if tool.minimum_risk is not None and int(tool.risk)<int(tool.minimum_risk):tool.risk=Risk(int(tool.minimum_risk))
+        if tool.input_schema is not None and not isinstance(tool.input_schema,Mapping):raise ValueError(f'tool {tool.name} input_schema must be an object')
+        if tool.output_schema is not None and not isinstance(tool.output_schema,Mapping):raise ValueError(f'tool {tool.name} output_schema must be an object')
         self._tools[tool.name]=tool
     def get(self,name):return self._tools[name]
     def all(self):return list(self._tools.values())
-    def schema_text(self):return '\n'.join(f'- {t.name}: {t.description}; risk={t.risk.name}' for t in self._tools.values() if not t.prohibited)
+    def schema_text(self):
+        rows=[]
+        for t in self._tools.values():
+            if t.prohibited:continue
+            contract='typed' if t.input_schema or t.output_schema or t.input_validator or t.output_validator else 'legacy-compatible'
+            rows.append(f'- {t.name}: {t.description}; risk={t.risk.name}; contract={contract}')
+        return '\n'.join(rows)
     def set_autonomy_mode(self,mode):
         mode=str(mode).lower().strip()
         if mode not in {'observe','suggest','ask','act'}:raise ValueError('invalid autonomy mode')
@@ -103,8 +138,6 @@ class ToolRegistry:
         if any(word in name for word in ('read','list','search','get','inspect','view')):return 'read'
         if any(word in name for word in ('create','new','add','draft')):return 'create'
         if any(word in name for word in ('edit','update','organize','rename','move','modify')):return 'edit'
-        # Unknown reversible actions keep the existing autonomy-mode behavior;
-        # don't grant automatic execution by guessing a category.
         return None
     def set_owner_permission_rules(self,rules):
         clean=self.permissions.set_rules(rules)
@@ -186,10 +219,11 @@ class ToolRegistry:
     def authorize(self,tool,confirmed=False,*,parameters=None,data_classification='internal'):
         if self.emergency_stop:return PermissionDecision(False,False,'owner emergency stop is active')
         if tool.prohibited:return PermissionDecision(False,False,'this connector operation is prohibited by policy')
-        parameters=self._prepare_trusted(tool,parameters);classification=str(data_classification or 'internal').strip().lower()
+        parameters=self._prepare_trusted(tool,parameters);self.validate_input(tool,parameters or {});classification=str(data_classification or 'internal').strip().lower()
         if classification in set(tool.prohibited_data_classifications):return PermissionDecision(False,False,'this data classification is prohibited for the connector operation')
         self.validate_destination(tool,parameters);risk=self.effective_risk(tool,parameters=parameters,data_classification=classification);operation=self.permission_operation(tool,parameters);return self.permissions.decide(int(risk),confirmed=confirmed,operation=operation)
     def verify_result(self,tool,parameters,result):
+        self.validate_output(tool,result)
         if tool.verifier is not None:
             verdict=tool.verifier(parameters,result)
             if isinstance(verdict,VerificationResult):verification=verdict

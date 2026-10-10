@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 import asyncio
 import json
 from app.main import build_runtime
+from app.e9_runtime import start_e9_services, stop_e9_services
 from core.config import settings
 from core.storage import validate_runtime_storage
 from security.pwa_sessions import PwaSessionStore
@@ -16,7 +17,9 @@ from server.automation_visibility_api import automation_visibility_router
 from server.recovery_visibility_api import recovery_visibility_router
 from server.cloud_security import cloud_security_router
 from server.agent_continuity_api import agent_continuity_router
+from server.evidence_api import evidence_router
 from server.evolution_api import evolution_router
+from server.identity_api import identity_router
 from server import iphone_pwa as iphone_pwa_module
 from server.owner_product import owner_product_router
 from server.capability_console import capability_console_router
@@ -63,7 +66,7 @@ print(json.dumps({'event':'storage.ready',**storage_status}),flush=True)
 
 @asynccontextmanager
 async def lifespan(app):
-    runtime['automations'].start();evaluation_task=None
+    runtime['automations'].start();start_e9_services(runtime);evaluation_task=None
     async def ambient_retention_worker():
         governed = runtime['second_brain']
         while True:
@@ -81,20 +84,18 @@ async def lifespan(app):
         try: await retention_task
         except asyncio.CancelledError: pass
         if evaluation_task and not evaluation_task.done():evaluation_task.cancel()
-        runtime['voice'].stop();runtime['automations'].stop();runtime['telemetry'].persist();runtime['apns'].close()
+        runtime['voice'].stop();stop_e9_services(runtime);runtime['automations'].stop();runtime['telemetry'].persist();runtime['apns'].close()
 
 app=create_app(runtime['executor'],settings,device_registry=runtime['device_registry'],device_gateway=runtime['device_gateway'],second_brain=runtime['second_brain'],automations=runtime['automations'],runtime=runtime)
 app.add_middleware(LogicalRequestMiddleware)
 app.add_middleware(PwaSessionMiddleware,sessions=runtime['pwa_sessions'],device_registry=runtime['device_registry'],cookie_max_age=60*60*24*max(1,min(int(getattr(settings,'iphone_device_cookie_days',365)),3650)))
 app.add_middleware(WorkflowBudgetUiMiddleware);app.add_middleware(ConnectorUiMiddleware)
 pwa_runtime=dict(runtime);pwa_runtime['executor']=SessionBoundExecutor(runtime['executor'],continuity=runtime['continuity'],surface='iphone-pwa');pwa_runtime['continuity']=CanonicalConversationProjection(runtime['continuity'])
-# Stage 2 durable ApprovalManager remains the sole approval authority.
 app.include_router(approval_router(runtime,pwa_runtime['executor']))
 app.include_router(approvals_center_router(runtime))
-# Stage 3 canonical conversation/voice transport remains authoritative.
 app.include_router(conversation_voice_router(runtime,pwa_runtime['executor']))
 _original_pwa_state=iphone_pwa_module.IphonePwaState
 iphone_pwa_module.IphonePwaState=lambda:RequestAwareIphonePwaState(cancel_turn=pwa_runtime['executor'].cancel_turn)
 try:app.include_router(iphone_pwa_module.iphone_pwa_router(pwa_runtime,settings,include_legacy_runtime_routes=False))
 finally:iphone_pwa_module.IphonePwaState=_original_pwa_state
-app.include_router(pwa_security_router(runtime));app.include_router(cloud_security_router(runtime));app.include_router(agent_continuity_router(runtime));app.include_router(evolution_router(runtime));app.include_router(activities_router(runtime));app.include_router(apps_tools_router(runtime));app.include_router(devices_presence_router(runtime));app.include_router(automation_visibility_router(runtime));app.include_router(recovery_visibility_router(runtime));app.include_router(runtime_state_router(runtime));app.include_router(memory_knowledge_inspection_router(runtime));app.include_router(memory_governance_router(runtime));app.include_router(memory_ambient_router(runtime));app.include_router(everyday_intelligence_router(runtime));app.include_router(personal_operations_router(runtime));app.include_router(projects_router(runtime,project_store));app.include_router(project_work_router(runtime,project_store));app.include_router(project_autonomy_router(runtime,project_store));app.include_router(work_order_detail_router(runtime,project_store));app.include_router(global_work_router(runtime,project_store));app.include_router(work_attention_router(runtime,project_store));app.include_router(multimodal_world_router(runtime));app.include_router(continuity_sync_router(runtime));app.include_router(owner_product_router(runtime));app.include_router(workflow_budget_router(runtime));app.include_router(workflow_budget_ui_router());app.include_router(connector_router(runtime));app.include_router(connector_oauth_callback_router());app.include_router(connector_ui_router());app.include_router(capability_console_router(runtime));app.router.lifespan_context=lifespan
+app.include_router(pwa_security_router(runtime));app.include_router(cloud_security_router(runtime));app.include_router(agent_continuity_router(runtime));app.include_router(identity_router(runtime));app.include_router(evidence_router(runtime));app.include_router(evolution_router(runtime));app.include_router(activities_router(runtime));app.include_router(apps_tools_router(runtime));app.include_router(devices_presence_router(runtime));app.include_router(automation_visibility_router(runtime));app.include_router(recovery_visibility_router(runtime));app.include_router(runtime_state_router(runtime));app.include_router(memory_knowledge_inspection_router(runtime));app.include_router(memory_governance_router(runtime));app.include_router(memory_ambient_router(runtime));app.include_router(everyday_intelligence_router(runtime));app.include_router(personal_operations_router(runtime));app.include_router(projects_router(runtime,project_store));app.include_router(project_work_router(runtime,project_store));app.include_router(project_autonomy_router(runtime,project_store));app.include_router(work_order_detail_router(runtime,project_store));app.include_router(global_work_router(runtime,project_store));app.include_router(work_attention_router(runtime,project_store));app.include_router(multimodal_world_router(runtime));app.include_router(continuity_sync_router(runtime));app.include_router(owner_product_router(runtime));app.include_router(workflow_budget_router(runtime));app.include_router(workflow_budget_ui_router());app.include_router(connector_router(runtime));app.include_router(connector_oauth_callback_router());app.include_router(connector_ui_router());app.include_router(capability_console_router(runtime));app.router.lifespan_context=lifespan

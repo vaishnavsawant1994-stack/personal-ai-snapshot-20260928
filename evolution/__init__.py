@@ -1,6 +1,7 @@
 from .adoption import AdoptionRecord, OwnerBodyAdoptionService
 from .code_body import CodeBodyEvolutionService, CodeBodyRun, CodeBodyRunStatus
 from .config import EvolutionConfig
+from .continuous import ContinuousEvolutionRuntime, ContinuousEvolutionStatus
 from .curator import EvolutionCurator
 from .handoff import EvolutionHandoff, EvolutionHandoffService
 from .migrations import EVOLUTION_SCHEMA_VERSION, migrate_evolution_schema
@@ -34,6 +35,8 @@ __all__ = [
     "CodeBodyEvolutionService",
     "CodeBodyRun",
     "CodeBodyRunStatus",
+    "ContinuousEvolutionRuntime",
+    "ContinuousEvolutionStatus",
     "CurationResult",
     "EvidenceScan",
     "EvolutionCandidate",

@@ -39,6 +39,12 @@ def _iso(value: Any) -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _source_stamp(value: Any) -> str:
+    if isinstance(value, (int, float)):
+        return f"{float(value):.9f}"
+    return str(value or "")
+
+
 _PLAN_STATUS = {
     "CREATED": WorkPlanStatus.DRAFT,
     "VALIDATING": WorkPlanStatus.REVIEWING,
@@ -75,7 +81,12 @@ _ORDER_STATUS = {
 
 
 class P10WorkBridge:
-    """Observe-only bridge from the qualified P10 runtime into Work/Evidence."""
+    """Compatibility bridge from P10 documents into canonical Work/Evidence.
+
+    Direct construction remains observe-only for backwards compatibility. E9's
+    P10CanonicalWorkAuthority promotes the same bridge to canonical_authority
+    before runtime backfill/dispatch; the bridge never grants tool permissions.
+    """
 
     mode = "observe_only"
 
@@ -84,6 +95,35 @@ class P10WorkBridge:
         self.lock = lock or RLock()
         self.work = DurableWorkStore(connection=connection)
         self.evidence = EvidenceStore(connection=connection)
+        with self.connection:
+            self.connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS work_projection_state(
+                    source_kind TEXT NOT NULL,
+                    source_id TEXT NOT NULL,
+                    source_updated_at TEXT NOT NULL,
+                    projected_id TEXT,
+                    PRIMARY KEY(source_kind, source_id)
+                )
+                """
+            )
+
+    @property
+    def execution_authority(self) -> str:
+        return "canonical_work" if self.mode == "canonical_authority" else "p10_existing_runtime"
+
+    def _mark_projected(self, kind: str, source_id: str, updated_at: Any, projected_id: str | None) -> None:
+        with self.connection:
+            self.connection.execute(
+                """
+                INSERT INTO work_projection_state(source_kind, source_id, source_updated_at, projected_id)
+                VALUES(?, ?, ?, ?)
+                ON CONFLICT(source_kind, source_id) DO UPDATE SET
+                    source_updated_at=excluded.source_updated_at,
+                    projected_id=excluded.projected_id
+                """,
+                (str(kind), str(source_id), _source_stamp(updated_at), projected_id),
+            )
 
     def project_goal(self, p10_goal: dict[str, Any]) -> GoalSpec:
         description = str(p10_goal.get("description") or "").strip()
@@ -104,20 +144,22 @@ class P10WorkBridge:
                 metadata={
                     "allowed_capabilities": list(p10_goal.get("allowed_capabilities") or []),
                     "prohibited_actions": list(p10_goal.get("prohibited_actions") or []),
-                    "authority": "p10_existing_runtime",
+                    "authority": self.execution_authority,
                 }
             ),
             priority=int(p10_goal.get("priority", 50)),
             deadline=p10_goal.get("deadline"),
             data_classification=str(p10_goal.get("privacy") or "internal"),
             budget=ExecutionBudget(max_attempts=1),
-            approval_policy={"authority": "existing_runtime", "projection_mode": self.mode},
+            approval_policy={"authority": self.execution_authority, "projection_mode": self.mode},
             created_from="p10",
             created_at=_iso(p10_goal.get("created_at")),
             updated_at=_iso(p10_goal.get("updated_at")),
         )
         with self.lock:
-            return self.work.upsert_goal(spec, source_p10_goal_id=str(p10_goal["id"]))
+            saved = self.work.upsert_goal(spec, source_p10_goal_id=str(p10_goal["id"]))
+            self._mark_projected("goal", str(p10_goal["id"]), p10_goal.get("updated_at"), saved.id)
+            return saved
 
     def project_plan(
         self,
@@ -166,10 +208,7 @@ class P10WorkBridge:
                 )
                 requested_tool = str(task.get("requested_tool") or task.get("action") or "").strip()
                 worker_type = "tool" if requested_tool else "orchestrator"
-                status = _ORDER_STATUS.get(
-                    str(task.get("status") or "WAITING").upper(),
-                    WorkOrderStatus.BLOCKED,
-                )
+                status = _ORDER_STATUS.get(str(task.get("status") or "WAITING").upper(), WorkOrderStatus.BLOCKED)
                 orders.append(
                     WorkOrder(
                         id=order_ids[task_id],
@@ -180,27 +219,31 @@ class P10WorkBridge:
                         worker_type=worker_type,
                         status=status,
                         priority=goal.priority,
-                        dependencies=tuple(
-                            order_ids[str(dep)]
-                            for dep in task.get("dependencies", [])
-                            if str(dep) in order_ids
-                        ),
+                        dependencies=tuple(order_ids[str(dep)] for dep in task.get("dependencies", []) if str(dep) in order_ids),
                         allowed_capabilities=tuple(str(x) for x in task.get("required_capabilities", [])),
                         resource_scope=ResourceScope(
                             metadata={
                                 "p10_task_id": task_id,
                                 "requested_tool": requested_tool or None,
+                                "execution_authority": self.execution_authority,
                             }
                         ),
                         expected_output=objective,
                         evidence_contract=contract,
                         verification_strategy={
-                            "authority": "p10_p6_existing_runtime",
+                            "authority": "p10_p6_governed_verification",
+                            "execution_authority": self.execution_authority,
                             "required": verification_required,
                             "projection_mode": self.mode,
                         },
-                        approval_policy={"required": bool(task.get("approval_required"))},
-                        retry_policy={"max_retries": int(task.get("retry_limit", 0))},
+                        approval_policy={
+                            "required": bool(task.get("approval_required")),
+                            "authority": "existing_owner_approval_governance",
+                        },
+                        retry_policy={
+                            "max_retries": int(task.get("retry_limit", 0)),
+                            "authority": "canonical_work_failure_policy" if self.mode == "canonical_authority" else "p10_existing_runtime",
+                        },
                         workflow_id=task.get("operation_plan_id"),
                         workflow_run_id=task.get("operation_id") or task.get("result_ref"),
                         created_at=created_at,
@@ -226,39 +269,71 @@ class P10WorkBridge:
                 work_orders=tuple(orders),
                 evidence_contract=EvidenceContract(require_review=False),
                 critic={
-                    "projection": "p10",
+                    "projection": "p10_compatibility_document",
                     "source_p10_state": p10_state,
-                    "observe_only": True,
+                    "projection_mode": self.mode,
+                    "observe_only": self.mode == "observe_only",
+                    "execution_authority": self.execution_authority,
                 },
                 readiness=readiness,
                 status=status,
                 supersedes_plan_id=supersedes,
                 created_at=created_at,
             )
-            return self.work.save_plan(projected, source_p10_plan_id=source_plan_id)
+            saved = self.work.save_plan(projected, source_p10_plan_id=source_plan_id)
+            self._mark_projected("plan", source_plan_id, p10_plan.get("updated_at"), saved.id)
+            return saved
 
     def backfill(self) -> dict[str, int]:
+        """Reconcile only missing/stale P10 projections.
+
+        Projection watermarks are written after each successful Goal/Plan projection.
+        A crash between the source save and projection leaves a stale watermark and is
+        repaired here, while ordinary restarts avoid rewriting already-synchronized
+        canonical Work rows.
+        """
         with self.lock:
-            goals = [
-                json.loads(row[0])
+            goal_rows = self.connection.execute(
+                "SELECT id, updated_at, document FROM p10_goals ORDER BY updated_at, id"
+            ).fetchall()
+            plan_rows = self.connection.execute(
+                "SELECT id, goal_id, updated_at, document FROM p10_plans ORDER BY updated_at, id"
+            ).fetchall()
+            state = {
+                (str(row["source_kind"]), str(row["source_id"])): str(row["source_updated_at"])
                 for row in self.connection.execute(
-                    "SELECT document FROM p10_goals ORDER BY updated_at, id"
+                    "SELECT source_kind, source_id, source_updated_at FROM work_projection_state"
                 ).fetchall()
-            ]
-            goal_by_id = {str(goal["id"]): goal for goal in goals}
-            for goal in goals:
-                self.project_goal(goal)
-            plans = [
-                json.loads(row[0])
+            }
+            projected_goals = {
+                str(row[0])
                 for row in self.connection.execute(
-                    "SELECT document FROM p10_plans ORDER BY updated_at, id"
+                    "SELECT source_p10_goal_id FROM work_goals WHERE source_p10_goal_id IS NOT NULL"
                 ).fetchall()
-            ]
-            for plan in plans:
-                goal = goal_by_id.get(str(plan.get("goal_id")))
-                if goal is not None:
-                    self.project_plan(plan, goal)
-            return {"goals": len(goals), "plans": len(plans)}
+            }
+            projected_plans = {
+                str(row[0])
+                for row in self.connection.execute(
+                    "SELECT DISTINCT source_p10_plan_id FROM work_plans WHERE source_p10_plan_id IS NOT NULL"
+                ).fetchall()
+            }
+            goal_documents = {str(row["id"]): str(row["document"]) for row in goal_rows}
+
+            for row in goal_rows:
+                source_id = str(row["id"])
+                if source_id in projected_goals and state.get(("goal", source_id)) == _source_stamp(row["updated_at"]):
+                    continue
+                self.project_goal(json.loads(row["document"]))
+
+            for row in plan_rows:
+                source_id = str(row["id"])
+                if source_id in projected_plans and state.get(("plan", source_id)) == _source_stamp(row["updated_at"]):
+                    continue
+                plan = json.loads(row["document"])
+                goal_document = goal_documents.get(str(row["goal_id"]))
+                if goal_document is not None:
+                    self.project_plan(plan, json.loads(goal_document))
+            return {"goals": len(goal_rows), "plans": len(plan_rows)}
 
     def observe_governed_completion(
         self,
@@ -270,18 +345,14 @@ class P10WorkBridge:
             return None
         if not task.get("operation_plan_id") or not task.get("result_ref"):
             return None
-
         projected = self.project_plan(p10_plan, p10_goal)
         task_id = str(task["id"])
         order_id = f"{projected.id}:{task_id}"
         order = self.work.get_order(order_id)
         if order is None:
             return None
-
         source = str(task.get("result_ref"))
-        digest = hashlib.sha256(
-            f"{p10_plan['id']}|{task_id}|{source}|verified".encode("utf-8")
-        ).hexdigest()[:32]
+        digest = hashlib.sha256(f"{p10_plan['id']}|{task_id}|{source}|verified".encode("utf-8")).hexdigest()[:32]
         evidence_id = f"ev-{digest}"
         item = self.evidence.get_evidence(evidence_id)
         if item is None:
@@ -295,23 +366,16 @@ class P10WorkBridge:
                 source_type="p10_governed_operation",
                 source=source,
                 subject=order.objective,
-                observation=(
-                    "The existing governed P10/P6 execution path marked this task complete "
-                    "only after a VERIFIED or RECOVERED operation outcome."
-                ),
+                observation="The governed P10/P6 compatibility execution path marked this task complete only after a VERIFIED or RECOVERED operation outcome.",
                 artifact_ref=source,
                 provenance=EvidenceProvenance.TOOL_VERIFIED,
                 verification_state=VerificationState.VERIFIED,
-                verification_reason=(
-                    "Inherited from the qualified P10/P6 completion invariant; "
-                    "this bridge does not independently grant verification."
-                ),
+                verification_reason="Inherited from the qualified P10/P6 verification invariant; canonical Work supplies durable dispatch/attempt authority but does not invent verification.",
                 confidence=1.0,
                 data_classification=str(p10_goal.get("privacy") or "internal"),
             )
             with self.lock:
                 self.evidence.record_evidence(item)
-
         claim_id = f"claim-{hashlib.sha256(order_id.encode('utf-8')).hexdigest()[:32]}"
         claim = self.evidence.get_claim(claim_id)
         if claim is None:
@@ -330,7 +394,6 @@ class P10WorkBridge:
                 self.evidence.link_evidence(claim_id, evidence_id)
         except sqlite3.IntegrityError:
             pass
-
         supporting = self.evidence.evidence_for_claim(claim_id)
         decision = ClaimGate.evaluate(claim, supporting)
         with self.lock:
@@ -365,13 +428,10 @@ class P10WorkBridge:
             base = self.work.status()
             base.update(
                 {
-                    "evidence": int(
-                        self.connection.execute("SELECT COUNT(*) FROM evidence").fetchone()[0]
-                    ),
-                    "claims": int(
-                        self.connection.execute("SELECT COUNT(*) FROM claims").fetchone()[0]
-                    ),
+                    "evidence": int(self.connection.execute("SELECT COUNT(*) FROM evidence").fetchone()[0]),
+                    "claims": int(self.connection.execute("SELECT COUNT(*) FROM claims").fetchone()[0]),
                     "mode": self.mode,
+                    "execution_authority": self.execution_authority,
                     "durability_schema": 3,
                 }
             )

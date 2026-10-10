@@ -12,9 +12,11 @@ def test_repository_body_manifest_loads_and_hash_is_stable():
 
     assert first.identity["name"] == "Vishnu"
     assert first.identity["role"] == "personal_ai"
-    assert first.contracts["evidence"] == 2
+    assert first.contracts["evidence"] == 3
+    assert first.contracts["work"] == 3
+    assert first.contracts["extension"] == 2
     assert first.manifest_hash == second.manifest_hash
-    assert first.manifest_id.startswith("body-v1-")
+    assert first.manifest_id.startswith("body-v2-")
     assert first.revision_id_for("commit-a") != first.revision_id_for("commit-b")
 
 

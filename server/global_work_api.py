@@ -16,12 +16,7 @@ def _now() -> str:
 
 
 class GlobalWorkService:
-    """Read-only, owner-scoped projection of canonical Work across Projects.
-
-    This service cannot create plans, execute tools, approve actions, retry work,
-    verify claims, or recover operations. It only summarizes the already-qualified
-    Project Work/P10 state for global Home/Today/living-agent presentation.
-    """
+    """Read-only, owner-scoped projection of canonical Work across Projects."""
 
     def __init__(self, runtime: dict, store) -> None:
         self.runtime = runtime
@@ -179,13 +174,32 @@ class GlobalWorkService:
                 str(item.get("title") or "").lower(),
             )
         )
+
+        automation_count = 0
+        try:
+            canonical = self.runtime.get("canonical_work_store") or bridge.work
+            automation_count = int(
+                canonical.connection.execute(
+                    "SELECT COUNT(*) FROM work_orders WHERE worker_type='automation'"
+                ).fetchone()[0]
+            )
+        except Exception:
+            pass
+
+        authority = getattr(getattr(autonomy, "_canonical_work_authority", None), "mode", None)
+        # Older/fake compatibility runtimes remain explicitly identifiable while
+        # the real E9 runtime reports canonical Work authority.
+        execution_authority = "canonical_work" if authority else "existing_p10_p6_runtime"
+        work_authority_mode = authority or "compatibility_projection"
         return {
             "authority": "read_only_projection",
-            "execution_authority": "existing_p10_p6_runtime",
+            "execution_authority": execution_authority,
+            "work_authority_mode": work_authority_mode,
             "updated_at": _now(),
             "projects_total": len(projects),
             "projects_with_work": len(project_rows),
             "active_projects": active_projects,
+            "automation_work_orders": automation_count,
             "task_counts": dict(task_counts),
             "counts": {
                 "active": active,
