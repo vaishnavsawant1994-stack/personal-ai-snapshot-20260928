@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sqlite3
 from types import SimpleNamespace
 
 import pytest
@@ -11,6 +10,15 @@ from future_intelligence.agent_workforce import AgentWorkforceService, AgentWork
 def service(tmp_path, **kwargs):
     store = AgentWorkforceStore(tmp_path / "agents.sqlite3")
     return AgentWorkforceService(store, **kwargs)
+
+
+def qualification(name="agent-v1.1"):
+    return {
+        "passed": True,
+        "qualification_run_id": name,
+        "test_summary": "Regression and isolation qualification passed.",
+        "evidence_refs": [f"evidence:{name}"],
+    }
 
 
 def test_core_agents_seed_once_and_summary_is_real(tmp_path):
@@ -57,7 +65,16 @@ def test_team_creation_adds_project_manager_and_requested_specialists(tmp_path):
     assert {row["project_id"] for row in team["members"]} == {"p1"}
 
 
-def test_versions_coexist_and_preferred_promotion_does_not_delete_old(tmp_path):
+def test_ensure_project_manager_is_idempotent(tmp_path):
+    workforce = service(tmp_path)
+    first = workforce.ensure_project_manager("p1")
+    second = workforce.ensure_project_manager("p1")
+    team = workforce.project_team("p1")
+    assert first["id"] == second["instance_id"]
+    assert len([row for row in team if row["is_manager"]]) == 1
+
+
+def test_versions_coexist_and_preferred_promotion_requires_real_qualification(tmp_path):
     workforce = service(tmp_path)
     coding = workforce.store.get_template_by_slug("coding")
     v1 = workforce.store.preferred_version(coding["id"])
@@ -67,9 +84,17 @@ def test_versions_coexist_and_preferred_promotion_does_not_delete_old(tmp_path):
     )
     with pytest.raises(ValueError):
         workforce.promote_version(v11["id"], state="preferred", qualification={"passed": False})
-    promoted = workforce.promote_version(v11["id"], state="preferred", qualification={"passed": True, "benchmark": "agent-v1.1"})
+    with pytest.raises(ValueError):
+        workforce.promote_version(v11["id"], state="preferred", qualification={"passed": True})
+    with pytest.raises(ValueError):
+        workforce.promote_version(
+            v11["id"], state="stable",
+            qualification={"passed": True, "test_summary": "passed but no evidence"},
+        )
+    promoted = workforce.promote_version(v11["id"], state="preferred", qualification=qualification())
     versions = workforce.store.list_versions(coding["id"])
     assert promoted["state"] == "preferred"
+    assert promoted["qualification"]["authority"] is False
     assert {row["version"] for row in versions} >= {"1.0", "1.1"}
     assert workforce.store.get_version(v1["id"])["state"] == "stable"
 
@@ -81,7 +106,7 @@ def test_work_order_pins_exact_agent_version(tmp_path):
     worker = workforce.create_instance(coding["id"], project_id="p", version_id=v1["id"])
     assignment = workforce.store.assign(worker["id"], project_id="p", work_order_id="w1")
     v11 = workforce.create_version(coding["id"], version="1.1", parent_version_id=v1["id"], instructions=v1["instructions"])
-    workforce.promote_version(v11["id"], state="preferred", qualification={"passed": True})
+    workforce.promote_version(v11["id"], state="preferred", qualification=qualification("pinning"))
     assert workforce.store.get_assignment(assignment["id"])["version_id"] == v1["id"]
 
 
