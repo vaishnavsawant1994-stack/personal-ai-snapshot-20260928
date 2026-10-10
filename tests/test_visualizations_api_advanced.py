@@ -89,8 +89,8 @@ class _LifeGraph:
         return {'nodes': visible[:limit], 'edges': [], 'linked_second_brain': True}
 
 
-def _client(tmp_path, *, sensitive=True, private=True):
-    service = VisualIntelligenceService(tmp_path / 'visuals.sqlite3')
+def _client(tmp_path, *, sensitive=True, private=True, service=None):
+    service = service or VisualIntelligenceService(tmp_path / 'visuals.sqlite3')
     knowledge = _Knowledge()
     life_graph = _LifeGraph()
     runtime = {
@@ -198,3 +198,79 @@ def test_edit_presentation_scene_and_export_are_real_http_routes(tmp_path):
     finally:
         client.close()
         service.close()
+
+
+def test_persisted_private_and_sensitive_visuals_recheck_device_scope(tmp_path):
+    shared = VisualIntelligenceService(tmp_path / 'shared-visuals.sqlite3')
+    privileged, _, privileged_knowledge, privileged_life = _client(
+        tmp_path,
+        sensitive=True,
+        private=True,
+        service=shared,
+    )
+    try:
+        ordinary = privileged.post('/iphone/api/visualizations', json={
+            'title': 'Public architecture', 'type': 'architecture', 'description': 'App -> API',
+        })
+        assert ordinary.status_code == 200
+        ordinary_id = ordinary.json()['visualization']['id']
+
+        knowledge = privileged.post('/iphone/api/visualizations/knowledge-map', json={'title': 'Private Knowledge'})
+        assert knowledge.status_code == 200
+        knowledge_visual = knowledge.json()['visualization']
+        knowledge_id = knowledge_visual['id']
+        assert 'private' in knowledge_visual['graph']['metadata']['access_classes']
+        assert 'private' in privileged_knowledge.last_access_classes
+
+        memory = privileged.post('/iphone/api/visualizations/memory-map', json={
+            'title': 'Sensitive Memory', 'include_sensitive': True,
+        })
+        assert memory.status_code == 200
+        memory_visual = memory.json()['visualization']
+        memory_id = memory_visual['id']
+        assert set(memory_visual['graph']['metadata']['allowed_sensitivities']) == {'normal', 'sensitive', 'secret'}
+        assert privileged_life.allowed == {'normal', 'sensitive', 'secret'}
+
+        refreshed_knowledge = privileged.post(f'/iphone/api/visualizations/{knowledge_id}/refresh', json={})
+        assert refreshed_knowledge.status_code == 200
+        assert 'private' in refreshed_knowledge.json()['visualization']['graph']['metadata']['access_classes']
+        refreshed_memory = privileged.post(f'/iphone/api/visualizations/{memory_id}/refresh', json={})
+        assert refreshed_memory.status_code == 200
+        assert set(refreshed_memory.json()['visualization']['graph']['metadata']['allowed_sensitivities']) == {'normal', 'sensitive', 'secret'}
+    finally:
+        privileged.close()
+
+    restricted, _, _, restricted_life = _client(
+        tmp_path,
+        sensitive=False,
+        private=False,
+        service=shared,
+    )
+    try:
+        listed = restricted.get('/iphone/api/visualizations')
+        assert listed.status_code == 200
+        visible_ids = {item['id'] for item in listed.json()['visualizations']}
+        assert ordinary_id in visible_ids
+        assert knowledge_id not in visible_ids
+        assert memory_id not in visible_ids
+
+        for visual_id in (knowledge_id, memory_id):
+            assert restricted.get(f'/iphone/api/visualizations/{visual_id}').status_code == 403
+            assert restricted.get(f'/iphone/api/visualizations/{visual_id}/export?format=json').status_code == 403
+            assert restricted.get(f'/iphone/api/visualizations/{visual_id}/artifact').status_code == 403
+            assert restricted.get(f'/iphone/api/visualizations/{visual_id}/revisions').status_code == 403
+            assert restricted.get(f'/iphone/api/visualizations/{visual_id}/presentation').status_code == 403
+            assert restricted.get(f'/iphone/api/visualizations/{visual_id}/scene?dimension=3d').status_code == 403
+            assert restricted.post(f'/iphone/api/visualizations/{visual_id}/refresh', json={}).status_code == 403
+            assert restricted.post(f'/iphone/api/visualizations/{visual_id}/edit', json={'instruction': 'Highlight anything'}).status_code == 403
+            assert restricted.delete(f'/iphone/api/visualizations/{visual_id}').status_code == 403
+
+        compare = restricted.post('/iphone/api/visualizations/compare', json={
+            'before_id': ordinary_id,
+            'after_id': memory_id,
+        })
+        assert compare.status_code == 403
+        assert restricted_life.allowed is None
+    finally:
+        restricted.close()
+        shared.close()
