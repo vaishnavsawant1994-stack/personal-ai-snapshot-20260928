@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
+
 
 class ProjectWorkforceStoreAdapter:
     """ProjectStore compatibility adapter that reconciles workforce bootstrap.
@@ -32,7 +34,10 @@ class ProjectWorkforceStoreAdapter:
         if not project_id or status == "archived":
             return project
         try:
-            result = self._workforce.reconcile_project_work(project_id)
+            store = getattr(self._workforce, "store", None)
+            lock = getattr(store, "lock", None)
+            with lock if lock is not None else nullcontext():
+                result = self._workforce.reconcile_project_work(project_id)
             manager = result.get("manager") if isinstance(result, dict) else None
             self._emit(
                 "agent.team.reconciled",
