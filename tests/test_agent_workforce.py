@@ -65,6 +65,19 @@ def test_team_creation_adds_project_manager_and_requested_specialists(tmp_path):
     assert {row["project_id"] for row in team["members"]} == {"p1"}
 
 
+def test_team_rebuild_never_duplicates_project_manager_even_if_requested(tmp_path):
+    workforce = service(tmp_path)
+    workforce.ensure_project_manager("p1")
+    workforce.create_team("p1", {"project-manager": 9, "coding": 1})
+    workforce.create_team("p1", {"project-manager": 2, "research": 1})
+    team = workforce.project_team("p1")
+    assert len([row for row in team if row["is_manager"]]) == 1
+    roles = [row["role"] for row in team]
+    assert roles.count("project_manager") == 1
+    assert roles.count("coding") == 1
+    assert roles.count("research") == 1
+
+
 def test_ensure_project_manager_is_idempotent(tmp_path):
     workforce = service(tmp_path)
     first = workforce.ensure_project_manager("p1")
