@@ -6,7 +6,7 @@ from collections import Counter
 from models.contracts import ModelRequest
 
 from .chat import AgentConversationStore
-from .models import AgentVersionState
+from .models import AgentInstanceState, AgentVersionState
 from .store import AgentWorkforceStore
 
 
@@ -24,6 +24,39 @@ CORE_AGENTS = (
     ("communications", "Communications Agent", "communications", "Drafts and prepares communications subject to approval policy.", ("communications", "drafting")),
     ("knowledge", "Knowledge Agent", "knowledge", "Maintains project knowledge and verified reusable learnings.", ("knowledge", "synthesis")),
 )
+
+WORKER_AGENT_SLUGS = {
+    "project": "project-manager",
+    "project_manager": "project-manager",
+    "orchestrator": "project-manager",
+    "coding": "coding",
+    "research": "research",
+    "browser": "browser",
+    "data": "data",
+    "reviewer": "reviewer",
+    "review": "reviewer",
+    "qa": "qa",
+    "security": "security",
+    "design": "design",
+    "files": "files",
+    "communications": "communications",
+    "knowledge": "knowledge",
+}
+
+WORK_STATUS_INSTANCE_STATE = {
+    "draft": AgentInstanceState.ASSIGNED.value,
+    "queued": AgentInstanceState.ASSIGNED.value,
+    "running": AgentInstanceState.WORKING.value,
+    "waiting_approval": AgentInstanceState.WAITING_APPROVAL.value,
+    "waiting_resource": AgentInstanceState.WAITING_RESOURCE.value,
+    "retrying": AgentInstanceState.RETRYING.value,
+    "blocked": AgentInstanceState.BLOCKED.value,
+    "paused": AgentInstanceState.PAUSED.value,
+    "recovery_required": AgentInstanceState.RECOVERING.value,
+    "verifying": AgentInstanceState.VERIFYING.value,
+    "reviewing": AgentInstanceState.REVIEWING.value,
+}
+TERMINAL_WORK_STATES = {"completed", "failed", "cancelled"}
 
 
 class AgentWorkforceService:
@@ -109,6 +142,8 @@ class AgentWorkforceService:
         slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:90]
         if not slug:
             raise ValueError("agent name must contain letters or numbers")
+        if self.store.get_template_by_slug(slug) is not None:
+            raise ValueError("an agent with this normalized name already exists")
         template = self.store.create_template(slug=slug, name=name, role=role, description=description, system_owned=False)
         version = self.store.create_version(
             template["id"], version="1.0", state=AgentVersionState.CANDIDATE.value,
@@ -122,8 +157,11 @@ class AgentWorkforceService:
         parent = self.store.get_version(parent_version_id)
         if parent["template_id"] != template_id:
             raise ValueError("parent version does not belong to template")
+        normalized_version = str(version).strip()
+        if any(row["version"] == normalized_version for row in self.store.list_versions(template_id)):
+            raise ValueError("agent version already exists")
         created = self.store.create_version(
-            template_id, version=version, state=AgentVersionState.CANDIDATE.value,
+            template_id, version=normalized_version, state=AgentVersionState.CANDIDATE.value,
             instructions=instructions, capabilities=tuple(capabilities) or tuple(parent["capabilities"]),
             tools=tuple(tools) or tuple(parent["tools"]), memory_policy=parent["memory_policy"],
             model_policy=model_policy or parent["model_policy"], parent_version_id=parent_version_id,
@@ -168,6 +206,8 @@ class AgentWorkforceService:
     def create_team(self, project_id: str, requirements: dict[str, int]) -> dict:
         if not project_id:
             raise ValueError("project_id is required")
+        if len(dict(requirements or {})) > 50:
+            raise ValueError("too many agent types requested")
         clean = Counter()
         for slug, raw_count in dict(requirements or {}).items():
             count = max(0, min(100, int(raw_count)))
@@ -199,9 +239,17 @@ class AgentWorkforceService:
             raise RuntimeError("Project Manager template unavailable")
         return self.create_instance(template["id"], project_id=project_id)
 
+    def _work_order(self, work_order_id: str):
+        if self.work_store is None:
+            return None
+        getter = getattr(self.work_store, "get_order", None) or getattr(self.work_store, "get_work_order", None)
+        if getter is None:
+            raise RuntimeError("canonical WorkStore cannot resolve WorkOrders")
+        return getter(work_order_id)
+
     def assign(self, instance_id: str, *, project_id: str, work_order_id: str) -> dict:
         if self.work_store is not None:
-            work = self.work_store.get_work_order(work_order_id)
+            work = self._work_order(work_order_id)
             if work is None:
                 raise KeyError(work_order_id)
             work_project = getattr(work, "project_id", None) if not isinstance(work, dict) else work.get("project_id")
@@ -210,6 +258,121 @@ class AgentWorkforceService:
         assignment = self.store.assign(instance_id, project_id=project_id, work_order_id=work_order_id)
         self._emit("agent.assignment.created", assignment_id=assignment["id"], instance_id=instance_id, project_id=project_id, work_order_id=work_order_id, version_id=assignment["version_id"])
         return assignment
+
+    @staticmethod
+    def _order_status(order) -> str:
+        status = getattr(order, "status", "")
+        return str(getattr(status, "value", status) or "").lower()
+
+    @staticmethod
+    def _order_capabilities(order) -> set[str]:
+        return {str(item).strip().lower() for item in (getattr(order, "allowed_capabilities", ()) or ()) if str(item).strip()}
+
+    def _agent_slug_for_order(self, order) -> str | None:
+        worker_type = str(getattr(order, "worker_type", "") or "").strip().lower()
+        if worker_type in WORKER_AGENT_SLUGS:
+            return WORKER_AGENT_SLUGS[worker_type]
+        if worker_type != "tool":
+            return None
+        capabilities = self._order_capabilities(order)
+        if capabilities & {"browser", "browsing", "web", "web_research"}:
+            return "browser"
+        if capabilities & {"files", "documents", "filesystem"}:
+            return "files"
+        if capabilities & {"communications", "email", "messaging"}:
+            return "communications"
+        if capabilities & {"data", "sql", "spreadsheet", "spreadsheets", "analysis"}:
+            return "data"
+        if capabilities & {"git", "coding", "development", "testing"}:
+            return "coding"
+        if capabilities & {"research", "sources"}:
+            return "research"
+        return None
+
+    def _assignment_for_work_order(self, work_order_id: str) -> dict | None:
+        row = self.store.connection.execute(
+            "SELECT * FROM agent_assignments WHERE work_order_id=?", (str(work_order_id),)
+        ).fetchone()
+        return dict(row) if row is not None else None
+
+    def reconcile_project_work(self, project_id: str) -> dict:
+        """Project canonical Work -> workforce projection, never execution authority.
+
+        This may allocate an idle specialist and mirror canonical Work status into
+        the workforce UI. It does not dispatch Work, call tools, grant approvals,
+        produce Evidence or decide completion.
+        """
+        manager = self.ensure_project_manager(project_id)
+        if self.work_store is None or not hasattr(self.work_store, "latest_project_plan_record"):
+            return {"project_id": project_id, "manager": manager, "assignments": [], "unmapped": []}
+        record = self.work_store.latest_project_plan_record(project_id)
+        if not record:
+            return {"project_id": project_id, "manager": manager, "assignments": [], "unmapped": []}
+        plan = record["plan"] if isinstance(record, dict) else record
+        assignments, unmapped = [], []
+        for order in tuple(getattr(plan, "work_orders", ()) or ()):
+            order_id = str(getattr(order, "id", "") or "")
+            if not order_id:
+                continue
+            status = self._order_status(order)
+            existing = self._assignment_for_work_order(order_id)
+            if existing is not None:
+                if status in TERMINAL_WORK_STATES and not existing.get("completed_at"):
+                    existing = self.store.finish_assignment(
+                        existing["id"], status="completed" if status == "completed" else "failed"
+                    )
+                elif status not in TERMINAL_WORK_STATES:
+                    projected_state = WORK_STATUS_INSTANCE_STATE.get(status)
+                    if projected_state:
+                        self.store.set_instance_state(existing["instance_id"], projected_state)
+                assignments.append(existing)
+                continue
+            if status in TERMINAL_WORK_STATES:
+                continue
+            slug = self._agent_slug_for_order(order)
+            if slug is None:
+                unmapped.append(order_id)
+                continue
+            template = self.store.get_template_by_slug(slug)
+            if template is None:
+                unmapped.append(order_id)
+                continue
+            team = self.store.list_project_team(project_id)
+            candidate = next(
+                (
+                    row for row in team
+                    if row.get("template_id") == template["id"]
+                    and row.get("state") in {AgentInstanceState.IDLE.value, AgentInstanceState.COMPLETED.value}
+                    and not row.get("current_work_order_id")
+                ),
+                None,
+            )
+            if candidate is None:
+                instance = self.create_instance(template["id"], project_id=project_id)
+                instance_id = instance["id"]
+            else:
+                instance_id = candidate["instance_id"]
+            assignment = self.store.assign(instance_id, project_id=project_id, work_order_id=order_id)
+            projected_state = WORK_STATUS_INSTANCE_STATE.get(status)
+            if projected_state:
+                self.store.set_instance_state(instance_id, projected_state)
+            assignments.append(assignment)
+            self._emit(
+                "agent.assignment.reconciled",
+                assignment_id=assignment["id"],
+                instance_id=instance_id,
+                project_id=project_id,
+                work_order_id=order_id,
+                worker_type=str(getattr(order, "worker_type", "")),
+                authority=False,
+            )
+        return {
+            "project_id": project_id,
+            "manager": manager,
+            "assignments": assignments,
+            "unmapped": unmapped,
+            "execution_authority": False,
+        }
 
     def project_team(self, project_id: str) -> list[dict]:
         return self.store.list_project_team(project_id)
