@@ -84,6 +84,12 @@ class AgentWorkforceService:
         self.worker_intelligence = worker_intelligence
         self.models = models
         self.events = events
+        # The store is owner-local and shared by workforce + specialist chat.
+        # Enforce relational integrity for all service writes and tolerate normal
+        # short SQLite writer contention instead of surfacing transient lock errors.
+        with self.store.lock:
+            self.store.connection.execute("PRAGMA foreign_keys=ON")
+            self.store.connection.execute("PRAGMA busy_timeout=5000")
         self.chat_store = AgentConversationStore(store.connection, lock=store.lock)
         self.seed_core_agents()
 
@@ -206,38 +212,41 @@ class AgentWorkforceService:
     def create_team(self, project_id: str, requirements: dict[str, int]) -> dict:
         if not project_id:
             raise ValueError("project_id is required")
-        if len(dict(requirements or {})) > 50:
+        requested = dict(requirements or {})
+        if len(requested) > 50:
             raise ValueError("too many agent types requested")
         clean = Counter()
-        for slug, raw_count in dict(requirements or {}).items():
+        for slug, raw_count in requested.items():
+            normalized = str(slug)
+            if normalized == "project-manager":
+                continue
             count = max(0, min(100, int(raw_count)))
             if count:
-                clean[str(slug)] += count
-        if not clean:
-            clean["project-manager"] = 1
-        if clean.get("project-manager", 0) == 0:
-            clean["project-manager"] = 1
-        members = []
-        for slug, count in clean.items():
-            template = self.store.get_template_by_slug(slug)
-            if template is None:
-                raise KeyError(f"unknown agent type: {slug}")
-            for _ in range(count):
-                members.append(self.create_instance(template["id"], project_id=project_id))
-        self._emit("agent.team.created", project_id=project_id, instance_ids=[row["id"] for row in members])
+                clean[normalized] += count
+        with self.store.lock:
+            self.ensure_project_manager(project_id)
+            created = []
+            for slug, count in clean.items():
+                template = self.store.get_template_by_slug(slug)
+                if template is None:
+                    raise KeyError(f"unknown agent type: {slug}")
+                for _ in range(count):
+                    created.append(self.create_instance(template["id"], project_id=project_id))
+        self._emit("agent.team.created", project_id=project_id, instance_ids=[row["id"] for row in created])
         return {"project_id": project_id, "members": self.store.list_project_team(project_id)}
 
     def ensure_project_manager(self, project_id: str) -> dict:
-        """Idempotently make the Project Manager the first workforce member."""
+        """Idempotently make exactly one Project Manager the workforce anchor."""
         if not project_id:
             raise ValueError("project_id is required")
-        existing = [row for row in self.store.list_project_team(project_id) if bool(row.get("is_manager"))]
-        if existing:
-            return existing[0]
-        template = self.store.get_template_by_slug("project-manager")
-        if template is None:
-            raise RuntimeError("Project Manager template unavailable")
-        return self.create_instance(template["id"], project_id=project_id)
+        with self.store.lock:
+            existing = [row for row in self.store.list_project_team(project_id) if bool(row.get("is_manager"))]
+            if existing:
+                return existing[0]
+            template = self.store.get_template_by_slug("project-manager")
+            if template is None:
+                raise RuntimeError("Project Manager template unavailable")
+            return self.create_instance(template["id"], project_id=project_id)
 
     def _work_order(self, work_order_id: str):
         if self.work_store is None:
@@ -318,9 +327,8 @@ class AgentWorkforceService:
             existing = self._assignment_for_work_order(order_id)
             if existing is not None:
                 if status in TERMINAL_WORK_STATES and not existing.get("completed_at"):
-                    existing = self.store.finish_assignment(
-                        existing["id"], status="completed" if status == "completed" else "failed"
-                    )
+                    terminal_status = "completed" if status == "completed" else "cancelled" if status == "cancelled" else "failed"
+                    existing = self.store.finish_assignment(existing["id"], status=terminal_status)
                 elif status not in TERMINAL_WORK_STATES:
                     projected_state = WORK_STATUS_INSTANCE_STATE.get(status)
                     if projected_state:
