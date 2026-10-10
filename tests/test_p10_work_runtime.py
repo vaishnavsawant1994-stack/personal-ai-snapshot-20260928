@@ -65,7 +65,7 @@ def test_runtime_projects_and_observes_verified_governed_completion(tmp_path):
     assert evidence[0]["verification_state"] == "verified"
 
     status = autonomy.status()["work_orchestration"]
-    assert status["mode"] == "observe_only"
+    assert status["mode"] == "canonical_authority"
     assert status["evidence"] == 1
     assert status["claims"] == 1
 
