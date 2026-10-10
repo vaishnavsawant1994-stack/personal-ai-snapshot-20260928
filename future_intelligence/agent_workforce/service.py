@@ -299,10 +299,11 @@ class AgentWorkforceService:
         return None
 
     def _assignment_for_work_order(self, work_order_id: str) -> dict | None:
-        row = self.store.connection.execute(
-            "SELECT * FROM agent_assignments WHERE work_order_id=?", (str(work_order_id),)
-        ).fetchone()
-        return dict(row) if row is not None else None
+        with self.store.lock:
+            row = self.store.connection.execute(
+                "SELECT * FROM agent_assignments WHERE work_order_id=?", (str(work_order_id),)
+            ).fetchone()
+            return dict(row) if row is not None else None
 
     def reconcile_project_work(self, project_id: str) -> dict:
         """Project canonical Work -> workforce projection, never execution authority.
